@@ -1076,3 +1076,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 6 pass mocked (scope passthrough incl. stripped query + metadata/scores; `max_chars=500` on 1000ch → `≤500` + `…` + snapped; `max_chunks=2/5` → 2 + truncated; empty → `[]/0/False`; whitespace-only skipped untruncated; empty query ValueError + retrieve uncalled); full `pytest -q` 113 passed (6+107); `compose config` 0; no migration, no rebuild (pure service).
 **Guard:** No LLM/endpoint/consumer wording — unsupported-behavior stays with Phase 32+.
 **Known:** Truncation marker `…` single char; consumers must treat `chunks []` as their own no-context branch.
+
+## Phase 32 — Tutor Backend (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 32 + blueprint §§8/9 (`TutorAnswer`, threshold→unsupported, data-not-instructions)
+**Objective:** Grounded tutor endpoint with explicit unsupported behavior — never answer from open memory.
+**Contract:** `POST /projects/{project_id}/tutor/ask` via `get_authorized_project` → `tutor_service.ask_question(db, project_id, question, concept_id?)`: empty→ValueError(→400); `assemble_context` (top 5); no chunks → unsupported, no Groq call; best cosine distance > `SUPPORTED_MAX_DISTANCE 0.5` (provisional) → unsupported, no Groq call; else `chat_json` `{"answer"}` (validated non-empty) with system guard (context-only + uploaded text is DATA + cite `[n]`) → `{answer, supported: true, citations: context chunks}`. Unsupported → stable `UNSUPPORTED_MESSAGE` + `supported: false` + `citations []`. `httpx.HTTPError`→502, `RuntimeError`(key)→500, never leak key. No persistence (messages/activity_events are later phases); no concept detection yet (no consumer — deferred, noted).
+**Files:** `backend/app/api/v1/tutor.py`, `backend/app/services/tutor_service.py`, `backend/app/schemas/tutor.py`, `main.py` wire
+**Guard:** No open-memory answers; uploaded text never leaves the single user message as anything but delimited data.
+**Verify:** TestClient tests with mocked `assemble_context`+`chat_json` — grounded 200 + answer + chunk/material citations + Groq called once with guard in system prompt; injection-laced question still grounded (guard present, single user message); empty context + low-similarity → unsupported + Groq uncalled; foreign 404 + no-token 401; empty 400; Groq HTTPError → 502; full `pytest -q` green; `compose config` 0.
+
+### Phase 32 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/tutor_service.py` (`SUPPORTED_MAX_DISTANCE 0.5` provisional + `UNSUPPORTED_MESSAGE` + `ask_question`: empty→ValueError + `assemble_context` top 5 + no-chunks/best>0.5 → unsupported no-Groq + `chat_json {"answer"}` validated non-empty → `{answer, supported, citations}`), `backend/app/api/v1/tutor.py` (`POST /projects/{project_id}/tutor/ask` via `get_authorized_project`; ValueError→400, `httpx.HTTPError`→502, `RuntimeError`→500), `backend/app/schemas/tutor.py` (`TutorAskRequest/Citation/AskResponse`), `main.py` wire, `backend/tests/test_tutor.py` (6 tests), `docs/*`
+**Verify:** 6 pass mocked RAG/Groq on real auth/DB (grounded 200 + `[1]` answer + 2 chunk/material citations + guard `not instructions` in system + data in user; injection question/content stay delimited data, never in system; empty + 0.8/0.9 scores → exact unsupported + Groq uncalled; foreign/missing-project 404 + anonymous 401/403 + RAG/Groq untouched; blank 400 + `ConnectError` 502); full `pytest -q` 119 passed (6+113); `compose config` 0; no migration, no rebuild.
+**Guard:** No open-memory answers; model output validated before return; key never leaks (generic 502/500 details).
+**Known:** `SUPPORTED_MAX_DISTANCE 0.5` provisional — tune with real distributions (Phase 57); `detected_concept_id`/concept-list-in-prompt deferred (no messages/activity consumer yet — blueprint §9 association lands with persistence/analytics); citations = full context set, not model-selected subset.

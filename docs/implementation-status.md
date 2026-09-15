@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 31 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 32 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -41,7 +41,7 @@
 | 28 | Retrieval (RAG) | ✅ Complete | 2026-09-16 | Pass (real pgvector isolation) | `retrieval_service` + 5 integration tests |
 | — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
 | — | Embedding Worker (detail §29) | ✅ Complete | 2026-09-16 | Pass (mocked task+live pgvector) | `generate_embeddings` + `ab60908d37ca` + 5 tests |
-| 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
+| 29 | Tutor (Grounded Q&A) | ✅ Complete | 2026-09-16 | Pass (grounded+unsupported+isolation) | `tutor ask` endpoint + 6 tests |
 | 30 | Tutor Frontend | ⏳ Pending | — | — | — |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |
 | 32 | Quiz Generation | ⏳ Pending | — | — | — |
@@ -513,6 +513,16 @@
 **Verify:** passthrough asserts exact `retrieve` kwargs + stripped query + metadata/scores/total; 1000ch→`≤500` snapped `…`; 5 hits→2 + truncated; empty→`[]/0/False`; whitespace skipped; empty query `ValueError` + uncalled; `pytest -q` 113 passed (6+107); `compose config` 0; no migration, no rebuild.
 **Guard:** Consumer-neutral; `chunks []` is callers' no-context branch (tutor unsupported behavior is Phase 32).
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 32 (Tutor Backend).
+
+---
+
+## Phase 32 — Detail (compact)
+
+**Scope:** Synchronous grounded Q&A endpoint — no persistence, no concept detection yet.
+**Files:** `backend/app/services/tutor_service.py` (`SUPPORTED_MAX_DISTANCE 0.5` + `UNSUPPORTED_MESSAGE` + `_SYSTEM_PROMPT` context-only/data-not-instructions/`[n]` + `_build_user_prompt` numbered `<<<DATA` blocks + `ask_question`: empty→`ValueError` + `assemble_context` + no-chunks/best>0.5→unsupported + `chat_json {"answer"}` non-empty validated), `backend/app/api/v1/tutor.py` (`POST /projects/{project_id}/tutor/ask` via `get_authorized_project`; 400/502/500 mapping), `backend/app/schemas/tutor.py` (`TutorAskRequest` 1–2000 chars + `TutorCitation` + `TutorAskResponse`), `main.py` wire, `backend/tests/test_tutor.py` (6 tests), `docs/*`.
+**Verify:** grounded 200 + citation ids + guard asserted in system prompt; injection question + hostile chunk stay delimited data; empty/low-sim → exact unsupported + Groq uncalled; foreign/missing 404 + anon 401/403 + RAG/Groq untouched; blank 400 + provider-down 502; `pytest -q` 119 passed (6+113); `compose config` 0; no migration, no rebuild.
+**Guard:** No open-memory answers; uploaded text never promoted to instructions; key never in error details.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 33 (Tutor Frontend).
 
 ---
 

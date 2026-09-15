@@ -6,7 +6,7 @@ from fastapi import HTTPException, UploadFile, status
 from app.core.config import get_settings
 
 MAX_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
-ALLOWED_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
+ALLOWED_CONTENT_TYPES = {"application/pdf", "application/x-pdf", "application/octet-stream"}
 
 
 def _sanitize_filename(filename: str | None) -> str:
@@ -29,9 +29,8 @@ async def save_pdf(project_id: uuid.UUID, upload: UploadFile) -> tuple[str, str]
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PDF files are allowed (filename must end with .pdf)")
 
-    # content_type check if client sent one (some clients send octet-stream, we still require magic)
+    # content_type check — browsers may send octet-stream for PDFs; magic bytes are authoritative
     if upload.content_type and upload.content_type not in ALLOWED_CONTENT_TYPES:
-        # allow octet-stream only if magic passes? strict: reject non-pdf content_type
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PDF files are allowed (invalid content type)")
 
     content = await upload.read()

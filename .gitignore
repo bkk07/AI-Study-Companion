@@ -50,3 +50,5 @@ docker-compose.override.yml
 # Secrets / keys
 *.pem
 *.key
+# Local agent config may contain API keys — never commit
+opencode.json

@@ -37,10 +37,9 @@ def get_authorized_job(
         if not space:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     else:
-        # generic jobs without material: optionally restrict? For now allow any authenticated user to see own generic jobs
-        # Since generic jobs have no owner, we use job creation not tied to user — treat as accessible
-        # To keep isolation, we could store user_id on job — not yet. For Phase 22, allow.
-        pass
+        # Generic jobs carry no ownership chain — hide to preserve isolation
+        # until an owner field exists.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return job
 
 

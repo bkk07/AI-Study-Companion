@@ -187,13 +187,13 @@ def test_jobs_api_isolation():
         db.commit()
         db.close()
 
-        # also test generic ping job without material — currently allowed for any auth user (not owned check)
+        # generic jobs without material carry no ownership — must be hidden (404)
         Sess = sessionmaker(bind=engine)
         db = Sess()
         job_generic = job_service.create_job(db, job_type="ping")
         db.close()
         resp = client.get(f"/api/v1/jobs/{str(job_generic.id)}", headers=h_a)
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         # cleanup generic
         Sess = sessionmaker(bind=engine)
         db = Sess()

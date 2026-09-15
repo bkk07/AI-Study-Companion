@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import get_settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.jobs import router as jobs_router
@@ -15,10 +16,14 @@ app = FastAPI(
     description="FastAPI backend shell — Phase 04. Service layer owns domain logic; routes stay thin.",
 )
 
-# CORS — locked to frontend origin per blueprint §22; permissive for local dev in shell phase
+# CORS — origins from settings (CORS_ORIGINS, comma-separated) per blueprint §22
+_settings = get_settings()
+_allow_origins = [o.strip() for o in _settings.cors_origins.split(",") if o.strip()]
+if not _allow_origins:
+    _allow_origins = ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -19,6 +19,8 @@ def create_project(db: Session, user_id: uuid.UUID, space_id: uuid.UUID, name: s
     name = name.strip()
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project name must not be empty")
+    if len(name) > 255:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project name must be at most 255 characters")
     project = Project(space_id=space_id, name=name)
     db.add(project)
     db.commit()

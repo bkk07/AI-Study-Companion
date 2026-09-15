@@ -8,6 +8,8 @@ def create_space(db: Session, user_id: uuid.UUID, name: str) -> Space:
     name = name.strip()
     if not name:
         raise ValueError("Space name must not be empty")
+    if len(name) > 255:
+        raise ValueError("Space name must be at most 255 characters")
     space = Space(user_id=user_id, name=name)
     db.add(space)
     db.commit()

@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
@@ -24,7 +25,16 @@ async def upload_material(
     storage_path, filename = await save_pdf(project.id, file)
     material = Material(project_id=project.id, filename=filename, storage_path=storage_path, status="pending")
     db.add(material)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        # Avoid orphan files when the material row fails to persist
+        try:
+            Path(storage_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
     db.refresh(material)
     # Phase 23: create extraction job + dispatch Celery (best-effort, never blocks upload)
     job = job_service.create_job(db, job_type="process_pdf", material_id=material.id)

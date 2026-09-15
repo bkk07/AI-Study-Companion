@@ -53,7 +53,7 @@ services:
       EMBEDDING_MODEL: text-embedding-3-small
       UPLOAD_DIR: /data/uploads
       API_V1_PREFIX: /api/v1
-      CORS_ORIGINS: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
       ENVIRONMENT: development
     volumes:
       - uploads:/data/uploads
@@ -69,7 +69,6 @@ services:
       dockerfile: Dockerfile
     container_name: ai-study-worker
     restart: unless-stopped
-    # Phase 21 will implement app.worker.celery_app; until then this command validates the service boundary exists
     command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion

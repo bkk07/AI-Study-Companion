@@ -852,3 +852,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** valid `doc.pdf`→`201` `pending` + `storage_path` contains `project_id` + file on disk `b'%PDF'` + `GET` list `1`; `doc.txt`→`400`; `b'not a pdf'`→`400`; `text/plain`→`400`; oversized (10B limit)→`413`; foreign project→`404`; no token→`401`; traversal `../../evil.pdf`→sanitized `evil.pdf` no `..`; `pytest -q` 37 passed (3 upload +34 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** No client path trust — server UUID filename under `UPLOAD_DIR/{project_id}`; PDF-only, no DOCX/images.
 **Known:** `UPLOAD_DIR` `/data/uploads` shared `uploads:` volume (Phase 20 verifies cross-container); status `pending` for job dispatch.
+
+---
+
+## Phase 20 — Shared Upload Volume (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 20
+**Objective:** Guarantee API and worker see same uploaded files.
+**Contract:** One named Docker volume `uploads` mounted at same internal path `/data/uploads` in both `api` and `worker`; `storage_path` DB value matches mount; `UPLOAD_DIR` env consistent.
+**Files:** `docker-compose.yml` (shared volume), `docs/storage.md`
+**Guard:** No separate non-shared upload dirs for API vs worker.
+**Verify:** `docker compose up` → write from `api` container at `/data/uploads/…` → read from `worker` container same path; `Material.storage_path` consistent.
+
+### Phase 20 Post-implementation (compact)
+
+**Status:** _pending_

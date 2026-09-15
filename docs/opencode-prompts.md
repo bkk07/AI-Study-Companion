@@ -790,4 +790,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 16 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/dependencies/authorization.py` (`get_authorized_space`/`get_authorized_project`/`get_authorized_project_in_space` via `get_current_user` chain `user→space→project` 404), `backend/app/api/v1/spaces.py` (`GET /spaces/{space_id}` via `get_authorized_space`), `backend/app/api/v1/projects.py` (`GET /spaces/{space_id}/projects/{project_id}` + `direct_router GET /projects/{project_id}` via auth deps), `backend/app/main.py` (wire `projects_direct_router`), `backend/tests/test_authorization.py` (2 tests), `docs/*`
+**Verify:** own `space`/`project` `200`; foreign `space`/`project` `403/404`; nested `space_id/projects/{id}` foreign `404`; list/create via foreign space `404`; missing/invalid token `401`; non-existent `404`; `pytest -q` 32 passed (2 authz +30 prior); `docker compose config --quiet` pass.
+**Guard:** No global access — every later `project`/`material`/`concept` endpoint must use these deps; `404` hides existence.
+**Known:** Project auth via `Project→Space→User` join; material/concept extensions pending.

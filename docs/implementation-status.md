@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 15 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 16 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -26,7 +26,7 @@
 | 13 | Auth Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 84 modules) | `AuthContext` + axios Bearer + ProtectedRoute + Login/Register |
 | 14 | Spaces | ✅ Complete | 2026-09-15 | Pass (create/list isolation) | `spaces` FK user + service + `3bfb01f2ee6b` + 4 tests |
 | 15 | Projects | ✅ Complete | 2026-09-15 | Pass (nested scoped 404) | `projects` FK space + service + `ccb823bfc29d` + 3 tests |
-| 16 | Project Isolation & Authorization | ⏳ Pending | — | — | — |
+| 16 | Project Isolation & Authorization | ✅ Complete | 2026-09-15 | Pass (own 200 foreign 403/404 401) | `authorization.py` space/project deps + `GET space/project` guards + 2 tests |
 | 17 | Spaces/Projects Frontend | ⏳ Pending | — | — | — |
 | 18 | Materials Model | ⏳ Pending | — | — | — |
 | 19 | PDF Upload | ⏳ Pending | — | — | — |
@@ -351,6 +351,16 @@
 **Verify:** `alembic upgrade head` → `ccb823bfc29d`; `\d projects` → `projects_pkey` + `ix_projects_space_id` + FK cascade; `401` without token; `create→201` + `list scoped` + isolation foreign space `404`; validation `400/422`; `pytest -q` 30 passed (3+27 prior); `docker compose config --quiet` pass.
 **Guard:** No data outside project scope; `project_id` is downstream scope key (ownership validated via space→user).
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 16.
+
+---
+
+## Phase 16 — Detail (compact)
+
+**Scope:** Consistent ownership authorization before protected domain data grows — reusable `user→space→project` dependency.
+**Files:** `backend/app/dependencies/authorization.py` (`get_authorized_space` `Space.user_id==user.id` else 404, `get_authorized_project` `Project→Space` join else 404, `get_authorized_project_in_space` both checks), `backend/app/api/v1/spaces.py` (`GET /spaces/{space_id}` via `get_authorized_space`), `backend/app/api/v1/projects.py` (`GET /spaces/{space_id}/projects/{project_id}` via `get_authorized_project_in_space` + `direct_router GET /projects/{project_id}` via `get_authorized_project`), `backend/app/main.py` (include `projects_direct_router`), `backend/tests/test_authorization.py` (2 tests: own vs foreign + requires auth), `docs/*`.
+**Verify:** own space `GET /spaces/{id}`→200, own project `GET /projects/{id}`→200 and nested `GET /spaces/{sid}/projects/{pid}`→200; foreign space/project `403/404` on all three + list/create via foreign space `404`; missing token `401`, invalid token `401`, non-existent `404`; `pytest -q` 32 passed (2+30 prior); `docker compose config --quiet` pass.
+**Guard:** Every later endpoint accepting `project`/`material`/`concept` IDs must use `get_authorized_*`; `404` hides existence vs `403`.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 17.
 
 ---
 

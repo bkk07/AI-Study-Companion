@@ -638,4 +638,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 08 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/db/base.py` (Base + UUIDTimestampMixin), `backend/app/db/session.py` (SessionLocal + get_db + rollback/close), `backend/app/db/__init__.py` (re-exports), `backend/tests/test_db_session.py` (6 tests), `docs/*`
+**Verify:** `Base` clean + `UUIDTimestampMixin(id uuid4, created_at/updated_at func.now)` exist; `SessionLocal SELECT 1` →1; `get_db()` yield→`SELECT 1`→close; rollback on exception; FastAPI DI `/test-db` →200 `{"ok":true}`; `pytest` 9 passed (6 db +3 health). Service-name `postgres:5432` in compose, host `localhost:5433` in tests.
+**Guard:** No ad-hoc engine/session in routes — all via `SessionLocal`/`get_db`.
+**Known:** `pgvector` still `pgvector/pgvector:pg16` `5433:5432`.

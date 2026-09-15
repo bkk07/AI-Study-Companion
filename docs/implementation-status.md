@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 07 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 08 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -18,7 +18,7 @@
 | 05 | Docker Compose Foundation | ✅ Complete | 2026-09-15 | Pass (config --quiet + dry-run) | 5 services `api/worker/web/postgres/redis`; Dockerfiles + `uploads` shared; `VITE localhost` vs `postgres/redis` service names |
 | 06 | PostgreSQL Setup | ✅ Complete | 2026-09-15 | Pass (SELECT 1 via host 5433 + container) | `core/config.py`+`db/session.py`+`psycopg`; `postgres:16-alpine` 5433:5432 `SELECT 1` true |
 | 07 | pgvector Setup | ✅ Complete | 2026-09-15 | Pass (vector 0.8.6 + throwaway) | `pgvector/pgvector:pg16` + `CREATE EXTENSION` + `vector(3)` test; 1536 dims |
-| 08 | SQLAlchemy & DB Session Management | ⏳ Pending | — | — | — |
+| 08 | SQLAlchemy & DB Session Management | ✅ Complete | 2026-09-15 | Pass (6 db +3 health, DI) | `Base` + `UUIDTimestampMixin` + `SessionLocal`/`get_db` (yield/rollback/close) |
 | 09 | Alembic Migrations | ⏳ Pending | — | — | — |
 | 10 | User Model | ⏳ Pending | — | — | — |
 | 11 | Password Hashing | ⏳ Pending | — | — | — |
@@ -271,6 +271,16 @@
 **Verify:** `CREATE EXTENSION IF NOT EXISTS vector` → `CREATE EXTENSION`; `SELECT extversion FROM pg_extension` → `0.8.6`; throwaway `CREATE TABLE _pgvector_test (embedding vector(3))` → `INSERT [1,2,3]` → `SELECT` → `DROP` pass. 1536 dims = `text-embedding-3-small`. `docker compose config --quiet` pass, `pytest` 3 passed.
 **Guard:** pgvector only, 5433 host port avoids Windows `5432` conflict (Phase 06).
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 08.
+
+---
+
+## Phase 08 — Detail (compact)
+
+**Scope:** One consistent SQLAlchemy session pattern (Base + SessionLocal + get_db).
+**Files:** `backend/app/db/base.py` (Base Declarative + UUIDTimestampMixin uuid4/func.now), `backend/app/db/session.py` (engine singleton + SessionLocal sessionmaker + get_db yield/rollback/close), `backend/app/db/__init__.py` re-exports, `backend/tests/test_db_session.py` (6 tests), `docs/*`.
+**Verify:** Base clean, mixin `id/created_at/updated_at` present; `HostSessionLocal SELECT 1` →1; `get_db()` yield→`SELECT 1`→StopIteration close; rollback on `gen.throw`; FastAPI `Depends(get_db)` `/test-db` →200; `pytest 9 passed` (6+3 health); `docker compose config --quiet` pass.
+**Guard:** All DB access via centralized `SessionLocal`/`get_db`; no route-level engines.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 09.
 
 ---
 

@@ -890,3 +890,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `celery_app.conf.broker_url/result_backend` contains `redis`; `ping.apply()→pong` `add.apply(2,3)→5`; `docker compose build api worker` OK; `docker compose up -d --wait` `api`/`worker`/`redis`/`postgres` healthy; `worker` logs `celery@… ready` + `[tasks] add ping` + `Connected to redis://redis:6379/0`; dispatch from `api` container `docker compose exec api python -c "ping.delay().get(timeout=10)"`→`pong` (`83f05a2b…`); `pytest -q` 39 passed (2 celery +37 prior); `docker compose config --quiet` pass.
 **Guard:** No HTTP blocking — worker separate from FastAPI; same `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` env in `api`+`worker`.
 **Known:** Redis exposed `6379:6379` host `localhost` for host dispatch but api/worker use `redis:6379` service name.
+
+---
+
+## Phase 22 — Background Job Tracking (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 22
+**Objective:** Make background work observable/retry-safe via application-level job record.
+**Contract:** `BackgroundJob` `id UUID` + `type` + `status pending|running|completed|failed` + `material_id FK?`/`target` + `error` + timestamps; `GET /api/v1/jobs/{id}` protected ownership; status transitions `pending→running→completed/failed` with `error` on failure.
+**Files:** `backend/app/models/background_job.py`, `backend/app/services/job_service.py`, `backend/app/api/v1/jobs.py`
+**Guard:** Application `BackgroundJob` is source of truth, not Celery internals; diagnosable error on failure.
+**Verify:** job created→pending, `mark_running→running`, `mark_completed→completed`, `mark_failed→failed+error`; `GET` own `200` foreign `404` no token `401`.
+
+### Phase 22 Post-implementation (compact)
+
+**Status:** _pending_

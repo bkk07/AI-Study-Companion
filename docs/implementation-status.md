@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 26 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 27 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -37,7 +37,7 @@
 | 24 | Learning Structure Extraction | ✅ Complete | 2026-09-15 | Pass (7 tests, retry+validate) | `groq_client` + `extract_structure` + `StructureOutline`, no DB yet |
 | 25 | Topic/Subtopic/Concept Persistence | ✅ Complete | 2026-09-15 | Pass (idempotent upsert) | `topics/subtopics/concepts` + `cf04f880e71a` + `persist_structure` + 2 tests |
 | 26 | Structure API + Frontend | ✅ Complete | 2026-09-15 | Pass (tree + isolation) | `GET structure` + `StructureView` + 1 test |
-| 27 | Chunking & Embeddings | ⏳ Pending | — | — | — |
+| 27 | Chunking | ✅ Complete | 2026-09-15 | Pass (boundaries+overlap) | `document_chunks` + `3a900a15443a` + `chunking_service` + 12 tests |
 | 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
 | 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
 | 30 | Tutor Frontend | ⏳ Pending | — | — | — |
@@ -461,6 +461,16 @@
 **Verify:** empty→`{topics: []}`; seeded→200 `Algebra,Geometry` + `Linear equations,Quadratics` + `Slope,Intercept` + summary `Rise over run.`; raw body free of `storage_path/prompt/celery`; second project empty (no leak); foreign 404; no-token 401; missing 404; `pytest -q` 79 passed (1+78); `npm run build` 88 mods `css 9.14kB js 330.06kB`; `compose config` 0.
 **Guard:** Project isolation via `get_authorized_project`; response is titles/summary only.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 27.
+
+---
+
+## Phase 27 — Detail (compact)
+
+**Scope:** Deterministic chunking only — no embeddings/vectors (Phases 28–29).
+**Files:** `backend/app/models/chunk.py` (`DocumentChunk` → `document_chunks`: `project_id UUID FK→projects CASCADE ix` + `material_id FK→materials CASCADE ix` + `concept_id`/`topic_id`/`subtopic_id` nullable FK CASCADE ix + `page_number Int?` + `source_name 255?` + `chunk_index Int` + `content Text` + `uq_chunks_material_index`), `backend/app/services/chunking_service.py` (`CHUNK_SIZE_CHARS 2000`/`CHUNK_OVERLAP_CHARS 200` + `_back_off_to_word` + `chunk_text→[{text,start_offset,end_offset}]` stripped exact-span invariant + forward snap starts to word starts + `chunk_pages` per-page 1-indexed skip-empties + `persist_chunks` verify project/material + delete-per-material + insert indexed + commit/rollback → `{chunks}`), `backend/alembic/versions/3a900a15443a_create_document_chunks_table.py` (table + 5 indexes + unique), `models/__init__.py` + `alembic/env.py`, `backend/tests/test_chunking.py` (12 tests), `docs/*`.
+**Verify:** `upgrade`→`3a900a15443a`; 5500ch → ≥3 chunks ≤2000ch + starts/ends on word edges + overlap shared + whitespace-only gaps; 3000ch token → hard `[2000,1200]`; overlap=0 contiguous; 6 invalid → ValueError; determinism; pages `[1,3]` never mixed; persist `{chunks: n}` replace-stable + material isolation + missing 404; `pytest -q` 91 passed (12+79); `compose config` 0.
+**Guard:** No LLM for boundaries; embeddings/vector columns deferred; blueprint delete-before-insert idempotency.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 28.
 
 ---
 

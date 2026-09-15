@@ -985,3 +985,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** own 200 `["Algebra","Geometry"]` nested + summary + no `storage_path/prompt/celery` in raw body; empty project `{topics: []}`; second project no leak; foreign 404; no-token 401; missing 404; `pytest -q` 79 passed (1+78); `npm run build` 88 mods; `compose config` 0.
 **Guard:** Only `project_id`-matched rows; titles/summary only; frontend hierarchy mirrors backend.
 **Known:** Tree is read-only until later phases (quiz/tutor link in); no pagination — fine at current scale.
+
+---
+
+## Phase 27 — Chunking (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 27 + blueprint §RAG (500–700 tokens, 50–100 overlap, page-aware)
+**Objective:** Deterministic retrieval-sized chunks from source text; embeddings are Phase 28–29, NOT here.
+**Contract:** `document_chunks` table (`project_id`+`material_id` CASCADE ix, nullable best-effort `topic_id`/`subtopic_id`/`concept_id`, `page_number` nullable, `source_name` nullable, `chunk_index` int, `content` text, `uq(material_id, chunk_index)`); `chunk_text` char-window 2000/overlap 200 (~500/~50 tokens) with back-off to whitespace (hard cut only for super-long tokens), stripped spans with exact `start_offset`/`end_offset` (`content == source[start:end]`); `chunk_pages` chunks each page separately (never spans pages, skips empties, 1-indexed `page_number`); `persist_chunks` delete-per-material + insert, single commit/rollback.
+**Files:** `backend/app/models/chunk.py`, `backend/app/services/chunking_service.py`
+**Guard:** Deterministic app logic — no LLM for boundaries; no embedding/vector work in this phase.
+**Verify:** unit — sizes ≤2000, overlap (`start[i+1] < end[i]`), word-boundary cuts, hard-cut long token, overlap=0 contiguous, empty/invalid → ValueError, determinism, offset invariant, page-awareness; persist — replace stable count+contents, isolation, missing material 404.
+
+### Phase 27 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/chunk.py` (`DocumentChunk` → `document_chunks`: `project_id`/`material_id` CASCADE ix + nullable `concept_id`/`topic_id`/`subtopic_id` + `page_number`/`source_name` + `chunk_index` + `content Text` + `uq(material_id, chunk_index)`), `backend/app/services/chunking_service.py` (`CHUNK_SIZE 2000`/`OVERLAP 200` + `chunk_text` word-snapped both edges + `chunk_pages` page-aware + `persist_chunks` delete-per-material + single commit), `backend/alembic/versions/3a900a15443a_create_document_chunks_table.py`, `models/__init__.py` + `alembic/env.py`, `backend/tests/test_chunking.py` (12 tests), `docs/*`
+**Verify:** `upgrade head`→`3a900a15443a`; sizes ≤2000 + overlap shared-substring + full whitespace-only-gap coverage; starts/ends on word boundaries (mid-word only for 3000-char token → hard cut `[2000, 1200]`); overlap=0 contiguous; invalid → ValueError ×6; determinism; `chunk_pages` never spans pages, empty skipped; persist replace stable `{chunks: n}` + isolation + missing → 404; full `pytest -q` 91 passed (12+79); `compose config` 0.
+**Guard:** No LLM boundaries; starts snap forward to word starts (fallback raw on long tokens); embeddings/vector deferred to Phase 28–29.
+**Known:** Char-based sizes (~500/~50 tokens @4ch/tok); unique constraint case-sensitive N/A (integer index); no API yet — retrieval phases consume the table.

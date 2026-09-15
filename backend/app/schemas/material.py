@@ -15,6 +15,8 @@ class MaterialRead(BaseModel):
     filename: str
     storage_path: str
     status: str
+    page_count: int | None = None
+    error_message: str | None = None
     created_at: datetime  # uploaded_at
     updated_at: datetime
 

@@ -1,6 +1,7 @@
 import os
 import tempfile
 import uuid
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -126,16 +127,18 @@ def test_jobs_api_isolation():
         h_a = {"Authorization": f"Bearer {token_a}"}
         h_b = {"Authorization": f"Bearer {token_b}"}
 
-        # A creates space/project/material to get a material-owned job
+        # A creates space/project/material to get a material-owned job (dispatch mocked)
         resp = client.post("/api/v1/spaces", json={"name": "S"}, headers=h_a)
         space_a = resp.json()["id"]
         resp = client.post(f"/api/v1/spaces/{space_a}/projects", json={"name": "P"}, headers=h_a)
         proj_a = resp.json()["id"]
-        resp = client.post(
-            f"/api/v1/projects/{proj_a}/materials",
-            files={"file": ("doc.pdf", MINIMAL_PDF, "application/pdf")},
-            headers=h_a,
-        )
+        with patch("app.api.v1.materials.process_pdf") as mock_task:
+            mock_task.delay.return_value = MagicMock(id="mock-id")
+            resp = client.post(
+                f"/api/v1/projects/{proj_a}/materials",
+                files={"file": ("doc.pdf", MINIMAL_PDF, "application/pdf")},
+                headers=h_a,
+            )
         assert resp.status_code == 201, resp.text
         material_a = resp.json()["id"]
 

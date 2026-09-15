@@ -1,6 +1,7 @@
 import os
 import tempfile
 import uuid
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -74,12 +75,14 @@ def test_upload_valid_pdf():
         resp = client.post(f"/api/v1/spaces/{space_id}/projects", json={"name": "UpProj"}, headers=headers)
         project_id = resp.json()["id"]
 
-        # valid PDF upload
-        resp = client.post(
-            f"/api/v1/projects/{project_id}/materials",
-            files={"file": ("doc.pdf", MINIMAL_PDF, "application/pdf")},
-            headers=headers,
-        )
+        # valid PDF upload (dispatch mocked — Phase 23 task runs separately)
+        with patch("app.api.v1.materials.process_pdf") as mock_task:
+            mock_task.delay.return_value = MagicMock(id="mock-id")
+            resp = client.post(
+                f"/api/v1/projects/{project_id}/materials",
+                files={"file": ("doc.pdf", MINIMAL_PDF, "application/pdf")},
+                headers=headers,
+            )
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["filename"] == "doc.pdf"
@@ -201,11 +204,13 @@ def test_upload_isolation_and_auth():
         assert resp.status_code == 401
 
         # path traversal filename sanitized: storage should not contain ..
-        resp = client.post(
-            f"/api/v1/projects/{proj_a}/materials",
-            files={"file": ("../../evil.pdf", MINIMAL_PDF, "application/pdf")},
-            headers=h_a,
-        )
+        with patch("app.api.v1.materials.process_pdf") as mock_task:
+            mock_task.delay.return_value = MagicMock(id="mock-id")
+            resp = client.post(
+                f"/api/v1/projects/{proj_a}/materials",
+                files={"file": ("../../evil.pdf", MINIMAL_PDF, "application/pdf")},
+                headers=h_a,
+            )
         assert resp.status_code == 201, resp.text
         assert ".." not in resp.json()["storage_path"]
         assert resp.json()["filename"] == "evil.pdf"

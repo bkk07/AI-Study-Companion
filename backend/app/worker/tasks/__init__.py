@@ -11,3 +11,7 @@ def ping(self) -> str:
 def add(self, a: int, b: int) -> int:
     """Optional helper for manual verification."""
     return a + b
+
+
+# Ensure extraction task is registered when tasks package is included
+import app.worker.tasks.extraction  # noqa: F401,E402

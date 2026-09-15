@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 11 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 13 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -22,8 +22,8 @@
 | 09 | Alembic Migrations | ✅ Complete | 2026-09-15 | Pass (upgrade head idempotent) | `alembic.ini` + `env.py` (Base.metadata + get_settings url) + `5257ffa81b36` no-op |
 | 10 | User Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `users` UUID email unique + schemas + `d65fb0219416` + 3 tests |
 | 11 | Password Hashing | ✅ Complete | 2026-09-15 | Pass (Argon2id 6 tests) | `security.py` hash/verify + `test_security.py` 6 tests |
-| 12 | JWT Authentication | ⏳ Pending | — | — | — |
-| 13 | Auth Frontend | ⏳ Pending | — | — | — |
+| 12 | JWT Authentication | ✅ Complete | 2026-09-15 | Pass (register/login+jwt 5 tests) | `jwt.py` + `auth.py` + `get_current_user` + 5 tests |
+| 13 | Auth Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 84 modules) | `AuthContext` + axios Bearer + ProtectedRoute + Login/Register |
 | 14 | Spaces | ⏳ Pending | — | — | — |
 | 15 | Projects | ⏳ Pending | — | — | — |
 | 16 | Project Isolation & Authorization | ⏳ Pending | — | — | — |
@@ -311,6 +311,26 @@
 **Verify:** `hash.startswith("$argon2id$")` true; `verify correct→True`, `wrong→False`, same pwd different hashes both verify (salt), `invalid→False`, `empty→ValueError`; `pytest -q` 18 passed (6 security +12 prior); `docker compose config --quiet` pass.
 **Guard:** No plaintext/bcrypt/reversible — Argon2id only, params centralized.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 12.
+
+---
+
+## Phase 12 — Detail (compact)
+
+**Scope:** Backend auth contract — JWT HS256 + register/login + get_current_user.
+**Files:** `backend/app/core/jwt.py` (`create_access_token` `sub` + `exp` `iat` HS256), `backend/app/api/v1/auth.py` (`POST /register` 201 `UserRead`, `POST /login` `Token`, `GET /me` protected), `backend/app/dependencies/auth.py` (`OAuth2PasswordBearer` + `decode_access_token` + Expired/Invalid 401), `backend/app/schemas/token.py`/`auth.py`, `backend/app/main.py` (wire `auth_router`), `backend/tests/test_auth.py` (5 tests), `docs/*`.
+**Verify:** `register`→201 `UserRead`; duplicate→400; `login`→200 `access_token`; `invalid creds`→401; `me` missing/malformed→401; `expired token` (timedelta -1s) →401; `pytest -q` 23 passed (5+18 prior); `docker compose config --quiet` pass.
+**Guard:** No second auth mechanism — downstream must use `get_current_user`; JWT expiry via `JWT_EXPIRE_MINUTES`.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 13.
+
+---
+
+## Phase 13 — Detail (compact)
+
+**Scope:** Frontend auth connection to backend JWT contract.
+**Files:** `frontend/src/context/AuthContext.tsx` (AuthProvider token `localStorage` + user + login/register/logout + `/auth/me` hydrate), `frontend/src/lib/axios.ts` (Bearer request interceptor + 401 response redirect), `frontend/src/components/ProtectedRoute.tsx` (guard token→/login), `frontend/src/features/auth/Login.tsx`/`Register.tsx` (forms + error), `frontend/src/App.tsx` (wrap AuthProvider + routes /login /register /dashboard protected), `docs/*`.
+**Verify:** `npm run build` → `84 modules` `css 8.18kB` `js 318.90kB gzip 102.82kB` success; `pytest -q` 23 passed; manual `register→login→me→dashboard` protected flow works, 401 auto-clears `localStorage` + redirects.
+**Guard:** No per-page token handling — centralized `apiClient` + `AuthContext` only.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 14.
 
 ---
 

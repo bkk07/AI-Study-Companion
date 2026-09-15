@@ -714,7 +714,11 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 12 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/core/jwt.py` (`create_access_token`/`decode_access_token` HS256), `backend/app/api/v1/auth.py` (`/register` 201 `UserRead` / `/login` `Token` / `/me` protected), `backend/app/dependencies/auth.py` (`get_current_user` OAuth2PasswordBearer + ExpiredSignatureError), `backend/app/schemas/token.py`/`auth.py`, `backend/app/main.py` (wire), `backend/tests/test_auth.py` (5 tests), `docs/*`
+**Verify:** `register→201` + duplicate `400` + `login→200` token `eyJ` + `me→200` + `invalid creds→401` + `missing token→401` + `malformed→401` + `expired token→401`; `pytest -q` 23 passed (5 auth +6 security +12 prior); `docker compose config --quiet` pass.
+**Guard:** No second auth — all via `get_current_user`; JWT `JWT_SECRET`/`HS256`/`60m` from `get_settings`.
+**Known:** `tokenUrl="/api/v1/auth/login"` for Swagger; `LoginRequest` JSON `email`/`password` (not form) matches tests.
 
 ---
 
@@ -729,4 +733,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 13 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `frontend/src/context/AuthContext.tsx` (Provider `token` `localStorage` + `user` + `login`/`register`/`logout` + `GET /auth/me` hydrate), `frontend/src/lib/axios.ts` (Bearer interceptor + 401 redirect), `frontend/src/components/ProtectedRoute.tsx` (guard `token`→`Navigate /login`), `frontend/src/features/auth/Login.tsx`/`Register.tsx` (shadcn-style inputs + error), `frontend/src/App.tsx` (AuthProvider + /login /register /dashboard protected), `docs/*`
+**Verify:** `npm run build` → `tsc -b && vite build` OK `84 modules` `index.js 318.90kB gzip 102.82kB` `css 8.18kB`; `pytest` 23 passed unaffected; manual `register→login→/me→/dashboard` flow works, expired 401 auto-clears + redirects.
+**Guard:** No per-page token — centralized `AuthContext` + `apiClient` interceptor only.
+**Known:** Token stored `access_token` in `localStorage` (memory+refresh-safe); UI uses Tailwind + `cn` not full shadcn `ui/button` (shell `components/ui` was empty, kept minimal).

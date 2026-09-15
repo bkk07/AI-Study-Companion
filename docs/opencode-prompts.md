@@ -757,3 +757,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head` → `3bfb01f2ee6b`; `\d spaces` → `spaces_pkey` + `ix_spaces_user_id` + FK; `401` without token; `create→201` + `list own` + isolation `A 1/B 0→A 1/B 1`; validation `400/422`; `pytest -q` 27 passed (4 spaces +23 prior); `docker compose config --quiet` pass.
 **Guard:** Space ownership inherited — no global spaces; service validates `name.strip()` non-empty.
 **Known:** No frontend for spaces yet (Phase 17).
+
+---
+
+## Phase 15 — Projects (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 15
+**Objective:** Project as parent container for all downstream study data.
+**Contract:** `Project` `id UUID` `space_id` FK→spaces + `name` + `created_at`; migration; service + `POST /api/v1/spaces/{space_id}/projects` + `GET /api/v1/spaces/{space_id}/projects` nested, validate space belongs to `get_current_user`; `project_id` is scope key downstream.
+**Files:** `backend/app/models/project.py`, `backend/app/services/project_service.py`, `backend/app/api/v1/projects.py`, `backend/app/schemas/project.py`
+**Guard:** No materials/data outside project scope; project ownership via space→user.
+**Verify:** create/list scoped to space; foreign space 404/403; `alembic upgrade head` creates `projects`; `pytest` green.
+
+### Phase 15 Post-implementation (compact)
+
+**Status:** _pending_

@@ -1,7 +1,10 @@
 from app.models.background_job import BackgroundJob  # noqa: F401
+from app.models.concept import Concept  # noqa: F401
 from app.models.material import Material  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.space import Space  # noqa: F401
+from app.models.subtopic import Subtopic  # noqa: F401
+from app.models.topic import Topic  # noqa: F401
 from app.models.user import User  # noqa: F401
 
-__all__ = ["User", "Space", "Project", "Material", "BackgroundJob"]
+__all__ = ["User", "Space", "Project", "Material", "BackgroundJob", "Topic", "Subtopic", "Concept"]

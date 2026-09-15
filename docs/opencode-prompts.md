@@ -947,3 +947,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 7 new tests pass (valid 1 call, flaky→2 calls success, bad twice→raise exactly 2 calls, empty→ValueError no call, idempotent equal, injection still validates, truncation bounded); full `pytest -q` 52 passed (7+45); missing-key guard `RuntimeError`; `docker compose config --quiet` 0; no migration (no schema change).
 **Guard:** LLM untrusted, validated before any future persistence; source text as data in `<<<>>>`; no SQL from model.
 **Known:** No DB persistence until Phase 25; real Groq call not exercised (mocked) — needs `GROQ_API_KEY` live check later.
+
+---
+
+## Phase 25 — Topic/Subtopic/Concept Persistence (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 25
+**Objective:** Persist the validated outline with stable identity — re-processing updates, never duplicates.
+**Contract:** `topics`/`subtopics`/`concepts` tables, all with `project_id FK→projects CASCADE` denormalized + parent FKs CASCADE; identity by stripped case-insensitive title within parent scope (`project_id`/`topic_id`/`subtopic_id`); `persist_structure(db, project_id, outline)` single-commit upsert returning counts; summary updates in place.
+**Files:** `backend/app/models/topic.py`, `backend/app/models/subtopic.py`, `backend/app/models/concept.py`, `backend/app/services/structure_persistence_service.py`, migration
+**Guard:** No per-run duplicate trees; all queries project-scoped; LLM never writes SQL directly (validated `StructureOutline` only).
+**Verify:** repeated identical persist → same ids + row counts unchanged; changed summary → update in place; same titles in different project → separate rows; cascade via project delete.
+
+### Phase 25 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/topic.py` (`topics` `project_id FK→projects CASCADE ix` + `title 200` + `uq project/title`), `backend/app/models/subtopic.py` (`subtopics` `project_id` denorm + `topic_id FK→topics CASCADE` + `uq topic/title`), `backend/app/models/concept.py` (`concepts` `project_id` denorm + `subtopic_id FK→subtopics CASCADE` + `title 200` + `summary Text` + `uq subtopic/title`), `backend/app/services/structure_persistence_service.py` (`persist_structure` strip/lower match + `flush` per level + single `commit` + `rollback` on error → counts), `backend/alembic/versions/cf04f880e71a_create_topics_subtopics_concepts_tables.py`, `backend/app/models/__init__.py` + `alembic/env.py` (exports/imports), `backend/tests/test_structure_persistence.py` (2 tests), `docs/*`
+**Verify:** `upgrade head`→`cf04f880e71a`, downgrade→`3c13e851f931`→upgrade idempotent, `current` head; identical re-run same ids counts `{1,1,2}`; case/whitespace variant same rows; summary change updates same row; cross-project separate rows; user-delete cascade cleanup no FK error; full `pytest -q` 54 passed (2+52); `compose config` 0.
+**Guard:** Upsert by normalized title within parent scope; denormalized `project_id` on all three for fast scoped queries; no raw SQL from LLM.
+**Known:** No API/frontend until Phase 26; unique constraints case-sensitive at DB level, app matches case-insensitive (variant test proves).

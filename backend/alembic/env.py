@@ -14,7 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import get_settings
 from app.db.base import Base  # noqa: E402
 import app.models.background_job  # noqa: F401,E402 — ensure BackgroundJob metadata
+import app.models.concept  # noqa: F401,E402 — ensure Concept metadata
 import app.models.material  # noqa: F401,E402 — ensure Material metadata
+import app.models.subtopic  # noqa: F401,E402 — ensure Subtopic metadata
+import app.models.topic  # noqa: F401,E402 — ensure Topic metadata
 import app.models.project  # noqa: F401,E402 — ensure Project metadata
 import app.models.space  # noqa: F401,E402 — ensure Space metadata
 import app.models.user  # noqa: F401,E402 — ensure User metadata is registered for autogenerate

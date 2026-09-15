@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 24 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 25 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -35,7 +35,7 @@
 | 22 | Background Job Tracking | ✅ Complete | 2026-09-15 | Pass (lifecycle+auth) | `background_jobs` + `job_service` + `GET /jobs/{id}` + 2 tests |
 | 23 | PDF Text Extraction | ✅ Complete | 2026-09-15 | Pass (extract→ready/completed) | `process_pdf` + `extracted_text` + `3c13e851f931` + 4 tests |
 | 24 | Learning Structure Extraction | ✅ Complete | 2026-09-15 | Pass (7 tests, retry+validate) | `groq_client` + `extract_structure` + `StructureOutline`, no DB yet |
-| 25 | Topic/Subtopic/Concept Persistence | ⏳ Pending | — | — | — |
+| 25 | Topic/Subtopic/Concept Persistence | ✅ Complete | 2026-09-15 | Pass (idempotent upsert) | `topics/subtopics/concepts` + `cf04f880e71a` + `persist_structure` + 2 tests |
 | 26 | Structure API + Frontend | ⏳ Pending | — | — | — |
 | 27 | Chunking & Embeddings | ⏳ Pending | — | — | — |
 | 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
@@ -441,6 +441,16 @@
 **Verify:** new 7 pass (valid 1 call + schema in system + data in user; flaky malformed→valid 2 calls; bad twice→`StructureExtractionError` exactly 2 calls no state; empty→`ValueError` no Groq call; idempotent `model_dump` equal; injection text still validates; truncation bounded); full `pytest -q` 52 passed (7+45); missing-key `RuntimeError` confirmed; `docker compose config --quiet` 0; no migration (pure service).
 **Guard:** LLM output untrusted — Pydantic gate before any persistence; source text never obeyed; no SQL from model.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 25.
+
+---
+
+## Phase 25 — Detail (compact)
+
+**Scope:** Durable hierarchy with stable identity — upsert, never duplicate.
+**Files:** `backend/app/models/topic.py` (`Topic project_id UUID FK→projects CASCADE ix + title String(200) + uq_topics_project_title`), `backend/app/models/subtopic.py` (`Subtopic project_id denorm FK→projects CASCADE ix + topic_id FK→topics CASCADE ix + title + uq_subtopics_topic_title`), `backend/app/models/concept.py` (`Concept project_id denorm + subtopic_id FK→subtopics CASCADE + title + summary Text + uq_concepts_subtopic_title`), `backend/app/services/structure_persistence_service.py` (`persist_structure(db,project_id,outline)`: 404 if project missing + load topics → strip/lower match → create/`flush` or casing update + same per subtopic/concept (summary update) + single `commit`/`rollback` → DB totals), `backend/alembic/versions/cf04f880e71a_create_topics_subtopics_concepts_tables.py` (3 tables + 5 indexes + 3 uniques + CASCADE FKs), `backend/app/models/__init__.py` + `alembic/env.py` (wiring), `backend/tests/test_structure_persistence.py` (2 tests), `docs/*`.
+**Verify:** `alembic upgrade`→`cf04f880e71a`; downgrade→`3c13e851f931`→upgrade head idempotent; persist `{1 topic,1 subtopic,2 concepts}` → re-run same ids/counts; `"  algebra "`/`"LINEAR EQUATIONS"` variant same rows; summary `"Updated summary."` in place same count; project B same titles separate rows; user-delete cascade cleanup OK; `pytest -q` 54 passed (2+52); `compose config` 0.
+**Guard:** Identity = normalized title within parent; `project_id` denormalized everywhere; validated outline only, no LLM SQL.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 26.
 
 ---
 

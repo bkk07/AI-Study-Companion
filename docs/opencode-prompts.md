@@ -507,3 +507,72 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Known issues:** None. Full `docker compose build` without dry-run is intentionally skipped to avoid long wait; dry-run + config validates the same Dockerfiles/Compose contract. Phase 21 will implement `app.worker.celery_app` so `worker` `celery` command becomes runnable.
 
 **Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 06.
+
+---
+
+## Phase 06 — PostgreSQL Setup
+
+**Recorded:** 2026-09-15 (before implementation)
+**Source:** `ai-study-companion-detailed-opencode-roadmap.md` — Phase 06 section (verbatim)
+
+### User instruction for this phase
+> yes implement phase 6
+
+Context: Prior instruction still applies:
+> Implement only the phase I specify from ai-study-companion-detailed-opencode-roadmap.md.
+> Before implementing: Read the specified phase and follow it exactly. Create or update docs/opencode-prompts.md. Append the complete implementation prompt/instructions for this phase to that file. Do not change the existing architecture, stack, phase order, or unrelated code.
+> Then implement the phase.
+> After implementation: Run the required tests/verification. Update docs/opencode-prompts.md with the files changed, verification result, and status. Update docs/implementation-status.md. Stop after this phase. Do not implement the next phase until I say CONTINUE.
+> The prompt must always be recorded in docs/opencode-prompts.md before implementation starts.
+> Additional: commit after every step, do not add description.
+
+### Phase 06 — Verbatim implementation prompt/instructions (from detailed roadmap)
+
+#### 1. Phase objective
+Establish PostgreSQL as the single relational persistence layer.
+
+#### 2. Source roadmap contract
+- Wire Postgres service, volume, credentials via env vars.
+- Backend DB connection config (`DATABASE_URL`) using SQLAlchemy engine.
+- Verify: backend can connect and run `SELECT 1` against the containerized DB.
+
+#### 3. Detailed implementation sequence
+1. Configure credentials and the persistent Postgres volume through environment variables.
+2. Build the SQLAlchemy DATABASE_URL from environment configuration.
+3. Run a real connection check from the API container.
+4. Keep database connectivity behind the application session layer introduced in the next phases.
+
+#### 4. Files / areas expected to change
+- `backend/app/core/config.py`
+- `backend/app/db/`
+
+#### 5. Architecture guard
+**Do not introduce a second relational database or a document database.**
+
+#### 6. Verification gate
+Before declaring this phase complete:
+- Run the phase-specific verification from the source roadmap.
+- Add focused automated tests for the new behavior where practical.
+- Run the nearest existing regression tests that touch the same subsystem.
+- Confirm no cross-project data is visible through IDs, list endpoints, background jobs, retrieval, or UI flows where applicable.
+- Inspect the final diff for accidental dependency, folder, schema, or service-boundary changes.
+- Update `docs/implementation-status.md`.
+- Stop after reporting the result and wait for `CONTINUE`.
+
+#### 7. OpenCode implementation rule
+Do not implement future-phase functionality here merely because it is convenient. Create only the minimum interfaces/contracts required for this phase and leave the next phase's behavior to its own implementation step.
+
+#### Architecture Freeze (applies to all phases)
+Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python/FastAPI/Pydantic/SQLAlchemy/Alembic; PostgreSQL+pgvector; JWT+Argon2id; Groq+OpenAI Embeddings; PyMuPDF; Celery+Redis; Docker Compose 5 services `api`/`worker`/`web`/`postgres`/`redis`.
+
+---
+
+### Post-implementation record (Phase 06 — to be filled after verification)
+
+**Status:** _pending — pre-implementation record only_
+
+**Files changed:** _to be updated after implementation_
+
+**Verification result:** _to be updated after implementation_
+
+**Notes:** _to be updated after implementation_

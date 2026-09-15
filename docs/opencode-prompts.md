@@ -1093,3 +1093,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 6 pass mocked RAG/Groq on real auth/DB (grounded 200 + `[1]` answer + 2 chunk/material citations + guard `not instructions` in system + data in user; injection question/content stay delimited data, never in system; empty + 0.8/0.9 scores → exact unsupported + Groq uncalled; foreign/missing-project 404 + anonymous 401/403 + RAG/Groq untouched; blank 400 + `ConnectError` 502); full `pytest -q` 119 passed (6+113); `compose config` 0; no migration, no rebuild.
 **Guard:** No open-memory answers; model output validated before return; key never leaks (generic 502/500 details).
 **Known:** `SUPPORTED_MAX_DISTANCE 0.5` provisional — tune with real distributions (Phase 57); `detected_concept_id`/concept-list-in-prompt deferred (no messages/activity consumer yet — blueprint §9 association lands with persistence/analytics); citations = full context set, not model-selected subset.
+
+## Phase 33 — Tutor Frontend (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 33 (chat UI over `POST tutor/ask`)
+**Objective:** Chat-style tutor exposing answers, citations, unsupported state, and failures — no fabricated content.
+**Contract:** `frontend/src/features/tutor/TutorChat.tsx` (`{projectId}`): message list (user/assistant) + input; `POST /projects/{projectId}/tutor/ask` via `apiClient` ONLY (no direct Groq/OpenAI); assistant bubble shows answer + citation chips (`source_name` + page + `#index`); `supported: false` → distinct amber unsupported notice; loading disables send (`Thinking…`); 502 → provider-down + Retry (re-sends last question), 404 → project-missing, else detail/generic — failures never render an answer. Mounted as Tutor section in `ProjectDetailPage` (same pattern as `StructureView`).
+**Files:** `frontend/src/features/tutor/TutorChat.tsx`, `ProjectDetailPage.tsx` section
+**Guard:** Backend evidence only — frontend never calls AI providers or invents answers/citations.
+**Verify:** `npm run build` green; pytest regression green; manual flow (ask → citations; out-of-scope → amber unsupported; stop API → 502 state + retry); `compose config` 0.
+
+### Phase 33 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `frontend/src/features/tutor/TutorChat.tsx` (chat state via `apiClient` only: user/assistant/failure messages + citation chips `source, page #index` + amber `supported:false` notice + `Thinking…` pending lock + 502/404/generic failure text with Retry re-send, never fabricates), `ProjectDetailPage.tsx` Tutor section, `backend/app/services/retrieval_service.py` (empty-scope short-circuit: `[]` before any embedding call), `backend/tests/integration/test_retrieval_isolation.py` (+1 test: empty scope → `[]` + embed uncalled), `docs/*`
+**Verify:** `npm run build` 89 mods `css 9.59kB js 333.07kB`; manual flow vs rebuilt `api` container — empty project `200 supported:false` offline (short-circuit; first attempt exposed 502-before-check, fixed), blank 400, anon 401, missing 404; `pytest -q` 120 passed (1+119); `compose config` 0; no migration.
+**Guard:** No direct AI calls from frontend; failures render state, never answers.
+**Known:** Browser click-through not run (no browser here) — flow verified at the exact contract the UI consumes; chat history is session-local (persistence is a later phase).

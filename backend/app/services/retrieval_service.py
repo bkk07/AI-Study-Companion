@@ -52,6 +52,19 @@ def retrieve(
         raise ValueError("query must be a non-empty string")
     top_k = max(1, min(int(top_k), MAX_TOP_K))
 
+    # Short-circuit before spending an embedding call: a scope with no stored
+    # vectors cannot rank anything (and an empty project must answer
+    # unsupported without requiring the AI provider to be reachable).
+    scope = (
+        db.query(Embedding.id)
+        .join(DocumentChunk, DocumentChunk.id == Embedding.chunk_id)
+        .filter(Embedding.project_id == project_id, DocumentChunk.project_id == project_id)
+    )
+    if concept_id is not None:
+        scope = scope.filter(DocumentChunk.concept_id == concept_id)
+    if scope.limit(1).first() is None:
+        return []
+
     query_vector = embedding_client.embed_one(query.strip())
     if len(query_vector) != EMBEDDING_DIMS:
         raise ValueError(f"query embedding has {len(query_vector)} dims, expected {EMBEDDING_DIMS}")

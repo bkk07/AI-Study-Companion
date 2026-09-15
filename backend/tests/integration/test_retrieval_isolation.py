@@ -253,6 +253,17 @@ def test_top_k_honored_and_empty_project_returns_empty():
         _teardown(engine)
 
 
+def test_empty_scope_returns_empty_without_embedding_call():
+    _, engine = _setup()
+    try:
+        with patch("app.services.retrieval_service.embedding_client") as mc:
+            mc.embed_one.return_value = _vec(0)
+            assert _retrieve(engine, project_id=uuid.uuid4(), query="anything") == []
+            mc.embed_one.assert_not_called()
+    finally:
+        _teardown(engine)
+
+
 def test_empty_query_raises_without_embedding_call():
     _, engine = _setup()
     try:

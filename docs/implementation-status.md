@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 32 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 33 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -42,7 +42,7 @@
 | — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
 | — | Embedding Worker (detail §29) | ✅ Complete | 2026-09-16 | Pass (mocked task+live pgvector) | `generate_embeddings` + `ab60908d37ca` + 5 tests |
 | 29 | Tutor (Grounded Q&A) | ✅ Complete | 2026-09-16 | Pass (grounded+unsupported+isolation) | `tutor ask` endpoint + 6 tests |
-| 30 | Tutor Frontend | ⏳ Pending | — | — | — |
+| 30 | Tutor Frontend | ✅ Complete | 2026-09-16 | Pass (build + live contract flow) | `TutorChat` + retrieval short-circuit |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |
 | 32 | Quiz Generation | ⏳ Pending | — | — | — |
 | 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
@@ -523,6 +523,16 @@
 **Verify:** grounded 200 + citation ids + guard asserted in system prompt; injection question + hostile chunk stay delimited data; empty/low-sim → exact unsupported + Groq uncalled; foreign/missing 404 + anon 401/403 + RAG/Groq untouched; blank 400 + provider-down 502; `pytest -q` 119 passed (6+113); `compose config` 0; no migration, no rebuild.
 **Guard:** No open-memory answers; uploaded text never promoted to instructions; key never in error details.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 33 (Tutor Frontend).
+
+---
+
+## Phase 33 — Detail (compact)
+
+**Scope:** Chat UI over `POST tutor/ask` + one retrieval hardening found by the live manual flow.
+**Files:** `frontend/src/features/tutor/TutorChat.tsx` (message list user/assistant/failure + input + `apiClient` only + citation chips + amber unsupported + `Thinking…` lock + Retry re-send), `frontend/src/features/projects/ProjectDetailPage.tsx` (Tutor section), `backend/app/services/retrieval_service.py` (scope-empty short-circuit before `embed_one`), `backend/tests/integration/test_retrieval_isolation.py` (+ empty-scope-no-embed test), `docs/*`.
+**Verify:** `npm run build` 89 mods `css 9.59kB js 333.07kB`; rebuilt `api` + live flow: empty-project ask → `200 supported:false` offline, blank → 400, anon → 401, missing → 404; `pytest -q` 120 passed (1+119); `compose config` 0; no migration.
+**Guard:** Frontend displays backend evidence only; failures never render answers.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 34 (Quiz Data Model).
 
 ---
 

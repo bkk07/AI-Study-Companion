@@ -928,3 +928,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade`→`3c13e851f931`; `\d materials` +3 cols; service 2-page PDF extracts both texts; task `.apply()`→`completed` `material ready page_count 1` text persisted + `GET /jobs completed`; corrupt/missing→`failed+error` `extracted_text None`; upload mocked `delay` called + job `celery-123`; E2E container `api` gen `/data/uploads/e2e.pdf`→extract OK + `process_pdf.delay().get()`→`completed` `material ready` `job completed` via `worker` (`[tasks] add ping process_pdf`); `pytest -q` 45 passed (4+41); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** PyMuPDF only; untrusted text never executed; failure diagnosable `error_message`/`job.error`.
 **Known:** `SessionLocal` singleton stale on host → task uses fresh `get_settings().database_url` session; `test_upload`/`test_jobs` mock `delay` to avoid broker hang (real dispatch verified in container).
+
+---
+
+## Phase 24 — Learning Structure Extraction (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 24
+**Objective:** Convert extracted source text into structured Topic→Subtopic→Concept outline via Groq; no DB persistence yet (Phase 25).
+**Contract:** `groq_client.chat_json` (httpx, `GROQ_API_KEY`/`GROQ_MODEL`, temp 0, JSON mode) + `structure_extraction_service.extract_structure(text, client)` truncates to 12k chars, sends data-only prompt with explicit JSON schema, validates via strict Pydantic `StructureOutline`, retries once on malformed/validation fail, raises `StructureExtractionError` with no side effects.
+**Files:** `backend/app/schemas/structure.py`, `backend/app/services/ai/groq_client.py`, `backend/app/services/structure_extraction_service.py`
+**Guard:** LLM output untrusted — never writes SQL directly; extracted text sent as data, never obeyed; API key never logged.
+**Verify:** valid output parses; malformed first→retry succeeds (2 calls); malformed twice→raises after exactly 2 calls with no partial state; empty text→ValueError before Groq call; idempotent re-run same input→same output.
+
+### Phase 24 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/schemas/structure.py` (`ConceptOutline/SubtopicOutline/TopicOutline/StructureOutline` strict 1-10/1-10/1-20 + strip validators), `backend/app/services/ai/__init__.py`, `backend/app/services/ai/groq_client.py` (`chat_json` httpx JSON mode temp 0 + missing-key guard + shape/JSON errors, key never logged), `backend/app/services/structure_extraction_service.py` (`extract_structure` 12k truncate + data-only prompt + validate + 1 retry + `StructureExtractionError` pure no DB), `backend/app/core/config.py` (+`groq_model`), `backend/.env.example` (+`GROQ_MODEL`), `backend/tests/test_structure_extraction.py` (7 tests), `docs/*`
+**Verify:** 7 new tests pass (valid 1 call, flaky→2 calls success, bad twice→raise exactly 2 calls, empty→ValueError no call, idempotent equal, injection still validates, truncation bounded); full `pytest -q` 52 passed (7+45); missing-key guard `RuntimeError`; `docker compose config --quiet` 0; no migration (no schema change).
+**Guard:** LLM untrusted, validated before any future persistence; source text as data in `<<<>>>`; no SQL from model.
+**Known:** No DB persistence until Phase 25; real Groq call not exercised (mocked) — needs `GROQ_API_KEY` live check later.

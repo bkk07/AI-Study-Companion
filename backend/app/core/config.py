@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # AI
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
 

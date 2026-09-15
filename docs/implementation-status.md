@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 23 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 24 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -34,7 +34,7 @@
 | 21 | Celery + Redis | ✅ Complete | 2026-09-15 | Pass (ping→pong via worker) | `celery_app` + `ping`/`add` + `docker` dispatch + 2 tests |
 | 22 | Background Job Tracking | ✅ Complete | 2026-09-15 | Pass (lifecycle+auth) | `background_jobs` + `job_service` + `GET /jobs/{id}` + 2 tests |
 | 23 | PDF Text Extraction | ✅ Complete | 2026-09-15 | Pass (extract→ready/completed) | `process_pdf` + `extracted_text` + `3c13e851f931` + 4 tests |
-| 24 | Learning Structure Extraction | ⏳ Pending | — | — | — |
+| 24 | Learning Structure Extraction | ✅ Complete | 2026-09-15 | Pass (7 tests, retry+validate) | `groq_client` + `extract_structure` + `StructureOutline`, no DB yet |
 | 25 | Topic/Subtopic/Concept Persistence | ⏳ Pending | — | — | — |
 | 26 | Structure API + Frontend | ⏳ Pending | — | — | — |
 | 27 | Chunking & Embeddings | ⏳ Pending | — | — | — |
@@ -431,6 +431,16 @@
 **Verify:** `alembic upgrade`→`3c13e851f931`; `\d materials` `extracted_text/page_count/error_message`; service 2-page fitz PDF extracts both + per-page numbers; `process_pdf.apply()` success→`{completed,page_count 1}` `material ready` text contains `Extraction persistence check` + `GET /jobs completed` + re-run idempotent `completed`; corrupt `b'not a pdf'`→`failed+error` `extracted_text None` + missing→`failed`; upload mocked `delay(job,mat)` + job `celery-123`; container E2E `docker compose build api worker` + `up --wait` healthy + `worker [tasks] add ping process_pdf` + `exec api` gen `/data/uploads/e2e.pdf` extract OK + `process_pdf.delay().get()`→`completed` `material ready 1` `job completed` (shared volume+DB); `pytest -q` 45 passed (4+41 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** PyMuPDF only (no LLM/browser); untrusted PDF text stored, never obeyed; `BackgroundJob` truth + `material.error_message` diagnosable.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 24.
+
+---
+
+## Phase 24 — Detail (compact)
+
+**Scope:** Pure extraction service — text → validated outline, no DB writes (persistence is Phase 25).
+**Files:** `backend/app/schemas/structure.py` (`ConceptOutline title 1-200/summary 1-1000 + strip`, `SubtopicOutline 1-20 concepts`, `TopicOutline 1-10 subtopics`, `StructureOutline 1-10 topics`), `backend/app/services/ai/__init__.py`, `backend/app/services/ai/groq_client.py` (`chat_json(system,user)` httpx `POST api.groq.com/openai/v1/chat/completions` `response_format json_object` temp 0 + `GROQ_API_KEY` guard + shape/JSON `ValueError`, key never logged), `backend/app/services/structure_extraction_service.py` (`MAX_INPUT_CHARS 12000` + `SYSTEM_PROMPT` explicit JSON shape + `_build_user_prompt` data in `<<<>>>` + `extract_structure(text,client)` strip/truncate → call → `StructureOutline.model_validate` → 1 retry → `StructureExtractionError`), `backend/app/core/config.py` (+`groq_model llama-3.3-70b-versatile`), `backend/.env.example` (+`GROQ_MODEL`), `backend/tests/test_structure_extraction.py` (7 tests), `docs/*`.
+**Verify:** new 7 pass (valid 1 call + schema in system + data in user; flaky malformed→valid 2 calls; bad twice→`StructureExtractionError` exactly 2 calls no state; empty→`ValueError` no Groq call; idempotent `model_dump` equal; injection text still validates; truncation bounded); full `pytest -q` 52 passed (7+45); missing-key `RuntimeError` confirmed; `docker compose config --quiet` 0; no migration (pure service).
+**Guard:** LLM output untrusted — Pydantic gate before any persistence; source text never obeyed; no SQL from model.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 25.
 
 ---
 

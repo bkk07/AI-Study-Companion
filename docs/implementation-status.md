@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 13 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 14 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -24,7 +24,7 @@
 | 11 | Password Hashing | ✅ Complete | 2026-09-15 | Pass (Argon2id 6 tests) | `security.py` hash/verify + `test_security.py` 6 tests |
 | 12 | JWT Authentication | ✅ Complete | 2026-09-15 | Pass (register/login+jwt 5 tests) | `jwt.py` + `auth.py` + `get_current_user` + 5 tests |
 | 13 | Auth Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 84 modules) | `AuthContext` + axios Bearer + ProtectedRoute + Login/Register |
-| 14 | Spaces | ⏳ Pending | — | — | — |
+| 14 | Spaces | ✅ Complete | 2026-09-15 | Pass (create/list isolation) | `spaces` FK user + service + `3bfb01f2ee6b` + 4 tests |
 | 15 | Projects | ⏳ Pending | — | — | — |
 | 16 | Project Isolation & Authorization | ⏳ Pending | — | — | — |
 | 17 | Spaces/Projects Frontend | ⏳ Pending | — | — | — |
@@ -331,6 +331,16 @@
 **Verify:** `npm run build` → `84 modules` `css 8.18kB` `js 318.90kB gzip 102.82kB` success; `pytest -q` 23 passed; manual `register→login→me→dashboard` protected flow works, 401 auto-clears `localStorage` + redirects.
 **Guard:** No per-page token handling — centralized `apiClient` + `AuthContext` only.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 14.
+
+---
+
+## Phase 14 — Detail (compact)
+
+**Scope:** First user-owned container — Space.
+**Files:** `backend/app/models/space.py` (Space `user_id` FK→users cascade `name` 255), `backend/app/schemas/space.py` (SpaceCreate/SpaceRead), `backend/app/services/space_service.py` (create/list/get + `name.strip()`), `backend/app/api/v1/spaces.py` (`POST` 201 + `GET` list own via `get_current_user`), `backend/app/main.py` (wire), `backend/alembic/env.py` (import space), `backend/alembic/versions/3bfb01f2ee6b_create_spaces_table.py` (create `spaces` + `ix_spaces_user_id`), `backend/tests/test_spaces.py` (4 tests), `docs/*`.
+**Verify:** `alembic upgrade head` → `3bfb01f2ee6b`; `\d spaces` → `spaces_pkey` + `ix_spaces_user_id` + FK cascade; `401` without token; `create→201` + `list own`; isolation `A Space` not visible to `B`; validation `400/422`; `pytest -q` 27 passed (4+23 prior); `docker compose config --quiet` pass.
+**Guard:** No global/shared spaces — ownership via `user_id`; service owns validation.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 15.
 
 ---
 

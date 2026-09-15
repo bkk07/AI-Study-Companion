@@ -752,4 +752,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 14 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/space.py` (Space `user_id` FK→users cascade + `name`), `backend/app/schemas/space.py` (SpaceCreate/SpaceRead), `backend/app/services/space_service.py` (create/list/get + validation), `backend/app/api/v1/spaces.py` (POST/GET `get_current_user`), `backend/app/main.py` (wire), `backend/alembic/env.py` (import space), `backend/alembic/versions/3bfb01f2ee6b_create_spaces_table.py` (create `spaces` + `ix_spaces_user_id`), `backend/tests/test_spaces.py` (4 tests), `docs/*`
+**Verify:** `alembic upgrade head` → `3bfb01f2ee6b`; `\d spaces` → `spaces_pkey` + `ix_spaces_user_id` + FK; `401` without token; `create→201` + `list own` + isolation `A 1/B 0→A 1/B 1`; validation `400/422`; `pytest -q` 27 passed (4 spaces +23 prior); `docker compose config --quiet` pass.
+**Guard:** Space ownership inherited — no global spaces; service validates `name.strip()` non-empty.
+**Known:** No frontend for spaces yet (Phase 17).

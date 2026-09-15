@@ -1,0 +1,112 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ai-study-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ai_study_companion
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai-study-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-study-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 60
+      GROQ_API_KEY: dummy-groq-key-for-phase05-build
+      OPENAI_API_KEY: dummy-openai-key-for-phase05-build
+      EMBEDDING_MODEL: text-embedding-3-small
+      UPLOAD_DIR: /data/uploads
+      API_V1_PREFIX: /api/v1
+      CORS_ORIGINS: http://localhost:5173
+      ENVIRONMENT: development
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-study-worker
+    restart: unless-stopped
+    # Phase 21 will implement app.worker.celery_app; until then this command validates the service boundary exists
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 60
+      GROQ_API_KEY: dummy-groq-key-for-phase05-build
+      OPENAI_API_KEY: dummy-openai-key-for-phase05-build
+      EMBEDDING_MODEL: text-embedding-3-small
+      UPLOAD_DIR: /data/uploads
+      API_V1_PREFIX: /api/v1
+      ENVIRONMENT: development
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_API_V1_PREFIX: /api/v1
+    container_name: ai-study-web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:

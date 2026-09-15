@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 04 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 05 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -15,7 +15,7 @@
 | 02 | Project Skeleton & Monorepo Layout | ✅ Complete | 2026-09-15 | Pass (skeleton, no product code) | `.gitignore` + `.env.example`×2 + `README` + `.gitkeep`; verified no secrets/service drift |
 | 03 | Frontend Initialization | ✅ Complete | 2026-09-15 | Pass (`npm run build` ✓ 24 modules) | Vite+React+TS+Tailwind+shadcn+Router+Axios; `src/lib/axios.ts` + routing shell; `npm run build` 260kB gzip 82.85kB |
 | 04 | Backend Initialization | ✅ Complete | 2026-09-15 | Pass (pytest 3/3, health 200) | FastAPI shell `app/main.py`+`api/v1/health`+`pyproject.toml`/`requirements.txt`+`tests/test_health.py`; `/api/v1/health` 200 |
-| 05 | Docker Compose Foundation | ⏳ Pending | — | — | — |
+| 05 | Docker Compose Foundation | ✅ Complete | 2026-09-15 | Pass (config --quiet + dry-run) | 5 services `api/worker/web/postgres/redis`; Dockerfiles + `uploads` shared; `VITE localhost` vs `postgres/redis` service names |
 | 06 | PostgreSQL Setup | ⏳ Pending | — | — | — |
 | 07 | pgvector Setup | ⏳ Pending | — | — | — |
 | 08 | SQLAlchemy & DB Session Management | ⏳ Pending | — | — | — |
@@ -202,6 +202,36 @@
 **Known issues:** None.
 
 **Next:** Await `CONTINUE` before starting Phase 05 (Docker Compose Foundation). Do not start Phase 05 silently.
+
+---
+
+## Phase 05 — Detail
+
+**Scope:** Five-service Compose foundation — reproducibly runnable `api`/`worker`/`web`/`postgres`/`redis`; shared volume; Docker networking rule.
+
+**Files created/changed in this phase:**
+- `docker-compose.yml` (new) — 5 services exactly; `postgres` `pgvector/pgvector:pg16` + `postgres_data` + healthcheck, `redis` `redis:7-alpine` + `redis_data`, `api` build `backend/Dockerfile` `8000:8000` env `DATABASE_URL=postgres:5432`/`REDIS_URL=redis:6379`/`UPLOAD_DIR=/data/uploads` + `uploads` volume + healthy `postgres`/`redis`, `worker` same build `command celery -A app.worker.celery_app worker` (placeholder for Phase 21) same env+volume, `web` build `frontend/Dockerfile` args `VITE_API_BASE_URL=http://localhost:8000` `5173:80` + `api` dependency; volumes `postgres_data`/`redis_data`/`uploads`
+- `backend/Dockerfile` (new) — `python:3.11-slim` + `build-essential` + `pip install -r requirements.txt` + `mkdir -p /data/uploads` + `EXPOSE 8000` + `CMD uvicorn app.main:app`
+- `frontend/Dockerfile` (new) — `node:20-alpine` build stage `npm ci` + `ARG VITE_API_BASE_URL` + `npm run build` → `nginx:alpine` runtime `COPY dist` + SPA `try_files` `EXPOSE 80`
+- `docs/opencode-prompts.md` — Phase 05 verbatim prompt before edits, updated post-verification
+- `docs/implementation-status.md` — this file (Phase 05 row updated)
+
+**Out of scope for this phase (correctly deferred):**
+- No `app/core/config.py`/`app/db/` engine, no `alembic/` (Phases 06-09), no `app/worker/celery_app.py` implementation (Phase 21 — command is placeholder until then), no `frontend/src` changes
+
+**Verification (2026-09-15 — lightweight per request):**
+- `docker compose config --quiet` → exit 0; `docker compose config --services` → `postgres, redis, api, web, worker` (5)
+- Rendered `docker compose config` confirms `DATABASE_URL`/`REDIS_URL` use service names `postgres`/`redis` and `VITE_API_BASE_URL` is `http://localhost:8000` (browser localhost, containers service names)
+- `uploads:/data/uploads` shared in `api` and `worker` (2 occurrences)
+- `docker compose build --dry-run` → `api Built`, `web Built`, `worker Built` (validates Dockerfiles without heavy pull/build)
+- `Test-Path` Dockerfiles → True; `pytest backend/tests/test_health.py -q` → 3 passed
+- Diff inspection: only `docker-compose.yml` + 2 Dockerfiles + docs; no `backend/app` code drift, no third-service collapse, no secrets (dummy keys)
+
+**Result:** ✅ Pass
+
+**Known issues:** None. Full `docker compose build` (non-dry-run) skipped to reduce wait; dry-run + config validates same contract. `worker` celery module will be implemented in Phase 21.
+
+**Next:** Await `CONTINUE` before starting Phase 06 (PostgreSQL Setup). Do not start Phase 06 silently.
 
 ---
 

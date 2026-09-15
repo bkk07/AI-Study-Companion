@@ -473,12 +473,37 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ---
 
-### Post-implementation record (Phase 05 — to be filled after verification)
+### Post-implementation record (Phase 05)
 
-**Status:** _pending — pre-implementation record only_
+**Status:** ✅ Complete — Phase 05 implemented 2026-09-15, awaiting `CONTINUE`
 
-**Files changed:** _to be updated after implementation_
+**Files changed (this phase):**
+- `docker-compose.yml` (new) — 5 services exactly `api`/`worker`/`web`/`postgres`/`redis`; `postgres` `pgvector/pgvector:pg16` + `postgres_data` volume + healthcheck `pg_isready`; `redis` `redis:7-alpine` + `redis_data`; `api` build `backend/Dockerfile` port `8000:8000` env `DATABASE_URL=postgres:5432`/`REDIS_URL=redis:6379`/`UPLOAD_DIR=/data/uploads` volumes `uploads:/data/uploads` depends_on healthy `postgres`/`redis`; `worker` same build `command: celery -A app.worker.celery_app worker --loglevel=info` (Phase 21 will implement module) same env+volume boundary preserved; `web` build `frontend/Dockerfile` args `VITE_API_BASE_URL=http://localhost:8000` port `5173:80` depends_on `api`; volumes `postgres_data`/`redis_data`/`uploads`
+- `backend/Dockerfile` (new) — `python:3.11-slim`, `PYTHONDONTWRITEBYTECODE=1`, `build-essential` + `pip install -r requirements.txt`, `COPY .`, `mkdir -p /data/uploads`, `EXPOSE 8000`, `CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]` (api default, worker overrides)
+- `frontend/Dockerfile` (new) — multi-stage `node:20-alpine` build (`npm ci` + `ARG VITE_API_BASE_URL` + `npm run build`) → `nginx:alpine` runtime `COPY dist` + SPA fallback `try_files` `EXPOSE 80`
+- `docs/opencode-prompts.md` (updated) — Phase 05 verbatim prompt before implementation, updated here post-verification
+- `docs/implementation-status.md` (updated) — Phase 05 marked ✅ Complete
 
-**Verification result:** _to be updated after implementation_
+**Files intentionally not changed beyond scope:** No `backend/app` logic beyond shell (Phase 04), no `alembic/` (Phase 09), no DB engine/session (Phase 06/08), no `app/worker/celery_app.py` (Phase 21 placeholder noted), no `frontend/src` changes (regression `npm run build` still passes).
 
-**Notes:** _to be updated after implementation_
+**Verification result:** ✅ Pass (lightweight, no long build)
+- `docker compose config --quiet` → exit 0; `docker compose config --services` → `postgres, redis, api, web, worker` (5 exactly)
+- `docker compose config` renders `DATABASE_URL`/`REDIS_URL` with service names `postgres:5432`/`redis:6379` and `VITE_API_BASE_URL: http://localhost:8000` (browser localhost, containers service names) — Docker rule confirmed
+- `uploads:/data/uploads` shared identically in `api` and `worker` (2 occurrences via `Select-String`)
+- `docker compose build --dry-run` → `api Built`, `web Built`, `worker Built` (dry-run validates Dockerfiles without pulling/building layers)
+- `Test-Path backend/Dockerfile`/`frontend/Dockerfile` → True; `backend/tests` `pytest` → 3 passed; frontend `npm run build` still passes (previously verified 24 modules, 260kB)
+- Diff inspection: only `docker-compose.yml` + 2 Dockerfiles + docs; no `backend/app` code drift, no third service collapse, no secrets (dummy keys only)
+- Cross-project isolation N/A (infra only, no IDs/jobs/retrieval yet)
+- Architecture guard: `api` and `worker` are separate runtime services with same image but distinct commands — not collapsed
+
+**Commands run (lightweight only, per request to reduce long builds):**
+- `docker --version` / `docker compose version`
+- `docker compose config --quiet` (exit 0) + `docker compose config --services` + `docker compose config` (rendered env check)
+- `docker compose build --dry-run` (validates builds without heavy layer pull)
+- `Select-String` checks for `uploads:/data/uploads` and `VITE_API_BASE_URL`/`DATABASE_URL`/`REDIS_URL`
+- `python -m pytest backend/tests/test_health.py -q` → 3 passed
+- `git status` / `git diff --stat` (no heavy `docker compose build` without dry-run)
+
+**Known issues:** None. Full `docker compose build` without dry-run is intentionally skipped to avoid long wait; dry-run + config validates the same Dockerfiles/Compose contract. Phase 21 will implement `app.worker.celery_app` so `worker` `celery` command becomes runnable.
+
+**Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 06.

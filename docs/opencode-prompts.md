@@ -833,3 +833,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head` → `242af3866a09`; `\d materials` → `materials_pkey` + `ix_materials_project_id` + FK + `status pending` default; round-trip insert→query `MaterialRead` OK + raw `INSERT` without `status` → `pending`; `pytest -q` 34 passed (2 materials +32 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** PDFs not in Postgres — `storage_path` points to shared volume `/data/uploads`; status `pending` aligns with job pipeline.
 **Known:** Status `pending→processing→ready/failed` for later worker phases; `created_at` is `uploaded_at`.
+
+---
+
+## Phase 19 — PDF Upload (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 19
+**Objective:** Accept PDFs securely and create material records for background pipeline.
+**Contract:** `POST /api/v1/projects/{project_id}/materials` multipart `file` field — PDF only (`content_type` + `%PDF` magic), size limit (10MB), server-controlled `UPLOAD_DIR/{project_id}/{uuid}.pdf` path, no client path trust; create `Material` `status pending`.
+**Files:** `backend/app/api/v1/materials.py`, `backend/app/services/storage_service.py`
+**Guard:** Only PDF ingestion; no DOCX/images/URLs.
+**Verify:** valid PDF `201` + file on disk + `MaterialRead`; non-PDF `400`; oversized `413`; `401` without token; `404` foreign project.
+
+### Phase 19 Post-implementation (compact)
+
+**Status:** _pending_

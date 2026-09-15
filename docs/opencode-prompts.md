@@ -776,3 +776,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head` → `ccb823bfc29d`; `\d projects` → `projects_pkey` + `ix_projects_space_id` + FK; `401` without token; `create→201` + `list scoped` + isolation foreign space `404`; validation `400/422`; `pytest -q` 30 passed (3 projects +27 prior); `docker compose config --quiet` pass.
 **Guard:** No materials outside project scope; `project_id` is scope key downstream (validated via space→user).
 **Known:** Project ownership via space→user; future phases use `project_id` as filter.
+
+---
+
+## Phase 16 — Project Isolation & Authorization (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 16
+**Objective:** Make authorization consistent before protected domain data grows.
+**Contract:** Reusable ownership/authorization dependency verifying current user owns `space`/`project` (and later `material`/`concept`) referenced by any request — resolve chain `user→space→project` before allowing access; `403/404` consistently; negative tests using foreign IDs: own project succeeds, foreign `403/404`.
+**Files:** `backend/app/dependencies/authorization.py` (space/project ownership deps), `backend/tests/test_authorization.py`
+**Guard:** Every later endpoint that accepts `project`/`material`/`concept` IDs must preserve this isolation boundary.
+**Verify:** own space/project `200`, foreign `403/404`, missing `401`.
+
+### Phase 16 Post-implementation (compact)
+
+**Status:** _pending_

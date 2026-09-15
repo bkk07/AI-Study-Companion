@@ -738,3 +738,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `npm run build` → `tsc -b && vite build` OK `84 modules` `index.js 318.90kB gzip 102.82kB` `css 8.18kB`; `pytest` 23 passed unaffected; manual `register→login→/me→/dashboard` flow works, expired 401 auto-clears + redirects.
 **Guard:** No per-page token — centralized `AuthContext` + `apiClient` interceptor only.
 **Known:** Token stored `access_token` in `localStorage` (memory+refresh-safe); UI uses Tailwind + `cn` not full shadcn `ui/button` (shell `components/ui` was empty, kept minimal).
+
+---
+
+## Phase 14 — Spaces (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 14
+**Objective:** First user-owned container — Space.
+**Contract:** `Space` `id UUID` `user_id` FK→users + `name` + `created_at`; migration; `SpaceService` + `POST /api/v1/spaces` + `GET /api/v1/spaces` scoped to `get_current_user`; validation via service.
+**Files:** `backend/app/models/space.py`, `backend/app/services/space_service.py`, `backend/app/api/v1/spaces.py`, `backend/app/schemas/space.py`
+**Guard:** Space ownership inherited by all nested resources; no global/shared spaces.
+**Verify:** create→list own only; other user sees 0; `alembic upgrade head` creates `spaces`; `pytest` green.
+
+### Phase 14 Post-implementation (compact)
+
+**Status:** _pending_

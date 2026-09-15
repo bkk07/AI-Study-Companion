@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 29 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 30 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -38,7 +38,7 @@
 | 25 | Topic/Subtopic/Concept Persistence | ✅ Complete | 2026-09-15 | Pass (idempotent upsert) | `topics/subtopics/concepts` + `cf04f880e71a` + `persist_structure` + 2 tests |
 | 26 | Structure API + Frontend | ✅ Complete | 2026-09-15 | Pass (tree + isolation) | `GET structure` + `StructureView` + 1 test |
 | 27 | Chunking | ✅ Complete | 2026-09-15 | Pass (boundaries+overlap) | `document_chunks` + `3a900a15443a` + `chunking_service` + 12 tests |
-| 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
+| 28 | Retrieval (RAG) | ✅ Complete | 2026-09-16 | Pass (real pgvector isolation) | `retrieval_service` + 5 integration tests |
 | — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
 | — | Embedding Worker (detail §29) | ✅ Complete | 2026-09-16 | Pass (mocked task+live pgvector) | `generate_embeddings` + `ab60908d37ca` + 5 tests |
 | 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
@@ -493,6 +493,16 @@
 **Verify:** `upgrade`→`ab60908d37ca`; success N vectors exact chunk ids + 1536 dims + completed; re-run same count updated markers; client ValueError → failed + 0 rows; no-chunks → failed; missing → failed+raise; `pytest -q` 102 passed (5+97); rebuilt images healthy, worker `[tasks] add generate_embeddings ping process_pdf`; container eager 3→3×1536 + completed; `compose config` 0.
 **Guard:** One row per exact chunk; scope denormalized; no partial on dim mismatch.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 30.
+
+---
+
+## Phase 30 — Detail (compact)
+
+**Scope:** Read-only semantic retrieval over Phase 27 chunks + Phase 29 vectors — no endpoint, no new schema.
+**Files:** `backend/app/services/retrieval_service.py` (`DEFAULT_TOP_K 5`/`MAX_TOP_K 20` + frozen `RetrievedChunk(chunk_id, material_id, content, page_number, source_name, chunk_index, score)` + `retrieve(db, *, project_id, query, top_k, concept_id?)`: empty→`ValueError` before DB + clamp 1–20 + `embed_one` + dim guard + `JOIN embeddings ON chunk_id` filtered `Embedding.project_id` + `DocumentChunk.project_id` + optional `concept_id` all in SQL + `ORDER BY cosine_distance LIMIT`), `backend/tests/integration/test_retrieval_isolation.py` (5 tests, patched one-hot 1536 vectors, real PG 5433) + `tests/integration/__init__.py`, `docs/*`.
+**Verify:** identical vector in A+B returns only own side each way (score 0.0); strict ranking `near<mid<far` + citation metadata (`page_number 2`, `source_name`, `chunk_index`, `material_id` UUID); scoped query beats globally-nearest + foreign concept `[]` + unscoped nearest-first; `top_k=2` + embedding-less project `[]`; empty query `ValueError` + embed never called; `pytest -q` 107 passed (5+102); `compose config` 0; no migration, no rebuild.
+**Guard:** Never fetch-all-filter-Python; ownership/auth is future callers' duty.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 31 (RAG Service).
 
 ---
 

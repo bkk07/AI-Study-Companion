@@ -1042,3 +1042,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `upgrade`→`ab60908d37ca`; 5 pass (N vectors stored exact chunk linkage + dims 1536 + job completed; re-run count stable values updated; client ValueError → failed zero rows; no-chunks → failed; missing → failed+raise); extraction/celery suites still pass (shared-helper refactor safe); full `pytest -q` 102 passed (5+97); rebuilt `api`/`worker` (pgvector installed) healthy + worker `[tasks] add generate_embeddings ping process_pdf`; container eager run 3 chunks → 3×1536 rows + completed; `compose config` 0.
 **Guard:** Vectors never without chunk scope; dim/count mismatch fails fast instead of partial write.
 **Known:** Real OpenAI call not exercised (mocked/dummy key); HTTP-retry path (3× backoff) not unit-hit — same pattern as extraction; ivfflat index deferred (prototype scale).
+
+## Phase 30 — pgvector Retrieval (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 30 + blueprint (similarity filtered by `project_id`, `concept_id` scoping)
+**Objective:** Secure, project-aware semantic retrieval over stored chunk embeddings.
+**Contract:** `retrieve(db, project_id, query, top_k?, concept_id?)`: `embed_one(query)` (same 1536 contract; ValueError on empty query fails fast, no DB hit) → `SELECT chunks JOIN embeddings ON chunk_id` with `Embedding.project_id == project_id` **inside** the SQL `WHERE` + optional `DocumentChunk.concept_id == concept_id` in SQL too → `ORDER BY embedding <=> query_vector LIMIT top_k` → `[{chunk_id, material_id, content, page_number, source_name, chunk_index, score}]` (score = cosine distance, lower is closer). No endpoint in this phase (consumer-neutral service for Phase 31 RAG); project ownership is caller's duty, service enforces the filter.
+**Files:** `backend/app/services/retrieval_service.py`, `backend/tests/integration/test_retrieval_isolation.py`
+**Guard:** Never fetch-all-then-filter in Python; isolation enforced by the DB query itself.
+**Verify:** integration on real Postgres 5433 — cross-project material never returned even when text-similar; concept-scoped query returns only matching concept; unscoped returns nearest across materials ranked; `top_k` honored; empty query → ValueError; no-embedding project → `[]`; full `pytest -q` green; `compose config` 0.
+
+### Phase 30 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/retrieval_service.py` (`retrieve(db, project_id, query, top_k=5, concept_id?)`: empty query → ValueError pre-DB + `top_k` clamped 1–20 + `embed_one` same 1536 contract + dim guard + `JOIN embeddings ON chunk_id` with `Embedding.project_id` + `DocumentChunk.project_id` in SQL `WHERE` + optional `concept_id` in SQL + `ORDER BY cosine_distance LIMIT` → frozen `RetrievedChunk` with citation metadata; no endpoint — consumer-neutral for Phase 31), `backend/tests/integration/test_retrieval_isolation.py` (5 tests) + `__init__.py`, `docs/*`
+**Verify:** 5 pass on real pgvector (identical vector in both projects never mixes — proves SQL-side filter; strict ranking `0.0<~0.006<1.0` no ties + citation fields; concept scope beats global nearest + foreign concept `[]` + unscoped nearest; `top_k=2` + empty project `[]`; empty query ValueError + embed not called); full `pytest -q` 107 passed (5+102); `compose config` 0; no migration (read-only over Phase 27/29 schema), no rebuild (no new deps).
+**Guard:** Auth/ownership stays with future callers; service only guarantees scope filtering + ranking.
+**Known:** Real OpenAI query embedding not exercised (patched one-hots); `top_k` cap 20 generous — Phase 31 may tighten per consumer.

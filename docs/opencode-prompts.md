@@ -411,3 +411,74 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Known issues:** None.
 
 **Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 05.
+
+---
+
+## Phase 05 — Docker Compose Foundation
+
+**Recorded:** 2026-09-15 (before implementation)
+**Source:** `ai-study-companion-detailed-opencode-roadmap.md` — Phase 05 section (verbatim)
+
+### User instruction for this phase
+> implement phase 05
+
+Context: Prior instruction still applies:
+> Implement only the phase I specify from ai-study-companion-detailed-opencode-roadmap.md.
+> Before implementing: Read the specified phase and follow it exactly. Create or update docs/opencode-prompts.md. Append the complete implementation prompt/instructions for this phase to that file. Do not change the existing architecture, stack, phase order, or unrelated code.
+> Then implement the phase.
+> After implementation: Run the required tests/verification. Update docs/opencode-prompts.md with the files changed, verification result, and status. Update docs/implementation-status.md. Stop after this phase. Do not implement the next phase until I say CONTINUE.
+> The prompt must always be recorded in docs/opencode-prompts.md before implementation starts.
+> Additional: commit after every step, do not add description.
+
+### Phase 05 — Verbatim implementation prompt/instructions (from detailed roadmap)
+
+#### 1. Phase objective
+Make all five runtime services reproducibly runnable together.
+
+#### 2. Source roadmap contract
+- `docker-compose.yml` with services: `api`, `worker`, `web`, `postgres`, `redis`.
+- Dockerfiles for backend and frontend.
+- Confirm the Docker rule: browser talks to `localhost:8000`; backend/worker talk to each other via service names (`postgres`, `redis`).
+- Verify: `docker compose config` validates; containers build.
+
+#### 3. Detailed implementation sequence
+1. Define api, worker, web, postgres, and redis services.
+2. Use Docker service names for container-to-container communication.
+3. Keep browser-to-API communication on localhost:8000 as specified by the roadmap.
+4. Build every container from a clean checkout before continuing.
+
+#### 4. Files / areas expected to change
+- `docker-compose.yml`
+- `backend/Dockerfile`
+- `frontend/Dockerfile`
+
+#### 5. Architecture guard
+**Do not collapse api and worker into one runtime service; the worker boundary is required by the background-processing architecture.**
+
+#### 6. Verification gate
+Before declaring this phase complete:
+- Run the phase-specific verification from the source roadmap.
+- Add focused automated tests for the new behavior where practical.
+- Run the nearest existing regression tests that touch the same subsystem.
+- Confirm no cross-project data is visible through IDs, list endpoints, background jobs, retrieval, or UI flows where applicable.
+- Inspect the final diff for accidental dependency, folder, schema, or service-boundary changes.
+- Update `docs/implementation-status.md`.
+- Stop after reporting the result and wait for `CONTINUE`.
+
+#### 7. OpenCode implementation rule
+Do not implement future-phase functionality here merely because it is convenient. Create only the minimum interfaces/contracts required for this phase and leave the next phase's behavior to its own implementation step.
+
+#### Architecture Freeze (applies to all phases)
+Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python/FastAPI/Pydantic/SQLAlchemy/Alembic; PostgreSQL+pgvector; JWT+Argon2id; Groq+OpenAI Embeddings; PyMuPDF; Celery+Redis; Docker Compose 5 services `api`/`worker`/`web`/`postgres`/`redis`.
+
+---
+
+### Post-implementation record (Phase 05 — to be filled after verification)
+
+**Status:** _pending — pre-implementation record only_
+
+**Files changed:** _to be updated after implementation_
+
+**Verification result:** _to be updated after implementation_
+
+**Notes:** _to be updated after implementation_

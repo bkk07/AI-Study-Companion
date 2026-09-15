@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 16 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 17 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -27,7 +27,7 @@
 | 14 | Spaces | ✅ Complete | 2026-09-15 | Pass (create/list isolation) | `spaces` FK user + service + `3bfb01f2ee6b` + 4 tests |
 | 15 | Projects | ✅ Complete | 2026-09-15 | Pass (nested scoped 404) | `projects` FK space + service + `ccb823bfc29d` + 3 tests |
 | 16 | Project Isolation & Authorization | ✅ Complete | 2026-09-15 | Pass (own 200 foreign 403/404 401) | `authorization.py` space/project deps + `GET space/project` guards + 2 tests |
-| 17 | Spaces/Projects Frontend | ⏳ Pending | — | — | — |
+| 17 | Spaces/Projects Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 87 mods) | `SpacesPage` + `SpaceProjects` + `ProjectDetail` + hierarchy routes |
 | 18 | Materials Model | ⏳ Pending | — | — | — |
 | 19 | PDF Upload | ⏳ Pending | — | — | — |
 | 20 | Shared Upload Volume | ⏳ Pending | — | — | — |
@@ -361,6 +361,16 @@
 **Verify:** own space `GET /spaces/{id}`→200, own project `GET /projects/{id}`→200 and nested `GET /spaces/{sid}/projects/{pid}`→200; foreign space/project `403/404` on all three + list/create via foreign space `404`; missing token `401`, invalid token `401`, non-existent `404`; `pytest -q` 32 passed (2+30 prior); `docker compose config --quiet` pass.
 **Guard:** Every later endpoint accepting `project`/`material`/`concept` IDs must use `get_authorized_*`; `404` hides existence vs `403`.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 17.
+
+---
+
+## Phase 17 — Detail (compact)
+
+**Scope:** UI for `user→space→project` hierarchy before document ingestion.
+**Files:** `frontend/src/features/spaces/SpacesPage.tsx` (`GET /spaces` list + `POST /spaces` create + `name.trim()` validation + loading/empty `No spaces yet` + error/retry + `Link /spaces/{id}`), `frontend/src/features/projects/SpaceProjectsPage.tsx` (`GET /spaces/{spaceId}` + `GET/POST /spaces/{spaceId}/projects` + breadcrumb `Spaces / {space}` + `Link /spaces/{sid}/projects/{pid}` + 404 handling), `frontend/src/features/projects/ProjectDetailPage.tsx` (`GET /projects/{projectId}` + `GET /spaces/{spaceId}` for breadcrumb + hierarchy proof + 404/loading), `frontend/src/App.tsx` (add `ProtectedRoute` routes `/spaces` `/spaces/:spaceId` `/spaces/:spaceId/projects/:projectId` + nav `Spaces` link in `Home`/`Dashboard`), `docs/*`.
+**Verify:** `npm run build` → `87 modules` `css 8.66kB` `js 327.92kB gzip 104.15kB` OK; `pytest -q` 32 passed; hierarchy `user→space→project` preserved via URL params `spaceId`→`projectId` + breadcrumb; empty `No spaces/projects yet` + `404 Space not found` + `401` via `apiClient` interceptor + disabled `Create` when empty; `docker compose config --quiet` pass.
+**Guard:** No hard-coded URLs — all via `apiClient`; backend isolation via `get_authorized_*` deps; frontend mirrors `user→space→project`.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 18.
 
 ---
 

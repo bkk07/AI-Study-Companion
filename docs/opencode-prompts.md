@@ -809,4 +809,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 17 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `frontend/src/features/spaces/SpacesPage.tsx` (list/create + empty/retry + `GET/POST /spaces`), `frontend/src/features/projects/SpaceProjectsPage.tsx` (`GET /spaces/{id}` + `GET/POST /spaces/{id}/projects` + hierarchy breadcrumb), `frontend/src/features/projects/ProjectDetailPage.tsx` (`GET /projects/{id}` + space breadcrumb + 404), `frontend/src/App.tsx` (routes `/spaces` `/spaces/:spaceId` `/spaces/:spaceId/projects/:projectId` all `ProtectedRoute` + nav links), `docs/*`
+**Verify:** `npm run build` → `tsc -b && vite build` OK `87 modules` `css 8.66kB gzip 2.64kB` `js 327.92kB gzip 104.15kB`; `pytest -q` 32 passed unaffected; manual hierarchy `Home→Spaces→Space→Project` preserves `user→space→project` via `spaceId`/`projectId` params; empty states + `404`/`401` + retry + validation handled; `docker compose config --quiet` pass.
+**Guard:** Frontend navigation mirrors backend `user→space→project`; all calls via central `apiClient` + `get_authorized_*` backend.
+**Known:** Project detail is placeholder for Phases 18+ materials.

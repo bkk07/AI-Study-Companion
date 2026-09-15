@@ -771,4 +771,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 15 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/project.py` (Project `space_id` FK→spaces cascade + `name`), `backend/app/schemas/project.py` (ProjectCreate/ProjectRead), `backend/app/services/project_service.py` (create/list + `_get_owned_space` 404), `backend/app/api/v1/projects.py` (`POST/GET /spaces/{space_id}/projects` via `get_current_user`), `backend/app/main.py` (wire), `backend/alembic/env.py` (import project), `backend/alembic/versions/ccb823bfc29d_create_projects_table.py` (create `projects` + `ix_projects_space_id`), `backend/tests/test_projects.py` (3 tests), `docs/*`
+**Verify:** `alembic upgrade head` → `ccb823bfc29d`; `\d projects` → `projects_pkey` + `ix_projects_space_id` + FK; `401` without token; `create→201` + `list scoped` + isolation foreign space `404`; validation `400/422`; `pytest -q` 30 passed (3 projects +27 prior); `docker compose config --quiet` pass.
+**Guard:** No materials outside project scope; `project_id` is scope key downstream (validated via space→user).
+**Known:** Project ownership via space→user; future phases use `project_id` as filter.

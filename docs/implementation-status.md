@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 14 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 15 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -25,7 +25,7 @@
 | 12 | JWT Authentication | ✅ Complete | 2026-09-15 | Pass (register/login+jwt 5 tests) | `jwt.py` + `auth.py` + `get_current_user` + 5 tests |
 | 13 | Auth Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 84 modules) | `AuthContext` + axios Bearer + ProtectedRoute + Login/Register |
 | 14 | Spaces | ✅ Complete | 2026-09-15 | Pass (create/list isolation) | `spaces` FK user + service + `3bfb01f2ee6b` + 4 tests |
-| 15 | Projects | ⏳ Pending | — | — | — |
+| 15 | Projects | ✅ Complete | 2026-09-15 | Pass (nested scoped 404) | `projects` FK space + service + `ccb823bfc29d` + 3 tests |
 | 16 | Project Isolation & Authorization | ⏳ Pending | — | — | — |
 | 17 | Spaces/Projects Frontend | ⏳ Pending | — | — | — |
 | 18 | Materials Model | ⏳ Pending | — | — | — |
@@ -341,6 +341,16 @@
 **Verify:** `alembic upgrade head` → `3bfb01f2ee6b`; `\d spaces` → `spaces_pkey` + `ix_spaces_user_id` + FK cascade; `401` without token; `create→201` + `list own`; isolation `A Space` not visible to `B`; validation `400/422`; `pytest -q` 27 passed (4+23 prior); `docker compose config --quiet` pass.
 **Guard:** No global/shared spaces — ownership via `user_id`; service owns validation.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 15.
+
+---
+
+## Phase 15 — Detail (compact)
+
+**Scope:** Project as parent container for downstream study data.
+**Files:** `backend/app/models/project.py` (Project `space_id` FK→spaces cascade `name` 255), `backend/app/schemas/project.py` (ProjectCreate/ProjectRead), `backend/app/services/project_service.py` (create/list + `_get_owned_space` 404), `backend/app/api/v1/projects.py` (`POST`/`GET` `/spaces/{space_id}/projects` via `get_current_user`), `backend/app/main.py` (wire), `backend/alembic/env.py` (import project), `backend/alembic/versions/ccb823bfc29d_create_projects_table.py` (create `projects` + `ix_projects_space_id`), `backend/tests/test_projects.py` (3 tests), `docs/*`.
+**Verify:** `alembic upgrade head` → `ccb823bfc29d`; `\d projects` → `projects_pkey` + `ix_projects_space_id` + FK cascade; `401` without token; `create→201` + `list scoped` + isolation foreign space `404`; validation `400/422`; `pytest -q` 30 passed (3+27 prior); `docker compose config --quiet` pass.
+**Guard:** No data outside project scope; `project_id` is downstream scope key (ownership validated via space→user).
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 16.
 
 ---
 

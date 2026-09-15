@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 10 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 11 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -21,7 +21,7 @@
 | 08 | SQLAlchemy & DB Session Management | ✅ Complete | 2026-09-15 | Pass (6 db +3 health, DI) | `Base` + `UUIDTimestampMixin` + `SessionLocal`/`get_db` (yield/rollback/close) |
 | 09 | Alembic Migrations | ✅ Complete | 2026-09-15 | Pass (upgrade head idempotent) | `alembic.ini` + `env.py` (Base.metadata + get_settings url) + `5257ffa81b36` no-op |
 | 10 | User Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `users` UUID email unique + schemas + `d65fb0219416` + 3 tests |
-| 11 | Password Hashing | ⏳ Pending | — | — | — |
+| 11 | Password Hashing | ✅ Complete | 2026-09-15 | Pass (Argon2id 6 tests) | `security.py` hash/verify + `test_security.py` 6 tests |
 | 12 | JWT Authentication | ⏳ Pending | — | — | — |
 | 13 | Auth Frontend | ⏳ Pending | — | — | — |
 | 14 | Spaces | ⏳ Pending | — | — | — |
@@ -301,6 +301,16 @@
 **Verify:** `alembic upgrade head` → `d65fb0219416`; `psql \d users` → `users_pkey` + `ix_users_email`; round-trip `User(email=...)` insert→`query`→`UserRead.model_validate` ok, `hashed_password` hidden; unique `IntegrityError`; `UserCreate` email/password validation; `pytest -q` 12 passed (3+6+3); `docker compose config --quiet` pass.
 **Guard:** User ownership root — no plaintext password in read schema; all later resources inherit via user.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 11.
+
+---
+
+## Phase 11 — Detail (compact)
+
+**Scope:** Centralize Argon2id hashing before auth endpoints.
+**Files:** `backend/app/core/security.py` (`_ph PasswordHasher` time_cost 3 mem 65536 + `hash_password`/`verify_password`/`needs_rehash`), `backend/tests/test_security.py` (6 tests), `docs/*`.
+**Verify:** `hash.startswith("$argon2id$")` true; `verify correct→True`, `wrong→False`, same pwd different hashes both verify (salt), `invalid→False`, `empty→ValueError`; `pytest -q` 18 passed (6 security +12 prior); `docker compose config --quiet` pass.
+**Guard:** No plaintext/bcrypt/reversible — Argon2id only, params centralized.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 12.
 
 ---
 

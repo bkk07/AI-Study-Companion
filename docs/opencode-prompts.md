@@ -695,4 +695,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 11 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/core/security.py` (`hash_password`/`verify_password`/`needs_rehash` Argon2id time_cost 3 mem 65536), `backend/tests/test_security.py` (6 tests), `docs/*`
+**Verify:** `hash.startswith("$argon2id$")` true; `verify correct→True`, `wrong→False`, same pwd different hashes (salt) both verify, `invalid hash→False`, `empty→ValueError`; `pytest` 18 passed (6 security +3 health +6 db +3 user); `docker compose config --quiet` pass.
+**Guard:** Argon2id only — no plaintext/bcrypt/reversible; params centralized in `_ph`.
+**Known:** `email-validator` not needed (Phase 10 regex); `argon2-cffi` installed via `python -m pip` (host).

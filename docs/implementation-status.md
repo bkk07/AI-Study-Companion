@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 30 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 31 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -503,6 +503,16 @@
 **Verify:** identical vector in A+B returns only own side each way (score 0.0); strict ranking `near<mid<far` + citation metadata (`page_number 2`, `source_name`, `chunk_index`, `material_id` UUID); scoped query beats globally-nearest + foreign concept `[]` + unscoped nearest-first; `top_k=2` + embedding-less project `[]`; empty query `ValueError` + embed never called; `pytest -q` 107 passed (5+102); `compose config` 0; no migration, no rebuild.
 **Guard:** Never fetch-all-filter-Python; ownership/auth is future callers' duty.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 31 (RAG Service).
+
+---
+
+## Phase 31 — Detail (compact)
+
+**Scope:** Shared retrieval + context assembly — no LLM, no endpoint, no consumer logic.
+**Files:** `backend/app/services/rag_service.py` (`DEFAULT_MAX_CHUNKS 5`/`MAX 10`, `DEFAULT_MAX_CHARS 6000`/`500..20000`, `_snap_truncate` word-snapped `…` + `assemble_context(db, *, project_id, query, max_chunks, max_chars, concept_id?)`: empty→`ValueError` + clamps + `retrieve` same scope + skip empties + bounds + `truncated` iff cut or dropped), `backend/app/schemas/rag.py` (`RagChunk` chunk/material/content/page/source/index/score + `RagContext` query/scope/chunks/total_chars/truncated), `backend/tests/test_rag_service.py` (6 mocked tests), `docs/*`.
+**Verify:** passthrough asserts exact `retrieve` kwargs + stripped query + metadata/scores/total; 1000ch→`≤500` snapped `…`; 5 hits→2 + truncated; empty→`[]/0/False`; whitespace skipped; empty query `ValueError` + uncalled; `pytest -q` 113 passed (6+107); `compose config` 0; no migration, no rebuild.
+**Guard:** Consumer-neutral; `chunks []` is callers' no-context branch (tutor unsupported behavior is Phase 32).
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 32 (Tutor Backend).
 
 ---
 

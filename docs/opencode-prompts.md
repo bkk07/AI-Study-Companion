@@ -1059,3 +1059,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 5 pass on real pgvector (identical vector in both projects never mixes — proves SQL-side filter; strict ranking `0.0<~0.006<1.0` no ties + citation fields; concept scope beats global nearest + foreign concept `[]` + unscoped nearest; `top_k=2` + empty project `[]`; empty query ValueError + embed not called); full `pytest -q` 107 passed (5+102); `compose config` 0; no migration (read-only over Phase 27/29 schema), no rebuild (no new deps).
 **Guard:** Auth/ownership stays with future callers; service only guarantees scope filtering + ranking.
 **Known:** Real OpenAI query embedding not exercised (patched one-hots); `top_k` cap 20 generous — Phase 31 may tighten per consumer.
+
+## Phase 31 — RAG Service (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 31 (consumer-neutral retrieval + context assembly)
+**Objective:** One shared RAG foundation for tutor/quiz/assessment — query + scope in, bounded cited context out.
+**Contract:** `assemble_context(db, project_id, query, max_chunks?=5, max_chars?=6000, concept_id?)`: validate non-empty query + clamp chunks `1..10` / chars `500..20000` → `retrieval_service.retrieve` with same scope → skip empty contents + per-chunk word-snapped truncation (`…`) → `RagContext(query, scope_project_id, scope_concept_id, chunks: [RagChunk(chunk_id, material_id, content, page_number, source_name, chunk_index, score)], total_chars, truncated)`; empty retrieval → `chunks []`, `total_chars 0` (consumers decide unsupported behavior, not here). Schemas in `schemas/rag.py` (Pydantic). No LLM call, no endpoint, no consumer wording.
+**Files:** `backend/app/services/rag_service.py`, `backend/app/schemas/rag.py`
+**Guard:** Consumer-neutral — no tutor/quiz/assessment logic, prompts, or grading inside.
+**Verify:** unit tests with mocked `retrieve` — scope passthrough (project+concept+top_k); bound enforcement (chars + count, word-snapped truncation marker); citation metadata preserved; empty retrieval → empty context; empty query → ValueError + retrieve never called; full `pytest -q` green; `compose config` 0.
+
+### Phase 31 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/rag_service.py` (`assemble_context`: empty query → ValueError pre-retrieval + clamp chunks `1..10` / chars `500..20000` + `retrieve` same scope + skip empty contents + per-chunk word-snapped `…` truncation + `truncated` iff char-cut or usable hits dropped; empty retrieval → `chunks []`, `total_chars 0`), `backend/app/schemas/rag.py` (`RagChunk` + `RagContext`), `backend/tests/test_rag_service.py` (6 tests), `docs/*`
+**Verify:** 6 pass mocked (scope passthrough incl. stripped query + metadata/scores; `max_chars=500` on 1000ch → `≤500` + `…` + snapped; `max_chunks=2/5` → 2 + truncated; empty → `[]/0/False`; whitespace-only skipped untruncated; empty query ValueError + retrieve uncalled); full `pytest -q` 113 passed (6+107); `compose config` 0; no migration, no rebuild (pure service).
+**Guard:** No LLM/endpoint/consumer wording — unsupported-behavior stays with Phase 32+.
+**Known:** Truncation marker `…` single char; consumers must treat `chunks []` as their own no-context branch.

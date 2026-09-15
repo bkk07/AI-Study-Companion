@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import get_settings
 from app.db.base import Base  # noqa: E402
+import app.models.space  # noqa: F401,E402 — ensure Space metadata
 import app.models.user  # noqa: F401,E402 — ensure User metadata is registered for autogenerate
 
 # this is the Alembic Config object, which provides

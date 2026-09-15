@@ -1004,3 +1004,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `upgrade head`→`3a900a15443a`; sizes ≤2000 + overlap shared-substring + full whitespace-only-gap coverage; starts/ends on word boundaries (mid-word only for 3000-char token → hard cut `[2000, 1200]`); overlap=0 contiguous; invalid → ValueError ×6; determinism; `chunk_pages` never spans pages, empty skipped; persist replace stable `{chunks: n}` + isolation + missing → 404; full `pytest -q` 91 passed (12+79); `compose config` 0.
 **Guard:** No LLM boundaries; starts snap forward to word starts (fallback raw on long tokens); embeddings/vector deferred to Phase 28–29.
 **Known:** Char-based sizes (~500/~50 tokens @4ch/tok); unique constraint case-sensitive N/A (integer index); no API yet — retrieval phases consume the table.
+
+---
+
+## Phase 28 — Embedding Client (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 28
+**Objective:** Thin mockable OpenAI embeddings wrapper; no LangChain, no Groq routing.
+**Contract:** `embed(texts) → list[list[float]]` + `embed_one(text)` via httpx `POST api.openai.com/v1/embeddings` with `OPENAI_API_KEY`/`EMBEDDING_MODEL` (default `text-embedding-3-small`) from settings; missing key → RuntimeError; empty input → ValueError; unexpected shape → ValueError; transport errors propagate for worker retry; key never logged.
+**Files:** `backend/app/services/ai/embedding_client.py`
+**Guard:** Separate from Groq generation; pure client, no DB.
+**Verify:** unit with mocked `httpx.post` — payload model+input, vectors returned in order, missing key/empty/shape/HTTP-error paths.
+
+### Phase 28 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/services/ai/embedding_client.py` (`embed(texts)→vectors` + `embed_one`, httpx JSON, key/model central, index-ordered, shape/empty/key guards, transport errors propagate), `backend/tests/test_embedding_client.py` (6 tests), `docs/*`
+**Verify:** 6 pass (order-by-index, payload model+input+auth, missing-key no-HTTP, empty, 3 malformed shapes, HTTPError propagates); full `pytest -q` 97 passed (6+91); `compose config` 0; no migration/config change (used existing `OPENAI_API_KEY`/`EMBEDDING_MODEL`).
+**Guard:** Embeddings never routed through Groq; key never logged.
+**Known:** Real API not called (mocked) — live check needs `OPENAI_API_KEY`; worker wiring is Phase 29.

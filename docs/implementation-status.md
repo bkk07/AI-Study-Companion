@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 27 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 28 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -39,6 +39,7 @@
 | 26 | Structure API + Frontend | ✅ Complete | 2026-09-15 | Pass (tree + isolation) | `GET structure` + `StructureView` + 1 test |
 | 27 | Chunking | ✅ Complete | 2026-09-15 | Pass (boundaries+overlap) | `document_chunks` + `3a900a15443a` + `chunking_service` + 12 tests |
 | 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
+| — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
 | 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
 | 30 | Tutor Frontend | ⏳ Pending | — | — | — |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |
@@ -471,6 +472,16 @@
 **Verify:** `upgrade`→`3a900a15443a`; 5500ch → ≥3 chunks ≤2000ch + starts/ends on word edges + overlap shared + whitespace-only gaps; 3000ch token → hard `[2000,1200]`; overlap=0 contiguous; 6 invalid → ValueError; determinism; pages `[1,3]` never mixed; persist `{chunks: n}` replace-stable + material isolation + missing 404; `pytest -q` 91 passed (12+79); `compose config` 0.
 **Guard:** No LLM for boundaries; embeddings/vector columns deferred; blueprint delete-before-insert idempotency.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 28.
+
+---
+
+## Phase 28 — Detail (compact)
+
+**Scope:** Pure client wrapper — no DB, no worker (Phase 29).
+**Files:** `backend/app/services/ai/embedding_client.py` (`embed(texts, model?, timeout?)` httpx `POST /v1/embeddings` `{model, input}` + `embed_one` for queries; missing key → RuntimeError before HTTP; empty → ValueError; shape → ValueError with index-ordering; `raise_for_status` + raw `httpx.HTTPError` propagate for worker retry), `backend/tests/test_embedding_client.py` (6 tests), `docs/*`.
+**Verify:** order-by-index `[[0.1,0.0],[0.2,0.3]]` + payload asserted (model/input/auth); missing-key asserts no HTTP call; empty ×2; malformed ×3; HTTPError propagates; `pytest -q` 97 passed (6+91); `compose config` 0; no migration.
+**Guard:** Separate from Groq; key never logged.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 29.
 
 ---
 

@@ -909,3 +909,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head`→`708b62706a6e`; `\d background_jobs`→pkey+ix+FK+CASCADE+`status pending`; lifecycle `create pending→mark_running→running→mark_completed→completed` + `pending→running→failed+error` + invalid `completed→running 400`; API `GET` own `200` status transitions visible, foreign `404`, no token `401`; generic `ping` job allowed; `pytest -q` 41 passed (2 jobs +39 prior); `docker compose config --quiet` pass; `docker compose build api` healthy.
 **Guard:** Application `BackgroundJob` is user-facing truth, not Celery internals; failure stores `error` not silent.
 **Known:** `material_id` nullable for generic jobs; owned check via `Material→Project→Space→User`.
+
+---
+
+## Phase 23 — PDF Text Extraction (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 23
+**Objective:** Turn uploaded PDF into durable source text via worker.
+**Contract:** PyMuPDF extraction service (per-page text for citations) + Celery `process_pdf(job_id, material_id)` triggered on `POST /projects/{id}/materials`; persist `extracted_text` on `materials` (or related table) + `page_count`; `job pending→running→completed/failed` + `material pending→processing→ready/failed` atomically; failure leaves diagnosable `error` not silent pending.
+**Files:** `backend/app/services/document_extraction_service.py`, `backend/app/worker/tasks/extraction.py`
+**Guard:** PyMuPDF only, never LLM/browser parser; untrusted PDF text never executed.
+**Verify:** test PDF → extraction task → text persisted + `job completed` + `material ready`; corrupt/missing → `failed+error`.
+
+### Phase 23 Post-implementation (compact)
+
+**Status:** _pending_

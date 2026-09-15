@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 19 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 20 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -30,7 +30,7 @@
 | 17 | Spaces/Projects Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 87 mods) | `SpacesPage` + `SpaceProjects` + `ProjectDetail` + hierarchy routes |
 | 18 | Materials Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `materials` FK project + `242af3866a09` + 2 tests |
 | 19 | PDF Upload | ✅ Complete | 2026-09-15 | Pass (PDF 201/non-PDF 400/oversize 413) | `storage_service` + `POST /projects/{id}/materials` + 3 tests |
-| 20 | Shared Upload Volume | ⏳ Pending | — | — | — |
+| 20 | Shared Upload Volume | ✅ Complete | 2026-09-15 | Pass (api→worker same file) | `uploads:/data/uploads` shared + `storage.md` + probe verified |
 | 21 | Celery + Redis | ⏳ Pending | — | — | — |
 | 22 | Background Job Tracking | ⏳ Pending | — | — | — |
 | 23 | PDF Text Extraction | ⏳ Pending | — | — | — |
@@ -391,6 +391,16 @@
 **Verify:** valid `doc.pdf %PDF`→`201` `MaterialRead` `pending` `project_id` + `storage_path` contains `project_id` + `os.path.exists` + `read.startswith b'%PDF'` + `GET` list `1`; `doc.txt`→`400`; `pdf+ b'not a pdf'`→`400`; `text/plain`→`400`; oversized (`MAX 10`→`413`); foreign project→`404` hide; missing token→`401`; traversal `../../evil.pdf` sanitized `evil.pdf` no `..`; `pytest -q` 37 passed (3+34 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** No DOCX/images/URLs — PDF-only via extension+content_type+magic; server UUID path, never client path; ownership via `get_authorized_project`.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 20.
+
+---
+
+## Phase 20 — Detail (compact)
+
+**Scope:** Shared filesystem so `api` uploads are readable by `worker` at same absolute path.
+**Files:** `docker-compose.yml` (since Phase 05: `api`+`worker` both `volumes: uploads:/data/uploads` + `UPLOAD_DIR=/data/uploads` + top-level `volumes: uploads`), `docs/storage.md` (volume name/mount/env/DB path/behavior/verification/guard), `docs/*`.
+**Verify:** `docker compose config --quiet` pass; greps `uploads:/data/uploads` 2× + `UPLOAD_DIR=/data/uploads` in both services; `docker compose up -d --build api worker` creates `aistudycompanion_uploads` + both services mount it; `docker compose exec api sh -c "echo hello-shared > /data/uploads/probe.txt && cat"`→`hello-shared` `ls -l` 13B; `docker run --rm -v aistudycompanion_uploads:/data/uploads alpine cat`→`hello-shared`; `docker compose run --entrypoint sh worker cat`→`hello-shared` + `ok`; `volume inspect` Mountpoint exists; `Material.storage_path` `/data/uploads/{project_id}/{uuid}.pdf` equals mount path (Phase 19 service); `pytest -q` 37 passed; `npm run build` 87 mods; `docker compose up --wait` `postgres`/`redis`/`api` healthy (worker restart `No module app.worker` expected until Phase 21).
+**Guard:** No non-shared dirs — single `uploads` volume, identical mount paths; `Material` callers use `material.id` not paths.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 21.
 
 ---
 

@@ -866,4 +866,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 20 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `docker-compose.yml` (already `uploads:/data/uploads` in `api`+`worker` + `UPLOAD_DIR=/data/uploads` + `volumes: uploads`), `docs/storage.md` (volume, mount, env, verification), `docs/*`
+**Verify:** `docker compose config --quiet` pass + `api`+`worker` both mount `uploads:/data/uploads` (grep 2×) + `UPLOAD_DIR` consistent; write via `docker compose exec api sh -c "echo hello-shared > /data/uploads/probe.txt"` → `cat` `hello-shared`; read via `docker run -v aistudycompanion_uploads:/data/uploads alpine cat`→`hello-shared` + `docker compose run --entrypoint sh worker cat`→`hello-shared`; `volume inspect aistudycompanion_uploads` OK; `Material.storage_path` `/data/uploads/{project_id}/{uuid}.pdf` matches mount; `pytest -q` 37 passed; `docker compose up -d --wait` healthy (api/postgres/redis) worker restart expected until Phase 21.
+**Guard:** No separate dirs — single `uploads` volume at same path in both services.
+**Known:** Worker `celery` command fails `No module app.worker` until Phase 21 — volume sharing verified via `run --entrypoint`; `api` healthy.

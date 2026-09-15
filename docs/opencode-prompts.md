@@ -643,3 +643,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `Base` clean + `UUIDTimestampMixin(id uuid4, created_at/updated_at func.now)` exist; `SessionLocal SELECT 1` →1; `get_db()` yield→`SELECT 1`→close; rollback on exception; FastAPI DI `/test-db` →200 `{"ok":true}`; `pytest` 9 passed (6 db +3 health). Service-name `postgres:5432` in compose, host `localhost:5433` in tests.
 **Guard:** No ad-hoc engine/session in routes — all via `SessionLocal`/`get_db`.
 **Known:** `pgvector` still `pgvector/pgvector:pg16` `5433:5432`.
+
+---
+
+## Phase 09 — Alembic Migrations (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 09
+**Objective:** Make DB schema changes reproducible/reviewable.
+**Contract:** Init Alembic, point at `Base.metadata`, env uses Docker DB URL (`get_settings().database_url` → `postgres:5432` in containers, `localhost:5433` via `DATABASE_URL` override on host). `alembic upgrade head` on empty DB = clean (no-op migration ok as placeholder).
+**Files:** `backend/alembic.ini` (url → `driver://` placeholder, overridden in env), `backend/alembic/env.py` (imports Base, sets url from Settings), `backend/alembic/script.py.mako`, `backend/alembic/versions/`
+**Guard:** No manual DB edits — all schema via migrations after this phase.
+**Verify:** `alembic upgrade head` clean, `downgrade base`+`upgrade` idempotent, `pytest` green.
+
+### Phase 09 Post-implementation (compact)
+
+**Status:** _pending_

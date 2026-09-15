@@ -676,4 +676,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 10 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/user.py` (User Base+UUIDTimestampMixin `email` unique `hashed_password` `is_admin`), `backend/app/schemas/user.py` (UserCreate/UserRead no password), `backend/alembic/env.py` (import user), `backend/alembic/versions/d65fb0219416_create_user_table.py` (create `users` + `ix_users_email`), `backend/tests/test_user.py` (3 tests), `docs/*`
+**Verify:** `alembic upgrade head` → `d65fb0219416`; `\d users` → `users_pkey` + `ix_users_email`; round-trip insert→query→`UserRead` ok, `hashed_password` not in `model_dump()`; unique constraint `IntegrityError`; `UserCreate` validation; `pytest -q` 12 passed (3 health+6 db+3 user); `docker compose config --quiet` pass.
+**Guard:** User ownership root boundary preserved; no plaintext password stored.
+**Known:** Py: no `email-validator` — schema uses `str` with regex; future auth (Phases 11-12) will hash/verify via Argon2id/JWT.

@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 09 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 10 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -20,7 +20,7 @@
 | 07 | pgvector Setup | ✅ Complete | 2026-09-15 | Pass (vector 0.8.6 + throwaway) | `pgvector/pgvector:pg16` + `CREATE EXTENSION` + `vector(3)` test; 1536 dims |
 | 08 | SQLAlchemy & DB Session Management | ✅ Complete | 2026-09-15 | Pass (6 db +3 health, DI) | `Base` + `UUIDTimestampMixin` + `SessionLocal`/`get_db` (yield/rollback/close) |
 | 09 | Alembic Migrations | ✅ Complete | 2026-09-15 | Pass (upgrade head idempotent) | `alembic.ini` + `env.py` (Base.metadata + get_settings url) + `5257ffa81b36` no-op |
-| 10 | User Model | ⏳ Pending | — | — | — |
+| 10 | User Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `users` UUID email unique + schemas + `d65fb0219416` + 3 tests |
 | 11 | Password Hashing | ⏳ Pending | — | — | — |
 | 12 | JWT Authentication | ⏳ Pending | — | — | — |
 | 13 | Auth Frontend | ⏳ Pending | — | — | — |
@@ -291,6 +291,16 @@
 **Verify:** `DATABASE_URL=...localhost:5433 alembic upgrade head` → `5257ffa81b36` OK; `downgrade base` → `upgrade head` idempotent OK; `alembic current` → `5257ffa81b36 (head)`; `psql SELECT version_num FROM alembic_version` → `5257ffa81b36`; `python -m pytest` 9 passed; `docker compose config --quiet` pass.
 **Guard:** All schema changes after this via migrations; `target_metadata = Base.metadata`; no manual DB edits.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 10.
+
+---
+
+## Phase 10 — Detail (compact)
+
+**Scope:** User identity — root ownership boundary.
+**Files:** `backend/app/models/user.py` (User `Base+UUIDTimestampMixin` `email unique index` `hashed_password` `is_admin` server_default false), `backend/app/schemas/user.py` (UserCreate `email`/`password` 8+ regex, UserRead `id`/`email`/`is_admin`/`created_at` from_attributes no password), `backend/alembic/env.py` (import `app.models.user`), `backend/alembic/versions/d65fb0219416_create_user_table.py` (create `users` + `ix_users_email`), `backend/tests/test_user.py` (3 tests), `docs/*`.
+**Verify:** `alembic upgrade head` → `d65fb0219416`; `psql \d users` → `users_pkey` + `ix_users_email`; round-trip `User(email=...)` insert→`query`→`UserRead.model_validate` ok, `hashed_password` hidden; unique `IntegrityError`; `UserCreate` email/password validation; `pytest -q` 12 passed (3+6+3); `docker compose config --quiet` pass.
+**Guard:** User ownership root — no plaintext password in read schema; all later resources inherit via user.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 11.
 
 ---
 

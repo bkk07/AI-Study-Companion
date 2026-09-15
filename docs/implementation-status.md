@@ -41,6 +41,7 @@
 | 28 | Retrieval (RAG) | ✅ Complete | 2026-09-16 | Pass (real pgvector isolation) | `retrieval_service` + 5 integration tests |
 | — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
 | — | Embedding Worker (detail §29) | ✅ Complete | 2026-09-16 | Pass (mocked task+live pgvector) | `generate_embeddings` + `ab60908d37ca` + 5 tests |
+| — | RAG Service (detail §31) | ✅ Complete | 2026-09-16 | Pass (mocked assembly unit) | `assemble_context` + `rag.py` + 6 tests |
 | 29 | Tutor (Grounded Q&A) | ✅ Complete | 2026-09-16 | Pass (grounded+unsupported+isolation) | `tutor ask` endpoint + 6 tests |
 | 30 | Tutor Frontend | ✅ Complete | 2026-09-16 | Pass (build + live contract flow) | `TutorChat` + retrieval short-circuit |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |

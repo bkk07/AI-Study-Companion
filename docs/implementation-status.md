@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 08 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 09 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -19,7 +19,7 @@
 | 06 | PostgreSQL Setup | ✅ Complete | 2026-09-15 | Pass (SELECT 1 via host 5433 + container) | `core/config.py`+`db/session.py`+`psycopg`; `postgres:16-alpine` 5433:5432 `SELECT 1` true |
 | 07 | pgvector Setup | ✅ Complete | 2026-09-15 | Pass (vector 0.8.6 + throwaway) | `pgvector/pgvector:pg16` + `CREATE EXTENSION` + `vector(3)` test; 1536 dims |
 | 08 | SQLAlchemy & DB Session Management | ✅ Complete | 2026-09-15 | Pass (6 db +3 health, DI) | `Base` + `UUIDTimestampMixin` + `SessionLocal`/`get_db` (yield/rollback/close) |
-| 09 | Alembic Migrations | ⏳ Pending | — | — | — |
+| 09 | Alembic Migrations | ✅ Complete | 2026-09-15 | Pass (upgrade head idempotent) | `alembic.ini` + `env.py` (Base.metadata + get_settings url) + `5257ffa81b36` no-op |
 | 10 | User Model | ⏳ Pending | — | — | — |
 | 11 | Password Hashing | ⏳ Pending | — | — | — |
 | 12 | JWT Authentication | ⏳ Pending | — | — | — |
@@ -281,6 +281,16 @@
 **Verify:** Base clean, mixin `id/created_at/updated_at` present; `HostSessionLocal SELECT 1` →1; `get_db()` yield→`SELECT 1`→StopIteration close; rollback on `gen.throw`; FastAPI `Depends(get_db)` `/test-db` →200; `pytest 9 passed` (6+3 health); `docker compose config --quiet` pass.
 **Guard:** All DB access via centralized `SessionLocal`/`get_db`; no route-level engines.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 09.
+
+---
+
+## Phase 09 — Detail (compact)
+
+**Scope:** Reproducible/reviewable schema changes via Alembic.
+**Files:** `backend/alembic.ini` (placeholder url, overridden), `backend/alembic/env.py` (sys.path + Base.metadata + get_settings().database_url), `backend/alembic/script.py.mako`, `backend/alembic/versions/5257ffa81b36_initial_baseline.py` (no-op upgrade/downgrade pass), `docs/*`.
+**Verify:** `DATABASE_URL=...localhost:5433 alembic upgrade head` → `5257ffa81b36` OK; `downgrade base` → `upgrade head` idempotent OK; `alembic current` → `5257ffa81b36 (head)`; `psql SELECT version_num FROM alembic_version` → `5257ffa81b36`; `python -m pytest` 9 passed; `docker compose config --quiet` pass.
+**Guard:** All schema changes after this via migrations; `target_metadata = Base.metadata`; no manual DB edits.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 10.
 
 ---
 

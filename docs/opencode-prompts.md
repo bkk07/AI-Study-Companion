@@ -657,4 +657,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 09 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/alembic.ini`, `backend/alembic/env.py` (Base.metadata + get_settings url), `backend/alembic/script.py.mako`, `backend/alembic/versions/5257ffa81b36_initial_baseline.py` (no-op), `docs/*`
+**Verify:** `alembic upgrade head` → `5257ffa81b36` OK; `downgrade base`→`upgrade head` idempotent OK; `alembic current` → `5257ffa81b36 (head)`; `psql SELECT version_num FROM alembic_version` → `5257ffa81b36`; `pytest` 9 passed (6 db+3 health); `docker compose config --quiet` pass.
+**Guard:** No manual DB edits — schema via Alembic; `target_metadata = Base.metadata`; `get_url()` respects `DATABASE_URL` (host `localhost:5433` vs container `postgres:5432`).
+**Known:** Empty DB no-op migration ok as placeholder (roadmap §6).

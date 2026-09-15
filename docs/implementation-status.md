@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 28 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 29 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -40,6 +40,7 @@
 | 27 | Chunking | ✅ Complete | 2026-09-15 | Pass (boundaries+overlap) | `document_chunks` + `3a900a15443a` + `chunking_service` + 12 tests |
 | 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
 | — | Embedding Client (detail §28) | ✅ Complete | 2026-09-15 | Pass (mocked unit) | `embedding_client` + 6 tests |
+| — | Embedding Worker (detail §29) | ✅ Complete | 2026-09-16 | Pass (mocked task+live pgvector) | `generate_embeddings` + `ab60908d37ca` + 5 tests |
 | 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
 | 30 | Tutor Frontend | ⏳ Pending | — | — | — |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |
@@ -482,6 +483,16 @@
 **Verify:** order-by-index `[[0.1,0.0],[0.2,0.3]]` + payload asserted (model/input/auth); missing-key asserts no HTTP call; empty ×2; malformed ×3; HTTPError propagates; `pytest -q` 97 passed (6+91); `compose config` 0; no migration.
 **Guard:** Separate from Groq; key never logged.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 29.
+
+---
+
+## Phase 29 — Detail (compact)
+
+**Scope:** Async chunk → embed → store; idempotent upsert, job-tracked.
+**Files:** `backend/app/models/embedding.py` (`Embedding` → `embeddings`: `project_id`/`material_id` FK CASCADE ix + `chunk_id FK→document_chunks CASCADE unique ix` + `embedding Vector(1536)` + `model 64` + `EMBEDDING_DIMS`), `backend/app/worker/tasks/embeddings.py` (`@task generate_embeddings bind max_retries 3`: UUID parse + fresh `get_task_session` + missing→failed+raise + `pending→running` + chunks ordered + none→failed + `embedding_client.embed` batch + ValueError→failed fast + HTTP→`self.retry 2^r*2` then failed + dim/count guard→failed + per-`chunk_id` upsert commit + `mark_completed`), `backend/app/worker/tasks/__init__.py` (shared `get_task_session()` + register embeddings), `backend/app/worker/tasks/extraction.py` (uses shared helper, no behavior change), `backend/app/worker/celery_app.py` (include embeddings), `backend/alembic/versions/ab60908d37ca_create_embeddings_table.py` (+pgvector import fix), `pyproject.toml`+`requirements.txt` (+`pgvector>=0.3.0`), `backend/tests/test_embeddings_task.py` (5 tests), `docs/*`.
+**Verify:** `upgrade`→`ab60908d37ca`; success N vectors exact chunk ids + 1536 dims + completed; re-run same count updated markers; client ValueError → failed + 0 rows; no-chunks → failed; missing → failed+raise; `pytest -q` 102 passed (5+97); rebuilt images healthy, worker `[tasks] add generate_embeddings ping process_pdf`; container eager 3→3×1536 + completed; `compose config` 0.
+**Guard:** One row per exact chunk; scope denormalized; no partial on dim mismatch.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 30.
 
 ---
 

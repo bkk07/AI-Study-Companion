@@ -8,7 +8,7 @@ celery_app = Celery(
     "ai_study_companion",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.worker.tasks", "app.worker.tasks.extraction"],
+    include=["app.worker.tasks", "app.worker.tasks.extraction", "app.worker.tasks.embeddings"],
 )
 
 # Keep serialization simple and keep same env in api/worker

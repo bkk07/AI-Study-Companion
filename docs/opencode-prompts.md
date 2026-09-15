@@ -1023,3 +1023,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 6 pass (order-by-index, payload model+input+auth, missing-key no-HTTP, empty, 3 malformed shapes, HTTPError propagates); full `pytest -q` 97 passed (6+91); `compose config` 0; no migration/config change (used existing `OPENAI_API_KEY`/`EMBEDDING_MODEL`).
 **Guard:** Embeddings never routed through Groq; key never logged.
 **Known:** Real API not called (mocked) — live check needs `OPENAI_API_KEY`; worker wiring is Phase 29.
+
+---
+
+## Phase 29 — Embedding Generation Worker (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 29 + blueprint (`document_chunks` VECTOR 1536, delete-before-insert idempotency)
+**Objective:** Celery task chunk → embed → store vectors, idempotent re-runs.
+**Contract:** `embeddings` table (`project_id`+`material_id` CASCADE ix, `chunk_id FK→document_chunks CASCADE unique`, `embedding VECTOR(1536)`, `model`); `generate_embeddings(job_id, material_id)`: fresh session, missing rows → job failed + ValueError; no chunks → failed; `embedding_client.embed` batched (mockable) → upsert per `chunk_id` single commit; `pending→running→completed/failed`; transient `httpx.HTTPError` → retry 3x backoff, validation errors fail fast; vectors never stored without chunk scope.
+**Files:** `backend/app/models/embedding.py`, `backend/app/worker/tasks/embeddings.py`, pgvector dep, migration
+**Guard:** One vector per exact chunk; retry never duplicates (upsert by `chunk_id`).
+**Verify:** mocked-client task test — success stores N vectors + job completed; re-run stable count + updated values; client ValueError → failed; no-chunks → failed; missing → failed+raise; worker registers task; container eager run proves pgvector insert.
+
+### Phase 29 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/models/embedding.py` (`embeddings`: `project_id`/`material_id` CASCADE ix + `chunk_id FK→document_chunks CASCADE unique` + `embedding VECTOR(1536)` + `model`), `backend/app/worker/tasks/embeddings.py` (`generate_embeddings` fresh session + missing→failed+raise + no-chunks→failed + batched mockable client + dim/count guard + upsert per `chunk_id` + `pending→running→completed/failed` + HTTP→retry 3x), `backend/app/worker/tasks/__init__.py` (shared `get_task_session` + register embeddings; `extraction.py` refactored to it, behavior identical), `backend/app/worker/celery_app.py` (include embeddings), `backend/alembic/versions/ab60908d37ca_create_embeddings_table.py` (fixed missing pgvector import), `pyproject.toml`+`requirements.txt` (+`pgvector`), `backend/tests/test_embeddings_task.py` (5 tests), `docs/*`
+**Verify:** `upgrade`→`ab60908d37ca`; 5 pass (N vectors stored exact chunk linkage + dims 1536 + job completed; re-run count stable values updated; client ValueError → failed zero rows; no-chunks → failed; missing → failed+raise); extraction/celery suites still pass (shared-helper refactor safe); full `pytest -q` 102 passed (5+97); rebuilt `api`/`worker` (pgvector installed) healthy + worker `[tasks] add generate_embeddings ping process_pdf`; container eager run 3 chunks → 3×1536 rows + completed; `compose config` 0.
+**Guard:** Vectors never without chunk scope; dim/count mismatch fails fast instead of partial write.
+**Known:** Real OpenAI call not exercised (mocked/dummy key); HTTP-retry path (3× backoff) not unit-hit — same pattern as extraction; ivfflat index deferred (prototype scale).

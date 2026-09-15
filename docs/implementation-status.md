@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 20 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 21 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -31,7 +31,7 @@
 | 18 | Materials Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `materials` FK project + `242af3866a09` + 2 tests |
 | 19 | PDF Upload | ✅ Complete | 2026-09-15 | Pass (PDF 201/non-PDF 400/oversize 413) | `storage_service` + `POST /projects/{id}/materials` + 3 tests |
 | 20 | Shared Upload Volume | ✅ Complete | 2026-09-15 | Pass (api→worker same file) | `uploads:/data/uploads` shared + `storage.md` + probe verified |
-| 21 | Celery + Redis | ⏳ Pending | — | — | — |
+| 21 | Celery + Redis | ✅ Complete | 2026-09-15 | Pass (ping→pong via worker) | `celery_app` + `ping`/`add` + `docker` dispatch + 2 tests |
 | 22 | Background Job Tracking | ⏳ Pending | — | — | — |
 | 23 | PDF Text Extraction | ⏳ Pending | — | — | — |
 | 24 | Learning Structure Extraction | ⏳ Pending | — | — | — |
@@ -401,6 +401,16 @@
 **Verify:** `docker compose config --quiet` pass; greps `uploads:/data/uploads` 2× + `UPLOAD_DIR=/data/uploads` in both services; `docker compose up -d --build api worker` creates `aistudycompanion_uploads` + both services mount it; `docker compose exec api sh -c "echo hello-shared > /data/uploads/probe.txt && cat"`→`hello-shared` `ls -l` 13B; `docker run --rm -v aistudycompanion_uploads:/data/uploads alpine cat`→`hello-shared`; `docker compose run --entrypoint sh worker cat`→`hello-shared` + `ok`; `volume inspect` Mountpoint exists; `Material.storage_path` `/data/uploads/{project_id}/{uuid}.pdf` equals mount path (Phase 19 service); `pytest -q` 37 passed; `npm run build` 87 mods; `docker compose up --wait` `postgres`/`redis`/`api` healthy (worker restart `No module app.worker` expected until Phase 21).
 **Guard:** No non-shared dirs — single `uploads` volume, identical mount paths; `Material` callers use `material.id` not paths.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 21.
+
+---
+
+## Phase 21 — Detail (compact)
+
+**Scope:** Async background execution via Celery+Redis without blocking HTTP.
+**Files:** `backend/app/worker/celery_app.py` (`Celery ai_study_companion broker=settings.celery_broker_url backend=settings.celery_result_backend include=[app.worker.tasks] conf json/timezone`), `backend/app/worker/tasks.py` (`@celery_app.task ping bind=True→pong` + `add(a,b)`), `backend/app/worker/__init__.py`, `backend/tests/test_celery.py` (2 tests: config+registered via `apply`), `docs/*`.
+**Verify:** `celery_app.conf.broker_url/result_backend` contains `redis`; `ping.apply().get()==pong` `add.apply(2,3)==5`; `docker compose build api worker` succeeds; `docker compose up -d --wait` all healthy + `worker` logs `celery@… ready` `Connected to redis://redis:6379/0` `[tasks] add ping`; dispatch `docker compose exec api python -c "from app.worker.tasks import ping; print(ping.delay().get(timeout=10))"`→`pong` id `83f05a2b…`; `pytest -q` 39 passed (2+37 prior); `docker compose config --quiet` pass.
+**Guard:** Long-running work must not block request handlers — `api` vs `worker` services separate, shared `CELERY_*` env; `worker` concurrency 14 prefork ready.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 22.
 
 ---
 

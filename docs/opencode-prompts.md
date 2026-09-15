@@ -885,4 +885,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 21 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/worker/celery_app.py` (`Celery ai_study_companion broker/backend from get_settings() redis:6379 include tasks json`), `backend/app/worker/tasks.py` (`@celery_app.task ping→pong + add`), `backend/app/worker/__init__.py`, `backend/tests/test_celery.py` (2 tests), `docs/*`
+**Verify:** `celery_app.conf.broker_url/result_backend` contains `redis`; `ping.apply()→pong` `add.apply(2,3)→5`; `docker compose build api worker` OK; `docker compose up -d --wait` `api`/`worker`/`redis`/`postgres` healthy; `worker` logs `celery@… ready` + `[tasks] add ping` + `Connected to redis://redis:6379/0`; dispatch from `api` container `docker compose exec api python -c "ping.delay().get(timeout=10)"`→`pong` (`83f05a2b…`); `pytest -q` 39 passed (2 celery +37 prior); `docker compose config --quiet` pass.
+**Guard:** No HTTP blocking — worker separate from FastAPI; same `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` env in `api`+`worker`.
+**Known:** Redis exposed `6379:6379` host `localhost` for host dispatch but api/worker use `redis:6379` service name.

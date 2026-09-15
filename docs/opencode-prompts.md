@@ -257,12 +257,50 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ---
 
-### Post-implementation record (Phase 03 — to be filled after verification)
+### Post-implementation record (Phase 03)
 
-**Status:** _pending — pre-implementation record only_
+**Status:** ✅ Complete — Phase 03 implemented 2026-09-15, awaiting `CONTINUE`
 
-**Files changed:** _to be updated after implementation_
+**Files changed (this phase):**
+- `frontend/package.json` (new) — Vite + React + TypeScript scaffold (`react@19`, `react-dom@19`, `vite@8`, `typescript@6`, `@vitejs/plugin-react@6`); added `tailwindcss@3.4.1` + `postcss`/`autoprefixer`, `tailwindcss-animate`, `class-variance-authority`/`clsx`/`tailwind-merge`/`lucide-react`, `react-router-dom`, `axios`
+- `frontend/vite.config.ts` (new) — `@vitejs/plugin-react` + alias `@` → `./src` via `import.meta.dirname` (Vite 8 native loader compliant)
+- `frontend/tsconfig.json` / `tsconfig.app.json` / `tsconfig.node.json` (new/updated) — references + `baseUrl`/`paths` `@/*` → `src/*` + `ignoreDeprecations:6.0` for TS 6
+- `frontend/tailwind.config.js` (new) — `darkMode:class`, `content` `index.html`+`src/**/*`, shadcn theme `extend` (colors `background/foreground/card/primary/...`, `borderRadius` via `--radius`), `tailwindcss-animate`
+- `frontend/postcss.config.js` (new) — `tailwindcss` + `autoprefixer`
+- `frontend/components.json` (new) — shadcn config (`style:default`, `css:src/index.css`, `baseColor:neutral`, `cssVariables:true`, aliases `@/components`/`@/lib/utils` etc.)
+- `frontend/src/index.css` (replaced) — `@tailwind base/components/utilities` + shadcn CSS variables (`--background/foreground/card/primary/.../--radius`) for light/dark, `* { @apply border-border }`, `body { @apply bg-background text-foreground }`
+- `frontend/src/lib/utils.ts` (new) — `cn()` helper (`clsx`+`twMerge`)
+- `frontend/src/lib/axios.ts` (new) — centralized `apiClient` (`baseURL` from `VITE_API_BASE_URL` + `VITE_API_V1_PREFIX` fallback `http://localhost:8000/api/v1`, 15s timeout, request/response interceptors, no hard-coded URLs elsewhere)
+- `frontend/src/App.tsx` (replaced) — routing shell: `BrowserRouter` + `Routes` (`/` → `Home`, `*` → `NotFound`), `Link`, no business logic, imports only from centralized client
+- `frontend/src/main.tsx` (verified) — `StrictMode` + `createRoot` rendering `App`, imports `index.css`
+- `frontend/index.html` / `frontend/public/*` / `frontend/src/assets/*` (new, Vite boilerplate kept minimal)
+- Removed `frontend/src/App.css` (Vite boilerplate, replaced by Tailwind) and stray scaffold dirs `C/`/`CUsers...` (cleanup)
+- `frontend/.env.example` (preserved) — `VITE_API_BASE_URL=http://localhost:8000`
+- `docs/opencode-prompts.md` (updated) — Phase 03 verbatim prompt recorded before implementation, updated here post-verification
+- `docs/implementation-status.md` (updated) — Phase 03 marked ✅ Complete
 
-**Verification result:** _to be updated after implementation_
+**Files intentionally not changed beyond scope:** No `backend/` product code (Phase 04), no `docker-compose.yml` (Phase 05), no auth/middleware logic, no API calls scattered outside `axios.ts`.
 
-**Notes:** _to be updated after implementation_
+**Verification result:** ✅ Pass
+- `npm run build` succeeds twice: `tsc -b && vite build` → `✓ 24 modules transformed`, `dist/index.html 0.46kB`, `index-*.css 5.72kB`, `index-*.js 260kB (gzip 82.85kB)`, exit 0
+- Vite warning fixed: `__dirname` → `import.meta.dirname`, build warning disappears on second run
+- Axios client verified: `src/lib/axios.ts` uses `import.meta.env.VITE_API_BASE_URL` + `VITE_API_V1_PREFIX`, constructs `baseURL` without double slash, single export `apiClient`
+- Routing shell verified: `App.tsx` uses `react-router-dom` `BrowserRouter`/`Routes`/`Route`/`Link`, no hard-coded API URLs
+- Tailwind verification: `tailwind.config.js` `content` covers `./src/**/*`, `index.css` contains `@tailwind` directives + CSS variables; `components.json` matches `tailwind.config.js` + `src/index.css` + aliases
+- shadcn verification: `src/lib/utils.ts` `cn()` present, `tailwindcss-animate` installed, `class-variance-authority`/`clsx`/`tailwind-merge` present
+- Diff inspection: only `frontend/` scaffold + docs logs; no `backend/` changes, no `docker-compose.yml`, no third service, no secrets committed
+- Cross-project isolation N/A (shell only, no IDs/endpoints/jobs/retrieval/UI data to leak)
+- No focused automated tests applicable to shell (nearest regression: none); build is the phase gate
+- `frontend/.gitignore` + top-level `.gitignore` correctly ignore `node_modules`/`dist`/`.env`
+
+**Commands run:**
+- `npm create vite@latest frontend-scaffold --template react-ts` (via `C:\Users\reach\AppData\Local\Temp\opencode` workdir) + `Copy-Item` to `frontend/` (preserved `.env.example`)
+- `npm install` → `npm install -D tailwindcss@3.4.1 postcss autoprefixer` → `npx tailwindcss init -p`
+- `npm install tailwindcss-animate class-variance-authority clsx tailwind-merge lucide-react`
+- `npm install react-router-dom axios`
+- `npm run build` (×2, before/after `vite.config.ts` `__dirname` fix)
+- `git status` / `git diff --stat` / `git ls-files --others` + stray `C/` cleanup via `Remove-Item`
+
+**Known issues:** None. Build warning `VITE_CONFIG_NATIVE_IGNORE_WARNING` resolved by using `import.meta.dirname`.
+
+**Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 04.

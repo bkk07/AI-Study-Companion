@@ -369,12 +369,45 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ---
 
-### Post-implementation record (Phase 04 — to be filled after verification)
+### Post-implementation record (Phase 04)
 
-**Status:** _pending — pre-implementation record only_
+**Status:** ✅ Complete — Phase 04 implemented 2026-09-15, awaiting `CONTINUE`
 
-**Files changed:** _to be updated after implementation_
+**Files changed (this phase):**
+- `backend/pyproject.toml` (new) — `fastapi>=0.110`, `uvicorn[standard]`, `pydantic`+`pydantic-settings`, `sqlalchemy`, `alembic`, `argon2-cffi`, `pyjwt`, `celery`, `redis`, `pymupdf`, `httpx`; `dev` `pytest`/`pytest-asyncio`/`httpx`/`anyio`; `[tool.pytest]` `testpaths=tests`
+- `backend/requirements.txt` (new) — mirror of pyproject dependencies (no pins, no secrets)
+- `backend/app/__init__.py` (new, empty) — package marker
+- `backend/app/main.py` (new) — `FastAPI(title="AI Study Companion API", version=0.1.0)` + `CORSMiddleware` (allow `localhost:5173`), `include_router(health_router, prefix="/api/v1")`, root `GET /` with `docs`/`health` links
+- `backend/app/api/__init__.py` / `app/api/v1/__init__.py` (new, empty)
+- `backend/app/api/v1/health.py` (new) — `APIRouter(tags=["health"])`, `GET /health` → `{"status":"ok"}` (no DB/AI side effects, thin boundary)
+- `backend/app/core/__init__.py` (new, empty) — layering placeholder
+- `backend/app/services/__init__.py` (new, empty) — service layer placeholder (guard: no DB/AI logic in routes)
+- `backend/app/models/__init__.py` (new, empty) — models layer placeholder
+- `backend/app/schemas/__init__.py` (new, empty) — schemas layer placeholder
+- `backend/tests/__init__.py` (new, empty)
+- `backend/tests/test_health.py` (new) — 3 smoke tests: `test_health_returns_200` (`GET /api/v1/health` 200 `{"status":"ok"}`), `test_root_returns_200`, `test_health_not_found_on_wrong_path` (404 on `/health`)
+- Removed `backend/.gitkeep` (replaced by real `app/` structure)
+- `docs/opencode-prompts.md` (updated) — Phase 04 verbatim prompt recorded before implementation, updated here post-verification
+- `docs/implementation-status.md` (updated) — Phase 04 marked ✅ Complete
 
-**Verification result:** _to be updated after implementation_
+**Files intentionally not changed beyond scope:** No `app/core/config.py`, no `app/db/`/SQLAlchemy engine (Phase 06/08), no `alembic/` (Phase 09), no `User` model (Phase 10), no auth/JWT (Phase 11-12), no Docker (Phase 05), no frontend changes (regression verified `npm run build` still passes).
 
-**Notes:** _to be updated after implementation_
+**Verification result:** ✅ Pass
+- App boots: `python -c "import app.main"` OK (`fastapi 0.135.2`), `TestClient(app).get("/api/v1/health")` → 200 `{"status":"ok"}`, `GET /` → 200
+- `pytest tests/test_health.py -v` → 3 passed (`test_health_returns_200`, `test_root_returns_200`, `test_health_not_found_on_wrong_path`) in 0.14s
+- `npm run build` regression (frontend) → `24 modules` `dist/index-*.js 260kB gzip 82.85kB` still passes
+- Diff inspection: only `backend/app/**`, `pyproject.toml`/`requirements.txt`, `tests/**`, docs logs; no `frontend/` changes, no `docker-compose.yml`, no DB/migration, no secrets, no third service
+- Cross-project isolation N/A (shell only, single health route, no IDs/jobs/retrieval)
+- No automated tests applicable beyond smoke (nearest regression: none); health 404 on wrong path confirms versioned prefix `/api/v1` is enforced
+- Architecture guard: `app/main.py` is thin (CORS + router include), `health.py` is thin (no service/DB/AI), `services/` layer exists but empty — separation preserved
+
+**Commands run:**
+- `python -c "import fastapi"` / `import app.main` — version check + import smoke
+- `python -m pytest tests/test_health.py -v` — 3 passed
+- `python -c "from fastapi.testclient import TestClient; ..."` — direct health JSON check
+- `npm run build` (frontend, workdir `frontend/`) — regression pass
+- `git status` / `git diff --stat` / `git ls-files --others` — diff is backend shell + docs only
+
+**Known issues:** None.
+
+**Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 05.

@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 03 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 04 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -14,7 +14,7 @@
 | 01 | Repository & Blueprint Analysis | ✅ Complete | 2026-09-15 | Pass (docs-only; see § Verification below) | Blueprint frozen as contract; no product code |
 | 02 | Project Skeleton & Monorepo Layout | ✅ Complete | 2026-09-15 | Pass (skeleton, no product code) | `.gitignore` + `.env.example`×2 + `README` + `.gitkeep`; verified no secrets/service drift |
 | 03 | Frontend Initialization | ✅ Complete | 2026-09-15 | Pass (`npm run build` ✓ 24 modules) | Vite+React+TS+Tailwind+shadcn+Router+Axios; `src/lib/axios.ts` + routing shell; `npm run build` 260kB gzip 82.85kB |
-| 04 | Backend Initialization | ⏳ Pending | — | — | — |
+| 04 | Backend Initialization | ✅ Complete | 2026-09-15 | Pass (pytest 3/3, health 200) | FastAPI shell `app/main.py`+`api/v1/health`+`pyproject.toml`/`requirements.txt`+`tests/test_health.py`; `/api/v1/health` 200 |
 | 05 | Docker Compose Foundation | ⏳ Pending | — | — | — |
 | 06 | PostgreSQL Setup | ⏳ Pending | — | — | — |
 | 07 | pgvector Setup | ⏳ Pending | — | — | — |
@@ -169,6 +169,39 @@
 **Known issues:** None.
 
 **Next:** Await `CONTINUE` before starting Phase 04 (Backend Initialization). Do not start Phase 04 silently.
+
+---
+
+## Phase 04 — Detail
+
+**Scope:** FastAPI application shell and backend layering — thin HTTP boundary + service separation, no DB/AI logic in routes.
+
+**Files created/changed in this phase:**
+- `backend/pyproject.toml` (new) — deps `fastapi`/`uvicorn[standard]`/`pydantic`/`pydantic-settings`/`sqlalchemy`/`alembic`/`argon2-cffi`/`pyjwt`/`celery`/`redis`/`pymupdf`/`httpx`; dev `pytest`/`pytest-asyncio`/`httpx`/`anyio`; `testpaths=tests`
+- `backend/requirements.txt` (new) — mirror of pyproject (no secrets)
+- `backend/app/main.py` (new) — `FastAPI` + `CORSMiddleware` (`localhost:5173`), `include_router(health, prefix="/api/v1")`, `GET /` root
+- `backend/app/api/v1/health.py` (new) — `GET /health` → `{"status":"ok"}` thin handler
+- `backend/app/{api,api/v1,core,services,models,schemas}/__init__.py` (new, empty) — package markers for layering
+- `backend/tests/__init__.py` (new) + `tests/test_health.py` (new) — 3 smoke tests (`health 200`, `root 200`, `wrong path 404`)
+- Removed `backend/.gitkeep` (replaced by `app/` tree)
+- `docs/opencode-prompts.md` — Phase 04 verbatim prompt before edits, updated post-verification
+- `docs/implementation-status.md` — this file (Phase 04 row updated)
+
+**Out of scope for this phase (correctly deferred):**
+- No `app/core/config.py`/`app/db/`/engine/session (Phases 06-08), no `alembic/` (Phase 09), no models/schemas logic (Phases 10+), no `Dockerfile`/`docker-compose.yml` (Phase 05), no frontend changes (regression `npm run build` still passes)
+
+**Verification (2026-09-15):**
+- `python -c "import app.main"` OK (`fastapi 0.135.2`); `TestClient(app).get("/api/v1/health")` → 200 `{"status":"ok"}`, `GET /` → 200, `GET /health` → 404 (prefix enforced)
+- `python -m pytest tests/test_health.py -v` → 3 passed in 0.14s
+- `npm run build` regression → `24 modules` `260kB gzip 82.85kB` still passes
+- Diff inspection: only `backend/app/**`, `pyproject.toml`/`requirements.txt`, `tests/**`, docs; no `frontend/` changes, no `docker-compose.yml`, no DB/migration, no secrets, no third service
+- Cross-project isolation N/A (shell only); architecture guard: `health.py` thin, `services/` exists empty — no DB/AI logic in route
+
+**Result:** ✅ Pass
+
+**Known issues:** None.
+
+**Next:** Await `CONTINUE` before starting Phase 05 (Docker Compose Foundation). Do not start Phase 05 silently.
 
 ---
 

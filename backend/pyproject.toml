@@ -1,0 +1,39 @@
+[project]
+name = "ai-study-companion-backend"
+version = "0.1.0"
+description = "AI Study Companion — FastAPI backend (Phase 04 shell)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "argon2-cffi>=23.1.0",
+    "pyjwt>=2.8.0",
+    "celery>=5.4.0",
+    "redis>=5.0.0",
+    "pymupdf>=1.24.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "anyio>=4.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100

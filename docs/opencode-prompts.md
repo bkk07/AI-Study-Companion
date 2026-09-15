@@ -814,3 +814,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `npm run build` → `tsc -b && vite build` OK `87 modules` `css 8.66kB gzip 2.64kB` `js 327.92kB gzip 104.15kB`; `pytest -q` 32 passed unaffected; manual hierarchy `Home→Spaces→Space→Project` preserves `user→space→project` via `spaceId`/`projectId` params; empty states + `404`/`401` + retry + validation handled; `docker compose config --quiet` pass.
 **Guard:** Frontend navigation mirrors backend `user→space→project`; all calls via central `apiClient` + `get_authorized_*` backend.
 **Known:** Project detail is placeholder for Phases 18+ materials.
+
+---
+
+## Phase 18 — Materials Model (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 18
+**Objective:** Durable metadata record for uploaded learning materials.
+**Contract:** `Material` `id UUID` `project_id FK→projects` + `filename` + `storage_path` + `status` + `uploaded_at` via mixin; `project_id` scope; bytes on shared volume not Postgres; status aligned with job pipeline.
+**Files:** `backend/app/models/material.py`, `backend/app/schemas/material.py`
+**Guard:** Do not store full PDFs in Postgres; shared upload volume only; every schema change via Alembic.
+**Verify:** `alembic upgrade head` creates `materials`; model round-trip.
+
+### Phase 18 Post-implementation (compact)
+
+**Status:** _pending_

@@ -681,3 +681,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head` → `d65fb0219416`; `\d users` → `users_pkey` + `ix_users_email`; round-trip insert→query→`UserRead` ok, `hashed_password` not in `model_dump()`; unique constraint `IntegrityError`; `UserCreate` validation; `pytest -q` 12 passed (3 health+6 db+3 user); `docker compose config --quiet` pass.
 **Guard:** User ownership root boundary preserved; no plaintext password stored.
 **Known:** Py: no `email-validator` — schema uses `str` with regex; future auth (Phases 11-12) will hash/verify via Argon2id/JWT.
+
+---
+
+## Phase 11 — Password Hashing (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 11
+**Objective:** Centralize password security before auth endpoints.
+**Contract:** Argon2id `hash_password`/`verify_password` in `app/core/security.py`; never plaintext; params centralized; tests — correct verifies, wrong fails, hash is Argon2id.
+**Files:** `backend/app/core/security.py`, `backend/tests/test_security.py` (or `tests/unit/test_security.py`)
+**Guard:** Do not replace Argon2id with bcrypt/plaintext/reversible.
+**Verify:** Unit tests `correct→True`, `wrong→False`, `hash.startswith("$argon2id$")`, rehash same password differs (salt), `pytest` green.
+
+### Phase 11 Post-implementation (compact)
+
+**Status:** _pending_

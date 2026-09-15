@@ -605,3 +605,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Known issues:** None. Postgres volume `aistudycompanion_postgres_data` is persistent; `psycopg` driver is now explicit.
 
 **Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 07.
+
+---
+
+## Phase 07 — pgvector Setup (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 07
+**Objective:** Enable vector persistence inside same PostgreSQL.
+**Contract:** `CREATE EXTENSION IF NOT EXISTS vector` via init SQL/migration; throwaway `vector(3)` test passes. 1536 dims = `text-embedding-3-small` (OpenAI). No separate vector DB.
+**Files:** `docker-compose.yml` (image → `pgvector/pgvector:pg16`), `docker/postgres/init-pgvector.sql` or migration, `backend/app/db/session.py` reuse.
+**Guard:** pgvector only, not hosted vector DB.
+**Post-record:** pending — compact
+
+### Phase 07 Post-implementation (compact)
+
+**Status:** _pending_

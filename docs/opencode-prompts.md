@@ -619,4 +619,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 07 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `docker-compose.yml` (image `pgvector/pgvector:pg16` + `5433:5432`), `docker/postgres/init-pgvector.sql` (`CREATE EXTENSION IF NOT EXISTS vector`), `docs/*` (this)
+**Verify:** `CREATE EXTENSION IF NOT EXISTS vector` → `CREATE EXTENSION`; `SELECT extname FROM pg_extension` → `vector 0.8.6`; throwaway `vector(3)` table → insert `[1,2,3]` → `DROP` pass. 1536 dims = `text-embedding-3-small` (blueprint), no separate vector DB.
+**Commands:** `docker pull pgvector/pgvector:pg16` (cached after pull), `docker compose up -d postgres` (<5s), `docker compose exec postgres psql -c "CREATE EXTENSION..."`, `psql -c throwaway vector(3)`, `docker compose config --quiet` pass, `pytest` 3 passed.
+**Known:** pgvector lives inside same Postgres (`vector` 0.8.6); host port `5433` avoids Windows `5432` conflict (Phase 06 diagnosis).

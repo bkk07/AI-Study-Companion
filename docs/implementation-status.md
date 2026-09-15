@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 06 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 07 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -17,7 +17,7 @@
 | 04 | Backend Initialization | ✅ Complete | 2026-09-15 | Pass (pytest 3/3, health 200) | FastAPI shell `app/main.py`+`api/v1/health`+`pyproject.toml`/`requirements.txt`+`tests/test_health.py`; `/api/v1/health` 200 |
 | 05 | Docker Compose Foundation | ✅ Complete | 2026-09-15 | Pass (config --quiet + dry-run) | 5 services `api/worker/web/postgres/redis`; Dockerfiles + `uploads` shared; `VITE localhost` vs `postgres/redis` service names |
 | 06 | PostgreSQL Setup | ✅ Complete | 2026-09-15 | Pass (SELECT 1 via host 5433 + container) | `core/config.py`+`db/session.py`+`psycopg`; `postgres:16-alpine` 5433:5432 `SELECT 1` true |
-| 07 | pgvector Setup | ⏳ Pending | — | — | — |
+| 07 | pgvector Setup | ✅ Complete | 2026-09-15 | Pass (vector 0.8.6 + throwaway) | `pgvector/pgvector:pg16` + `CREATE EXTENSION` + `vector(3)` test; 1536 dims |
 | 08 | SQLAlchemy & DB Session Management | ⏳ Pending | — | — | — |
 | 09 | Alembic Migrations | ⏳ Pending | — | — | — |
 | 10 | User Model | ⏳ Pending | — | — | — |
@@ -261,6 +261,16 @@
 **Known issues:** None. Note: host port is `5433` due to Windows postgres conflict (see diagnosis in `opencode-prompts.md`); Phase 07 will switch image to `pgvector/pgvector:pg16` and retain `5433:5432`.
 
 **Next:** Await `CONTINUE` before starting Phase 07 (pgvector Setup). Do not start Phase 07 silently.
+
+---
+
+## Phase 07 — Detail (compact)
+
+**Scope:** Vector persistence inside same Postgres (pgvector), not separate DB.
+**Files:** `docker-compose.yml` → `pgvector/pgvector:pg16` `5433:5432`, `docker/postgres/init-pgvector.sql` (`CREATE EXTENSION IF NOT EXISTS vector`), `docs/*`
+**Verify:** `CREATE EXTENSION IF NOT EXISTS vector` → `CREATE EXTENSION`; `SELECT extversion FROM pg_extension` → `0.8.6`; throwaway `CREATE TABLE _pgvector_test (embedding vector(3))` → `INSERT [1,2,3]` → `SELECT` → `DROP` pass. 1536 dims = `text-embedding-3-small`. `docker compose config --quiet` pass, `pytest` 3 passed.
+**Guard:** pgvector only, 5433 host port avoids Windows `5432` conflict (Phase 06).
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 08.
 
 ---
 

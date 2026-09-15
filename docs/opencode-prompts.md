@@ -904,4 +904,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 22 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/background_job.py` (`BackgroundJob job_type status pending→running→completed/failed + material_id FK→materials CASCADE + error Text + celery_task_id + UUIDTimestampMixin`), `backend/app/schemas/background_job.py` (BackgroundJobRead), `backend/app/services/job_service.py` (`create_job pending + mark_running/completed/failed + ALLOWED_TRANSITIONS + error`), `backend/app/api/v1/jobs.py` (`GET /jobs/{id}` via `get_authorized_job` material→project→space→user 404), `backend/app/models/__init__.py`+`alembic/env.py`+`app/main.py` (wire), `backend/alembic/versions/708b62706a6e_create_background_jobs_table.py` (create `background_jobs`+`ix_material_id`), `backend/tests/test_jobs.py` (2 tests), `docs/*`
+**Verify:** `alembic upgrade head`→`708b62706a6e`; `\d background_jobs`→pkey+ix+FK+CASCADE+`status pending`; lifecycle `create pending→mark_running→running→mark_completed→completed` + `pending→running→failed+error` + invalid `completed→running 400`; API `GET` own `200` status transitions visible, foreign `404`, no token `401`; generic `ping` job allowed; `pytest -q` 41 passed (2 jobs +39 prior); `docker compose config --quiet` pass; `docker compose build api` healthy.
+**Guard:** Application `BackgroundJob` is user-facing truth, not Celery internals; failure stores `error` not silent.
+**Known:** `material_id` nullable for generic jobs; owned check via `Material→Project→Space→User`.

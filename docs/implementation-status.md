@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 21 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 22 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -32,7 +32,7 @@
 | 19 | PDF Upload | ✅ Complete | 2026-09-15 | Pass (PDF 201/non-PDF 400/oversize 413) | `storage_service` + `POST /projects/{id}/materials` + 3 tests |
 | 20 | Shared Upload Volume | ✅ Complete | 2026-09-15 | Pass (api→worker same file) | `uploads:/data/uploads` shared + `storage.md` + probe verified |
 | 21 | Celery + Redis | ✅ Complete | 2026-09-15 | Pass (ping→pong via worker) | `celery_app` + `ping`/`add` + `docker` dispatch + 2 tests |
-| 22 | Background Job Tracking | ⏳ Pending | — | — | — |
+| 22 | Background Job Tracking | ✅ Complete | 2026-09-15 | Pass (lifecycle+auth) | `background_jobs` + `job_service` + `GET /jobs/{id}` + 2 tests |
 | 23 | PDF Text Extraction | ⏳ Pending | — | — | — |
 | 24 | Learning Structure Extraction | ⏳ Pending | — | — | — |
 | 25 | Topic/Subtopic/Concept Persistence | ⏳ Pending | — | — | — |
@@ -411,6 +411,16 @@
 **Verify:** `celery_app.conf.broker_url/result_backend` contains `redis`; `ping.apply().get()==pong` `add.apply(2,3)==5`; `docker compose build api worker` succeeds; `docker compose up -d --wait` all healthy + `worker` logs `celery@… ready` `Connected to redis://redis:6379/0` `[tasks] add ping`; dispatch `docker compose exec api python -c "from app.worker.tasks import ping; print(ping.delay().get(timeout=10))"`→`pong` id `83f05a2b…`; `pytest -q` 39 passed (2+37 prior); `docker compose config --quiet` pass.
 **Guard:** Long-running work must not block request handlers — `api` vs `worker` services separate, shared `CELERY_*` env; `worker` concurrency 14 prefork ready.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 22.
+
+---
+
+## Phase 22 — Detail (compact)
+
+**Scope:** Observable/retry-safe background work via `BackgroundJob` application record.
+**Files:** `backend/app/models/background_job.py` (`BackgroundJob job_type String(64) status String(32) pending→running→completed/failed + material_id UUID FK→materials CASCADE index nullable + error Text + celery_task_id String(255) + UUIDTimestampMixin`), `backend/app/schemas/background_job.py` (BackgroundJobRead), `backend/app/services/job_service.py` (`create_job pending + get_job + _transition ALLOWED_TRANSITIONS + mark_running/mark_completed/mark_failed with error`), `backend/app/api/v1/jobs.py` (`router /jobs GET /{job_id} get_authorized_job: Material→Project→Space→User else 404 + allow generic`), `backend/app/models/__init__.py`+`alembic/env.py`+`app/main.py` (wire `jobs_router`), `backend/alembic/versions/708b62706a6e_create_background_jobs_table.py` (create `background_jobs`+`ix_background_jobs_material_id`), `backend/tests/test_jobs.py` (2 tests: lifecycle + API isolation), `docs/*`.
+**Verify:** `alembic upgrade`→`708b62706a6e`; `\d background_jobs`→pkey+ix+FK `pending` default; lifecycle `pending→running→completed` + invalid `completed→running 400` + `failed+error boom`; `POST /projects/{id}/materials` creates `material` → `job_service.create_job(EXTRACTION, material_id)` → `GET /jobs/{id}` own `200` `running` visible foreign `404` no token `401`; `pytest -q` 41 passed (2+39 prior); `docker compose config --quiet` pass; `docker compose build api` healthy.
+**Guard:** `BackgroundJob` is application status, not Celery internals; failure leaves `error` diagnosable, not silent pending.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 23.
 
 ---
 

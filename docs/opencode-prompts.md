@@ -700,3 +700,33 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `hash.startswith("$argon2id$")` true; `verify correct→True`, `wrong→False`, same pwd different hashes (salt) both verify, `invalid hash→False`, `empty→ValueError`; `pytest` 18 passed (6 security +3 health +6 db +3 user); `docker compose config --quiet` pass.
 **Guard:** Argon2id only — no plaintext/bcrypt/reversible; params centralized in `_ph`.
 **Known:** `email-validator` not needed (Phase 10 regex); `argon2-cffi` installed via `python -m pip` (host).
+
+---
+
+## Phase 12 — JWT Authentication (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 12
+**Objective:** Backend auth contract for entire app.
+**Contract:** `POST /api/v1/auth/register`, `POST /api/v1/auth/login` → `access_token` (HS256, expiry `JWT_EXPIRE_MINUTES`), `get_current_user` dep rejects missing/invalid/expired; `core/jwt.py` + `dependencies/auth.py`.
+**Files:** `backend/app/core/jwt.py`, `backend/app/api/v1/auth.py`, `backend/app/dependencies/auth.py`, `backend/app/schemas/token.py`/`auth.py`
+**Guard:** No second auth mechanism; downstream auth via `get_current_user` identity.
+**Verify:** register→login→protected OK; invalid creds 401; expired JWT 401; missing/invalid token 401/403; `pytest` green.
+
+### Phase 12 Post-implementation (compact)
+
+**Status:** _pending_
+
+---
+
+## Phase 13 — Auth Frontend (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 13
+**Objective:** Connect frontend to backend auth contract.
+**Contract:** Login/register pages (shadcn), Axios to `auth/*`, token storage (memory+localStorage), AuthContext/hook, route guarding, logout/expired handling; `npm run build` OK.
+**Files:** `frontend/src/features/auth/` + `context/AuthContext.tsx` + `routes` guards
+**Guard:** No per-page token handling — centralized provider/hook only.
+**Verify:** manual flow + `npm run build`.
+
+### Phase 13 Post-implementation (compact)
+
+**Status:** _pending_

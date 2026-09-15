@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
+from app.api.v1.jobs import router as jobs_router
 from app.api.v1.materials import router as materials_router
 from app.api.v1.projects import direct_router as projects_direct_router
 from app.api.v1.projects import router as projects_router
@@ -30,6 +31,7 @@ app.include_router(spaces_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(projects_direct_router, prefix="/api/v1")
 app.include_router(materials_router, prefix="/api/v1")
+app.include_router(jobs_router, prefix="/api/v1")
 
 
 @app.get("/")

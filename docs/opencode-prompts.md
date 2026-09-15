@@ -828,4 +828,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 18 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/models/material.py` (Material `project_id FK→projects CASCADE` `filename 255` `storage_path 512` `status 32 server_default pending` + `UUIDTimestampMixin`), `backend/app/schemas/material.py` (MaterialCreate/Read), `backend/app/models/__init__.py` + `backend/alembic/env.py` (import material), `backend/alembic/versions/242af3866a09_create_materials_table.py` (create `materials` + `ix_materials_project_id`), `backend/tests/test_materials.py` (2 tests), `docs/*`
+**Verify:** `alembic upgrade head` → `242af3866a09`; `\d materials` → `materials_pkey` + `ix_materials_project_id` + FK + `status pending` default; round-trip insert→query `MaterialRead` OK + raw `INSERT` without `status` → `pending`; `pytest -q` 34 passed (2 materials +32 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
+**Guard:** PDFs not in Postgres — `storage_path` points to shared volume `/data/uploads`; status `pending` aligns with job pipeline.
+**Known:** Status `pending→processing→ready/failed` for later worker phases; `created_at` is `uploaded_at`.

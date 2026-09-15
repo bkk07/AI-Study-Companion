@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 17 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 18 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -28,7 +28,7 @@
 | 15 | Projects | ✅ Complete | 2026-09-15 | Pass (nested scoped 404) | `projects` FK space + service + `ccb823bfc29d` + 3 tests |
 | 16 | Project Isolation & Authorization | ✅ Complete | 2026-09-15 | Pass (own 200 foreign 403/404 401) | `authorization.py` space/project deps + `GET space/project` guards + 2 tests |
 | 17 | Spaces/Projects Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 87 mods) | `SpacesPage` + `SpaceProjects` + `ProjectDetail` + hierarchy routes |
-| 18 | Materials Model | ⏳ Pending | — | — | — |
+| 18 | Materials Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `materials` FK project + `242af3866a09` + 2 tests |
 | 19 | PDF Upload | ⏳ Pending | — | — | — |
 | 20 | Shared Upload Volume | ⏳ Pending | — | — | — |
 | 21 | Celery + Redis | ⏳ Pending | — | — | — |
@@ -371,6 +371,16 @@
 **Verify:** `npm run build` → `87 modules` `css 8.66kB` `js 327.92kB gzip 104.15kB` OK; `pytest -q` 32 passed; hierarchy `user→space→project` preserved via URL params `spaceId`→`projectId` + breadcrumb; empty `No spaces/projects yet` + `404 Space not found` + `401` via `apiClient` interceptor + disabled `Create` when empty; `docker compose config --quiet` pass.
 **Guard:** No hard-coded URLs — all via `apiClient`; backend isolation via `get_authorized_*` deps; frontend mirrors `user→space→project`.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 18.
+
+---
+
+## Phase 18 — Detail (compact)
+
+**Scope:** Durable metadata for uploaded materials — `materials` scoped to `project_id`.
+**Files:** `backend/app/models/material.py` (Material `project_id UUID FK→projects CASCADE index` `filename String(255)` `storage_path String(512)` `status String(32) server_default pending` + `UUIDTimestampMixin` `created_at`=`uploaded_at`), `backend/app/schemas/material.py` (MaterialCreate `filename`/`storage_path` + MaterialRead `id`/`project_id`/`filename`/`storage_path`/`status`/`created_at`), `backend/app/models/__init__.py` + `backend/alembic/env.py` (import `material`), `backend/alembic/versions/242af3866a09_create_materials_table.py` (create `materials` + `ix_materials_project_id`), `backend/tests/test_materials.py` (2 tests: DB round-trip + schema), `docs/*`.
+**Verify:** `alembic upgrade head` → `242af3866a09`; `psql \d materials` → `materials_pkey` + `ix_materials_project_id` + `FK CASCADE` + `status 'pending'` default; insert `doc.pdf /data/uploads/doc.pdf pending` → query→`MaterialRead` OK; raw `INSERT` without `status` → `pending` default; `pytest -q` 34 passed (2+32 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
+**Guard:** No PDF bytes in Postgres — `storage_path` on shared volume `/data/uploads` per `docker-compose.yml` `uploads:/data/uploads`; status `pending` aligns with Phases 22-23 job pipeline.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 19.
 
 ---
 

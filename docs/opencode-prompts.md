@@ -847,4 +847,8 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ### Phase 19 Post-implementation (compact)
 
-**Status:** _pending_
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/services/storage_service.py` (`save_pdf` `MAX 10MB` `application/pdf` + `b'%PDF'` + `server UPLOAD_DIR/{project_id}/{uuid}.pdf` + traversal guard), `backend/app/api/v1/materials.py` (`POST /projects/{id}/materials` 201 `MaterialRead` + `GET` list via `get_authorized_project`), `backend/app/main.py` (wire `materials_router`), `backend/pyproject.toml`/`requirements.txt` (+`python-multipart`), `backend/tests/test_upload.py` (3 tests), `docs/*`
+**Verify:** valid `doc.pdf`→`201` `pending` + `storage_path` contains `project_id` + file on disk `b'%PDF'` + `GET` list `1`; `doc.txt`→`400`; `b'not a pdf'`→`400`; `text/plain`→`400`; oversized (10B limit)→`413`; foreign project→`404`; no token→`401`; traversal `../../evil.pdf`→sanitized `evil.pdf` no `..`; `pytest -q` 37 passed (3 upload +34 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
+**Guard:** No client path trust — server UUID filename under `UPLOAD_DIR/{project_id}`; PDF-only, no DOCX/images.
+**Known:** `UPLOAD_DIR` `/data/uploads` shared `uploads:` volume (Phase 20 verifies cross-container); status `pending` for job dispatch.

@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 18 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 19 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -29,7 +29,7 @@
 | 16 | Project Isolation & Authorization | ✅ Complete | 2026-09-15 | Pass (own 200 foreign 403/404 401) | `authorization.py` space/project deps + `GET space/project` guards + 2 tests |
 | 17 | Spaces/Projects Frontend | ✅ Complete | 2026-09-15 | Pass (`npm run build` 87 mods) | `SpacesPage` + `SpaceProjects` + `ProjectDetail` + hierarchy routes |
 | 18 | Materials Model | ✅ Complete | 2026-09-15 | Pass (migration + round-trip) | `materials` FK project + `242af3866a09` + 2 tests |
-| 19 | PDF Upload | ⏳ Pending | — | — | — |
+| 19 | PDF Upload | ✅ Complete | 2026-09-15 | Pass (PDF 201/non-PDF 400/oversize 413) | `storage_service` + `POST /projects/{id}/materials` + 3 tests |
 | 20 | Shared Upload Volume | ⏳ Pending | — | — | — |
 | 21 | Celery + Redis | ⏳ Pending | — | — | — |
 | 22 | Background Job Tracking | ⏳ Pending | — | — | — |
@@ -381,6 +381,16 @@
 **Verify:** `alembic upgrade head` → `242af3866a09`; `psql \d materials` → `materials_pkey` + `ix_materials_project_id` + `FK CASCADE` + `status 'pending'` default; insert `doc.pdf /data/uploads/doc.pdf pending` → query→`MaterialRead` OK; raw `INSERT` without `status` → `pending` default; `pytest -q` 34 passed (2+32 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
 **Guard:** No PDF bytes in Postgres — `storage_path` on shared volume `/data/uploads` per `docker-compose.yml` `uploads:/data/uploads`; status `pending` aligns with Phases 22-23 job pipeline.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 19.
+
+---
+
+## Phase 19 — Detail (compact)
+
+**Scope:** Secure PDF ingestion — `POST /projects/{project_id}/materials` with multipart PDF-only + size limit + server-controlled path.
+**Files:** `backend/app/services/storage_service.py` (`MAX_PDF_BYTES 10MB` + `ALLOWED_CONTENT_TYPES` + `_sanitize_filename` basename + `save_pdf` `upload.read()` → `len>MAX`→413 `!startswith b'%PDF'`→400 `!endswith .pdf`→400 → `UPLOAD_DIR/{project_id}/{uuid}.pdf` `mkdir(parents)` `write_bytes` + traversal guard + returns `storage_path`/`filename`), `backend/app/api/v1/materials.py` (`router /projects/{project_id}/materials` `POST` `File` + `get_authorized_project` → `save_pdf` → `Material(project_id, filename, storage_path, pending)` `201` `MaterialRead` + `GET` list scoped), `backend/app/main.py` (include `materials_router`), `backend/pyproject.toml`/`requirements.txt` (+`python-multipart`), `backend/tests/test_upload.py` (3 tests: valid + rejects + isolation), `docs/*`.
+**Verify:** valid `doc.pdf %PDF`→`201` `MaterialRead` `pending` `project_id` + `storage_path` contains `project_id` + `os.path.exists` + `read.startswith b'%PDF'` + `GET` list `1`; `doc.txt`→`400`; `pdf+ b'not a pdf'`→`400`; `text/plain`→`400`; oversized (`MAX 10`→`413`); foreign project→`404` hide; missing token→`401`; traversal `../../evil.pdf` sanitized `evil.pdf` no `..`; `pytest -q` 37 passed (3+34 prior); `npm run build` 87 mods; `docker compose config --quiet` pass.
+**Guard:** No DOCX/images/URLs — PDF-only via extension+content_type+magic; server UUID path, never client path; ownership via `get_authorized_project`.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 20.
 
 ---
 

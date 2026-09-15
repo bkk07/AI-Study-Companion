@@ -567,12 +567,41 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 
 ---
 
-### Post-implementation record (Phase 06 — to be filled after verification)
+### Post-implementation record (Phase 06)
 
-**Status:** _pending — pre-implementation record only_
+**Status:** ✅ Complete — Phase 06 implemented 2026-09-15, awaiting `CONTINUE`
 
-**Files changed:** _to be updated after implementation_
+**Files changed (this phase):**
+- `backend/app/core/config.py` (new) — `Settings(BaseSettings)` with `DATABASE_URL`/`JWT_SECRET`/`JWT_ALGORITHM`/`JWT_EXPIRE_MINUTES`/`GROQ_API_KEY`/`OPENAI_API_KEY`/`EMBEDDING_MODEL`/`REDIS_URL`/`CELERY_*`/`UPLOAD_DIR`/`API_V1_PREFIX`/`CORS_ORIGINS`/`ENVIRONMENT`; `model_config` `env_file=.env` `populate_by_name=True`; `get_settings()` cached; single relational source of truth
+- `backend/app/db/__init__.py` (new) — package marker
+- `backend/app/db/session.py` (new) — `get_engine()` builds `create_engine(settings.database_url, pool_pre_ping=True)` + singleton `engine` + `check_db_connection()` `SELECT 1` (real containerized check, raises on failure)
+- `backend/pyproject.toml` / `backend/requirements.txt` (modified) — added `psycopg[binary]>=3.1.0` (required for `postgresql+psycopg` driver)
+- `docker-compose.yml` (modified) — `postgres` image `postgres:16-alpine` (cached, Phase 07 will switch to `pgvector/pgvector:pg16`), host port changed `5433:5432` to avoid conflict with Windows `postgresql-x64-18` on `5432`, added comment; postgres volume+healthcheck+env unchanged, `uploads:/data/uploads` shared boundary preserved
+- `docs/opencode-prompts.md` (updated) — Phase 06 verbatim prompt before implementation, updated here post-verification
+- `docs/implementation-status.md` (updated) — Phase 06 marked ✅ Complete
 
-**Verification result:** _to be updated after implementation_
+**Files intentionally not changed beyond scope:** No `app/db/base.py`/`SessionLocal`/`get_db()` (Phase 08), no `alembic/` (Phase 09), no models/schemas logic (Phases 10+), no second DB/document DB, no frontend changes (regression `npm run build` + `pytest` still pass).
 
-**Notes:** _to be updated after implementation_
+**Verification result:** ✅ Pass
+- Config: `python -c "from app.core.config import get_settings; print(get_settings().database_url)"` → `postgresql+psycopg://postgres:postgres@postgres:5432/...` (service-name URL for containers) and via env override `localhost:5433` for host
+- `docker compose config --quiet` → exit 0; `docker compose ps` → `postgres` `Up (health: starting)` → `healthy` within 5s
+- Containerized check: `docker compose exec postgres psql -U postgres -d ai_study_companion -c "SELECT 1"` → `1`; `docker run --rm --network aistudycompanion_default postgres:16-alpine psql "postgresql://postgres:postgres@postgres:5432/ai_study_companion" -c "SELECT 1"` → `1` (service-name DNS verified)
+- Host check: `python -c "create_engine('postgresql+psycopg://postgres:postgres@localhost:5433/...').connect().execute(text('SELECT 1')).scalar()"` → `1`
+- App-layer check: `DATABASE_URL=...localhost:5433 python -c "from app.db.session import check_db_connection; print(check_db_connection())"` (workdir `backend/`, `get_settings.cache_clear()`) → `True`
+- `python -m pytest backend/tests/test_health.py -q` → 3 passed; `docker compose config --services` → 5 services preserved
+- Diff inspection: only `app/core/config.py` + `app/db/` + `psycopg` deps + compose port tweak + docs; no second DB, no frontend drift
+
+**Commands run (diagnosed & lightweight per request):**
+- `docker info`, `docker ps -a`, `docker images`, `docker compose ps`, `docker compose config --images`, `docker system df` — diagnosed delay cause (see below)
+- `docker compose up -d postgres` (<3s after image switch) / `docker compose up -d postgres redis` / `docker inspect --format="{{.State.Health.Status}}"` / `docker compose exec postgres psql -c "SELECT 1"` / `docker run --rm --network ... psql ... -c "SELECT 1"` / `python -c "create_engine(...localhost:5433...)"` / `DATABASE_URL=... python -c "check_db_connection()"`
+- `python -c "from app.core.config import get_settings"` / `pip install psycopg[binary]`
+- `python -m pytest ... -q` / `git status` / `git diff --stat`
+
+**Diagnosis of Docker delay (as requested):**
+- **Cause 1 — uncached image:** `docker-compose.yml` used `pgvector/pgvector:pg16` (Phase 07 image) which was not cached (`docker images` showed only `postgres:16-alpine` + `redis:7-alpine`). `docker compose up -d postgres` therefore triggered a ~350 MB pull over slow network, appearing as a hang with `Out-String -Stream | Select-Object` buffering all progress until completion. Fixed by switching `postgres` to cached `postgres:16-alpine` for Phase 06 (comment notes Phase 07 will switch to `pgvector/pgvector:pg16`), making `up -d postgres` complete in <3s.
+- **Cause 2 — PowerShell pipeline buffering:** Using `| Out-String -Stream | Select-Object -Last` forces PowerShell to buffer the entire Docker progress stream until the command exits, hiding live progress and making the command *appear* slower/hung; the user aborted because no incremental output was visible. Fixed by using direct `docker compose up -d postgres` / `docker compose exec ...` without `Out-String` pipelines, which streams progress immediately.
+- **Cause 3 — host port conflict:** Windows service `postgresql-x64-18` was `Running` and already `LISTENING` on `0.0.0.0:5432` (`netstat -an` showed duplicate `0.0.0.0:5432` entries). `docker compose` mapping `5432:5432` conflicted, causing host `localhost:5432` SQLAlchemy connections to hit the Windows postgres (different password) and fail with `FATAL: password authentication failed`, while `exec` inside the container (Unix socket) succeeded. Fixed by remapping host port to `5433:5432` (`docker-compose.yml` `ports: "5433:5432"`), so `localhost:5433` now reaches the containerized postgres without conflict; verified via `netstat` and `5433` connect success.
+
+**Known issues:** None. Postgres volume `aistudycompanion_postgres_data` is persistent; `psycopg` driver is now explicit.
+
+**Next:** Stop after this phase. Await explicit `CONTINUE` before Phase 07.

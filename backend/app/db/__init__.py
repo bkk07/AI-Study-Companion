@@ -1,0 +1,1 @@
+"""DB package — Phase 06: engine + session placeholder; full SessionLocal/get_db in Phase 08."""

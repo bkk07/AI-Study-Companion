@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 05 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 06 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -16,7 +16,7 @@
 | 03 | Frontend Initialization | ✅ Complete | 2026-09-15 | Pass (`npm run build` ✓ 24 modules) | Vite+React+TS+Tailwind+shadcn+Router+Axios; `src/lib/axios.ts` + routing shell; `npm run build` 260kB gzip 82.85kB |
 | 04 | Backend Initialization | ✅ Complete | 2026-09-15 | Pass (pytest 3/3, health 200) | FastAPI shell `app/main.py`+`api/v1/health`+`pyproject.toml`/`requirements.txt`+`tests/test_health.py`; `/api/v1/health` 200 |
 | 05 | Docker Compose Foundation | ✅ Complete | 2026-09-15 | Pass (config --quiet + dry-run) | 5 services `api/worker/web/postgres/redis`; Dockerfiles + `uploads` shared; `VITE localhost` vs `postgres/redis` service names |
-| 06 | PostgreSQL Setup | ⏳ Pending | — | — | — |
+| 06 | PostgreSQL Setup | ✅ Complete | 2026-09-15 | Pass (SELECT 1 via host 5433 + container) | `core/config.py`+`db/session.py`+`psycopg`; `postgres:16-alpine` 5433:5432 `SELECT 1` true |
 | 07 | pgvector Setup | ⏳ Pending | — | — | — |
 | 08 | SQLAlchemy & DB Session Management | ⏳ Pending | — | — | — |
 | 09 | Alembic Migrations | ⏳ Pending | — | — | — |
@@ -232,6 +232,35 @@
 **Known issues:** None. Full `docker compose build` (non-dry-run) skipped to reduce wait; dry-run + config validates same contract. `worker` celery module will be implemented in Phase 21.
 
 **Next:** Await `CONTINUE` before starting Phase 06 (PostgreSQL Setup). Do not start Phase 06 silently.
+
+---
+
+## Phase 06 — Detail
+
+**Scope:** Single relational persistence layer — Postgres wiring + SQLAlchemy DATABASE_URL + SELECT 1 verification.
+
+**Files created/changed in this phase:**
+- `backend/app/core/config.py` (new) — `Settings(BaseSettings)` covering `DATABASE_URL`/`JWT_*`/`GROQ`/`OPENAI`/`REDIS`/`CELERY`/`UPLOAD_DIR`/etc, `env_file=.env` `populate_by_name=True`, cached `get_settings()`
+- `backend/app/db/__init__.py` (new) + `app/db/session.py` (new) — `get_engine()` `create_engine(settings.database_url, pool_pre_ping=True)` + `engine` singleton + `check_db_connection()` `SELECT 1`
+- `backend/pyproject.toml`/`requirements.txt` (modified) — added `psycopg[binary]>=3.1.0`
+- `docker-compose.yml` (modified) — `postgres` `postgres:16-alpine` (cached; Phase 07 → `pgvector`), host port `5433:5432` to avoid Windows `postgresql-x64-18` conflict on `5432`, comment added; volumes/healthcheck/env preserved
+
+**Out of scope for this phase (correctly deferred):**
+- No `app/db/base.py`/`SessionLocal`/`get_db()` (Phase 08), no `alembic/` (Phase 09), no models (Phase 10+), no second DB, no frontend changes
+
+**Verification (2026-09-15):**
+- `get_settings().database_url` default `postgres:5432` (service name) and host override `localhost:5433` both parse
+- `docker compose ps` → `postgres` `healthy` + `redis` `healthy`; `docker compose exec postgres psql -c "SELECT 1"` → `1`
+- `docker run --rm --network aistudycompanion_default postgres:16-alpine psql "postgresql://postgres:postgres@postgres:5432/..." -c "SELECT 1"` → `1` (service-name DNS)
+- Host SQLAlchemy: `create_engine('...localhost:5433...').execute(text('SELECT 1'))` → `1`; `DATABASE_URL=...localhost:5433 python -c "check_db_connection()"` → `True`
+- `pytest backend/tests/test_health.py -q` → 3 passed; `docker compose config --services` → 5 services preserved
+- Diff inspection: only `core/config.py` + `db/` + `psycopg` + compose port tweak + docs; no second DB
+
+**Result:** ✅ Pass
+
+**Known issues:** None. Note: host port is `5433` due to Windows postgres conflict (see diagnosis in `opencode-prompts.md`); Phase 07 will switch image to `pgvector/pgvector:pg16` and retain `5433:5432`.
+
+**Next:** Await `CONTINUE` before starting Phase 07 (pgvector Setup). Do not start Phase 07 silently.
 
 ---
 

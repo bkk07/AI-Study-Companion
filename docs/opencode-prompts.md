@@ -795,3 +795,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** own `space`/`project` `200`; foreign `space`/`project` `403/404`; nested `space_id/projects/{id}` foreign `404`; list/create via foreign space `404`; missing/invalid token `401`; non-existent `404`; `pytest -q` 32 passed (2 authz +30 prior); `docker compose config --quiet` pass.
 **Guard:** No global access — every later `project`/`material`/`concept` endpoint must use these deps; `404` hides existence.
 **Known:** Project auth via `Project→Space→User` join; material/concept extensions pending.
+
+---
+
+## Phase 17 — Spaces/Projects Frontend (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 17
+**Objective:** Expose Space/Project hierarchy in UI before document ingestion.
+**Contract:** Space list/create UI, project list/create UI within a space, navigation `user→space→project`; empty + failure states.
+**Files:** `frontend/src/features/spaces/` + `frontend/src/features/projects/`
+**Guard:** Frontend navigation must reflect backend hierarchy `user→space→project`.
+**Verify:** manual flow + `npm run build`.
+
+### Phase 17 Post-implementation (compact)
+
+**Status:** _pending_

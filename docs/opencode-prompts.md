@@ -662,3 +662,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic upgrade head` → `5257ffa81b36` OK; `downgrade base`→`upgrade head` idempotent OK; `alembic current` → `5257ffa81b36 (head)`; `psql SELECT version_num FROM alembic_version` → `5257ffa81b36`; `pytest` 9 passed (6 db+3 health); `docker compose config --quiet` pass.
 **Guard:** No manual DB edits — schema via Alembic; `target_metadata = Base.metadata`; `get_url()` respects `DATABASE_URL` (host `localhost:5433` vs container `postgres:5432`).
 **Known:** Empty DB no-op migration ok as placeholder (roadmap §6).
+
+---
+
+## Phase 10 — User Model (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 10
+**Objective:** Identity record for auth & ownership.
+**Contract:** `User` id UUID PK + `email` unique + `hashed_password` + `is_admin bool` + `created_at`; migration; `UserCreate`/`UserRead` (no password in read); migration applies; round-trip insert.
+**Files:** `backend/app/models/user.py`, `backend/app/schemas/user.py`, `backend/alembic/versions/*_create_user_table.py`
+**Guard:** User ownership root boundary — all later resources owned via user/space/project.
+**Verify:** `alembic upgrade head` applies `users` table; insert→read round-trip via real DB; `pytest` green.
+
+### Phase 10 Post-implementation (compact)
+
+**Status:** _pending_

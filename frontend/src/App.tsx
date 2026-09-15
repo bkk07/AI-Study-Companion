@@ -3,6 +3,9 @@ import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { Login } from "@/features/auth/Login"
 import { Register } from "@/features/auth/Register"
+import { SpacesPage } from "@/features/spaces/SpacesPage"
+import { SpaceProjectsPage } from "@/features/projects/SpaceProjectsPage"
+import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage"
 
 function Home() {
   const { user, logout, token } = useAuth()
@@ -40,9 +43,14 @@ function Home() {
           Home
         </Link>
         {token ? (
-          <Link to="/dashboard" className="text-primary hover:underline">
-            Dashboard
-          </Link>
+          <>
+            <Link to="/dashboard" className="text-primary hover:underline">
+              Dashboard
+            </Link>
+            <Link to="/spaces" className="text-primary hover:underline">
+              Spaces
+            </Link>
+          </>
         ) : (
           <span className="text-muted-foreground">Dashboard (protected)</span>
         )}
@@ -64,9 +72,14 @@ function Dashboard() {
       <p className="mt-2 text-sm text-muted-foreground">
         Protected route — only visible with a valid JWT. User: {user?.email}
       </p>
-      <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-        Back home
-      </Link>
+      <div className="mt-4 flex gap-4 text-sm">
+        <Link to="/" className="text-primary hover:underline">
+          Back home
+        </Link>
+        <Link to="/spaces" className="text-primary hover:underline">
+          Spaces
+        </Link>
+      </div>
     </div>
   )
 }
@@ -93,6 +106,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces"
+        element={
+          <ProtectedRoute>
+            <SpacesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces/:spaceId"
+        element={
+          <ProtectedRoute>
+            <SpaceProjectsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/spaces/:spaceId/projects/:projectId"
+        element={
+          <ProtectedRoute>
+            <ProjectDetailPage />
           </ProtectedRoute>
         }
       />

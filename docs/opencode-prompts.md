@@ -966,3 +966,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `upgrade head`→`cf04f880e71a`, downgrade→`3c13e851f931`→upgrade idempotent, `current` head; identical re-run same ids counts `{1,1,2}`; case/whitespace variant same rows; summary change updates same row; cross-project separate rows; user-delete cascade cleanup no FK error; full `pytest -q` 54 passed (2+52); `compose config` 0.
 **Guard:** Upsert by normalized title within parent scope; denormalized `project_id` on all three for fast scoped queries; no raw SQL from LLM.
 **Known:** No API/frontend until Phase 26; unique constraints case-sensitive at DB level, app matches case-insensitive (variant test proves).
+
+---
+
+## Phase 26 — Structure API + Frontend (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 26
+**Objective:** Expose the persisted learning map per project + render it as a navigable tree.
+**Contract:** `GET /api/v1/projects/{project_id}/structure` via `get_authorized_project` → nested `{topics: [{id,title,subtopics: [{id,title,concepts: [{id,title,summary}]}]}]}` ordered by `created_at`; empty project → `{topics: []}`; only rows with matching `project_id` ever returned — no `storage_path`, no prompts, no job internals. Frontend `StructureView` in project detail: loading / empty (`No learning structure yet`) / error-retry / tree states, all via `apiClient`.
+**Files:** `backend/app/schemas/structure_api.py`, `backend/app/api/v1/structure.py`, `frontend/src/features/structure/StructureView.tsx`
+**Guard:** Project-scoped reads only; response leaks no paths/prompts; frontend uses centralized `apiClient`, no hard-coded URLs.
+**Verify:** integration — own 200 tree shape + empty 200 `[]` + foreign 404 + no-token 401 + cross-project no leak; `npm run build`; full `pytest`.
+
+### Phase 26 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-15
+**Files:** `backend/app/schemas/structure_api.py` (`ConceptRead/SubtopicRead/TopicRead/StructureRead` ids+titles+summary only), `backend/app/api/v1/structure.py` (`GET /projects/{project_id}/structure` via `get_authorized_project`, 3 project-scoped ordered queries → nested tree, empty → `{topics: []}`), `backend/app/main.py` (wire), `backend/tests/test_structure_api.py` (1 test: empty/tree/foreign/no-token/missing), `frontend/src/features/structure/StructureView.tsx` (loading/empty/error-retry/tree via `apiClient`), `frontend/src/features/projects/ProjectDetailPage.tsx` (structure section), `docs/*`
+**Verify:** own 200 `["Algebra","Geometry"]` nested + summary + no `storage_path/prompt/celery` in raw body; empty project `{topics: []}`; second project no leak; foreign 404; no-token 401; missing 404; `pytest -q` 79 passed (1+78); `npm run build` 88 mods; `compose config` 0.
+**Guard:** Only `project_id`-matched rows; titles/summary only; frontend hierarchy mirrors backend.
+**Known:** Tree is read-only until later phases (quiz/tutor link in); no pagination — fine at current scale.

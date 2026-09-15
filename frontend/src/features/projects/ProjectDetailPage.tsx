@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { StructureView } from "@/features/structure/StructureView"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
 type Space = { id: string; name: string }
@@ -77,6 +78,10 @@ export function ProjectDetailPage() {
             </Link>
           </div>
           <p className="mt-6 text-sm text-muted-foreground">Materials, chunks, and study features will attach to this project (Phases 18+).</p>
+          <div className="mt-6 border-t pt-4">
+            <h2 className="text-lg font-semibold">Learning structure</h2>
+            {projectId ? <StructureView projectId={projectId} /> : null}
+          </div>
         </div>
       ) : null}
     </div>

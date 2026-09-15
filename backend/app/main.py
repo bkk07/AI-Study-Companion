@@ -9,6 +9,7 @@ from app.api.v1.materials import router as materials_router
 from app.api.v1.projects import direct_router as projects_direct_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.spaces import router as spaces_router
+from app.api.v1.structure import router as structure_router
 
 app = FastAPI(
     title="AI Study Companion API",
@@ -37,6 +38,7 @@ app.include_router(projects_router, prefix="/api/v1")
 app.include_router(projects_direct_router, prefix="/api/v1")
 app.include_router(materials_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+app.include_router(structure_router, prefix="/api/v1")
 
 
 @app.get("/")

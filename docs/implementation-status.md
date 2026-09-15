@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-15 — Phase 25 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-15 — Phase 26 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -36,7 +36,7 @@
 | 23 | PDF Text Extraction | ✅ Complete | 2026-09-15 | Pass (extract→ready/completed) | `process_pdf` + `extracted_text` + `3c13e851f931` + 4 tests |
 | 24 | Learning Structure Extraction | ✅ Complete | 2026-09-15 | Pass (7 tests, retry+validate) | `groq_client` + `extract_structure` + `StructureOutline`, no DB yet |
 | 25 | Topic/Subtopic/Concept Persistence | ✅ Complete | 2026-09-15 | Pass (idempotent upsert) | `topics/subtopics/concepts` + `cf04f880e71a` + `persist_structure` + 2 tests |
-| 26 | Structure API + Frontend | ⏳ Pending | — | — | — |
+| 26 | Structure API + Frontend | ✅ Complete | 2026-09-15 | Pass (tree + isolation) | `GET structure` + `StructureView` + 1 test |
 | 27 | Chunking & Embeddings | ⏳ Pending | — | — | — |
 | 28 | Retrieval (RAG) | ⏳ Pending | — | — | — |
 | 29 | Tutor (Grounded Q&A) | ⏳ Pending | — | — | — |
@@ -451,6 +451,16 @@
 **Verify:** `alembic upgrade`→`cf04f880e71a`; downgrade→`3c13e851f931`→upgrade head idempotent; persist `{1 topic,1 subtopic,2 concepts}` → re-run same ids/counts; `"  algebra "`/`"LINEAR EQUATIONS"` variant same rows; summary `"Updated summary."` in place same count; project B same titles separate rows; user-delete cascade cleanup OK; `pytest -q` 54 passed (2+52); `compose config` 0.
 **Guard:** Identity = normalized title within parent; `project_id` denormalized everywhere; validated outline only, no LLM SQL.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 26.
+
+---
+
+## Phase 26 — Detail (compact)
+
+**Scope:** Read-only learning map per project — nested API + tree UI.
+**Files:** `backend/app/schemas/structure_api.py` (`ConceptRead id/title/summary`, `SubtopicRead id/title/concepts`, `TopicRead id/title/subtopics`, `StructureRead topics` — no paths/prompts/jobs), `backend/app/api/v1/structure.py` (`router /projects/{project_id}/structure`, `GET` via `get_authorized_project` → topics + subtopics (`topic_id in`) + concepts (`subtopic_id in`), all `project_id`-filtered + `created_at` ordered → nested; empty → `{topics: []}`), `backend/app/main.py` (include `structure_router`), `backend/tests/test_structure_api.py` (1 test), `frontend/src/features/structure/StructureView.tsx` (`GET /projects/{id}/structure` via `apiClient`: loading / `No learning structure yet` empty / 404-error + Retry / nested tree), `frontend/src/features/projects/ProjectDetailPage.tsx` (Learning structure section), `docs/*`.
+**Verify:** empty→`{topics: []}`; seeded→200 `Algebra,Geometry` + `Linear equations,Quadratics` + `Slope,Intercept` + summary `Rise over run.`; raw body free of `storage_path/prompt/celery`; second project empty (no leak); foreign 404; no-token 401; missing 404; `pytest -q` 79 passed (1+78); `npm run build` 88 mods `css 9.14kB js 330.06kB`; `compose config` 0.
+**Guard:** Project isolation via `get_authorized_project`; response is titles/summary only.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 27.
 
 ---
 

@@ -871,3 +871,18 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `docker compose config --quiet` pass + `api`+`worker` both mount `uploads:/data/uploads` (grep 2×) + `UPLOAD_DIR` consistent; write via `docker compose exec api sh -c "echo hello-shared > /data/uploads/probe.txt"` → `cat` `hello-shared`; read via `docker run -v aistudycompanion_uploads:/data/uploads alpine cat`→`hello-shared` + `docker compose run --entrypoint sh worker cat`→`hello-shared`; `volume inspect aistudycompanion_uploads` OK; `Material.storage_path` `/data/uploads/{project_id}/{uuid}.pdf` matches mount; `pytest -q` 37 passed; `docker compose up -d --wait` healthy (api/postgres/redis) worker restart expected until Phase 21.
 **Guard:** No separate dirs — single `uploads` volume at same path in both services.
 **Known:** Worker `celery` command fails `No module app.worker` until Phase 21 — volume sharing verified via `run --entrypoint`; `api` healthy.
+
+---
+
+## Phase 21 — Celery + Redis (compact)
+
+**Recorded:** 2026-09-15 before impl | Source: roadmap Phase 21
+**Objective:** Introduce async execution without blocking HTTP.
+**Contract:** Celery app `Redis` broker/backend from `get_settings()` (`CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` → `redis:6379`), `worker` service runs `celery -A app.worker.celery_app worker`; trivial `ping` task `→ pong`.
+**Files:** `backend/app/worker/celery_app.py`, `backend/app/worker/tasks.py`
+**Guard:** Long-running work must not block request handlers; worker separate from FastAPI.
+**Verify:** task dispatched from API container/host via `.delay()` → executed by `worker` → result `pong` retrievable.
+
+### Phase 21 Post-implementation (compact)
+
+**Status:** _pending_

@@ -22,15 +22,29 @@ export const apiClient = axios.create({
   timeout: 15000,
 })
 
-// Request interceptor placeholder — auth header is attached in Phase 12/13.
-// Keeping the interceptor here centralizes token handling.
+// Attach JWT from localStorage (Phase 13). Token is stored under `access_token`.
 apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("access_token")
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
   return config
 })
 
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      const url: string = error.config?.url ?? ""
+      // Don't auto-redirect on auth endpoints themselves (login/register/me)
+      if (!url.includes("/auth/login") && !url.includes("/auth/register")) {
+        localStorage.removeItem("access_token")
+        // Hard redirect keeps hook logic simple; AuthContext will also clear state on next load
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login"
+        }
+      }
+    }
     return Promise.reject(error)
   }
 )

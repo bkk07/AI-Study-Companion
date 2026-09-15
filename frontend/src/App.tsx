@@ -1,29 +1,72 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
+import { AuthProvider, useAuth } from "@/context/AuthContext"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { Login } from "@/features/auth/Login"
+import { Register } from "@/features/auth/Register"
 
 function Home() {
+  const { user, logout, token } = useAuth()
   return (
     <div className="mx-auto max-w-3xl p-8">
-      <h1 className="text-3xl font-bold tracking-tight">AI Study Companion</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">AI Study Companion</h1>
+        <div className="flex gap-2 text-sm">
+          {!token ? (
+            <>
+              <Link to="/login" className="rounded-md border px-3 py-1 hover:bg-muted">
+                Sign in
+              </Link>
+              <Link to="/register" className="rounded-md bg-primary px-3 py-1 text-primary-foreground hover:bg-primary/90">
+                Sign up
+              </Link>
+            </>
+          ) : (
+            <button onClick={logout} className="rounded-md border px-3 py-1 hover:bg-muted">
+              Sign out
+            </button>
+          )}
+        </div>
+      </div>
       <p className="mt-2 text-muted-foreground">
-        Project-scoped learning partner — upload PDFs, get a structured Topic → Subtopic → Concept map, and keep mastery, retrieval, and recommendations isolated per project.
+        Project-scoped learning partner — upload PDFs, get a structured Topic → Subtopic → Concept map, and keep mastery isolated per project.
       </p>
-      <div className="mt-6 flex gap-4">
-        <Link
-          to="/"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
+      {user && (
+        <div className="mt-4 rounded-md border bg-card p-3 text-sm">
+          Signed in as <span className="font-medium">{user.email}</span> {user.is_admin && "(admin)"}
+        </div>
+      )}
+      <div className="mt-6 flex gap-4 text-sm">
+        <Link to="/" className="font-medium text-primary underline-offset-4 hover:underline">
           Home
         </Link>
-        <span className="text-sm text-muted-foreground">
-          Auth, spaces, and projects arrive in later phases.
-        </span>
+        {token ? (
+          <Link to="/dashboard" className="text-primary hover:underline">
+            Dashboard
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Dashboard (protected)</span>
+        )}
       </div>
       <div className="mt-8 rounded-lg border bg-card p-4">
         <p className="text-sm text-muted-foreground">
-          Frontend shell is initialized (Vite + React + TypeScript + Tailwind + shadcn/ui + React Router + Axios).
-          API client is centralized in <code className="rounded bg-muted px-1 py-0.5">src/lib/axios.ts</code> and points at <code className="rounded bg-muted px-1 py-0.5">VITE_API_BASE_URL</code>.
+          Auth is now connected. API client attaches <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer</code> from <code className="rounded bg-muted px-1 py-0.5">localStorage</code>; expired tokens auto-clear and redirect to /login.
         </p>
       </div>
+    </div>
+  )
+}
+
+function Dashboard() {
+  const { user } = useAuth()
+  return (
+    <div className="mx-auto max-w-3xl p-8">
+      <h2 className="text-xl font-semibold">Dashboard</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Protected route — only visible with a valid JWT. User: {user?.email}
+      </p>
+      <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+        Back home
+      </Link>
     </div>
   )
 }
@@ -39,13 +82,31 @@ function NotFound() {
   )
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   )
 }

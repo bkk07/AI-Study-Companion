@@ -1500,6 +1500,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** affected suites 65 pass (20s); English Lab structure completed first try after sanitize (5 topics / 16 subtopics / 38 concepts); ML map done earlier (2/6/24). Per user request, full suite skipped in favor of affected-only runs.
 **Known:** 8k TPM free-tier budget ≈ 2 concurrent structure calls — stagger dispatches; user uploads share the same quota.
 
+## Mercury 2.5 Provider Switch (user-requested, out-of-band)
+
+**Recorded:** 2026-09-16 before impl | Source: user has Inception Labs Mercury 2.5 key, wants it in place of Groq
+**Verified:** Inception OpenAPI docs — `POST https://api.inceptionlabs.ai/v1/chat/completions` Bearer, `response_format json_object` supported, model `mercury-2.5` 260K ctx; temperature restricted 0.5–1 (out-of-range silently reset to 1.0) so our temp-0 default MUST clamp to 0.5 for determinism; paid promo pricing $0.04/$0.15 per 1M in/out (≈$0.0003 per map call).
+**Design:** keep `groq_client.chat_json` name stable (4 services + all test patches reference it — zero caller changes); provider table inside client (`LLM_PROVIDER=groq|inception`, per-provider URL/key/model/min-temp); provider-specific missing-key messages (keeps existing test green); compose passes `LLM_PROVIDER`/`INCEPTION_API_KEY`/`INCEPTION_MODEL` to api+worker; real key ONLY in gitignored `backend/.env` (+`LLM_PROVIDER=inception`), placeholder in `.env.example`.
+**Files:** `core/config.py`, `services/ai/groq_client.py`, `tests/test_groq_client.py`, `docker-compose.yml`, `backend/.env` (secret, uncommitted), `backend/.env.example`, `docs/*`.
+**Verify:** affected suites only (client+tutor+quiz+assessment+structure+pipeline+security) + ONE live Mercury probe through the real client; single commit (no `.env`).
+
+### Mercury Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `core/config.py` (+`llm_provider`/`inception_api_key`/`inception_model`), `services/ai/groq_client.py` (provider table, URL/key/model resolution, temp clamp ≥ provider min, provider-specific errors), `tests/test_groq_client.py` (+4 provider tests), `docker-compose.yml` (`LLM_PROVIDER`/`INCEPTION_API_KEY`/`INCEPTION_MODEL` api+worker), `backend/.env` (real key + `LLM_PROVIDER=inception`, UNCOMMITTED), `backend/.env.example` (placeholders + dual-key export note), `docs/*`
+**Verify:** affected suites 69 pass (15s); live Mercury probe via rebuilt api container — `{'status':'ok','provider':'mercury'}` in 4.6s, JSON mode + auth + temp clamp proven end-to-end. Per user request, full suite skipped.
+**Known:** compose default stays `groq` (safe for CI/others); local `.env` flips to `inception`. `.env.example` never carries the real key.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

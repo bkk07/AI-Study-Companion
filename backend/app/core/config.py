@@ -25,9 +25,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     jwt_expire_minutes: int = Field(default=2880, alias="JWT_EXPIRE_MINUTES")
 
-    # AI
+    # AI — LLM_PROVIDER selects the chat-completions backend ("groq" or "inception").
+    # Mercury 2.5 only accepts temperature 0.5-1 (see groq_client clamp).
+    llm_provider: str = Field(default="groq", alias="LLM_PROVIDER")
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
     groq_model: str = Field(default="openai/gpt-oss-20b", alias="GROQ_MODEL")
+    inception_api_key: str = Field(default="", alias="INCEPTION_API_KEY")
+    inception_model: str = Field(default="mercury-2.5", alias="INCEPTION_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")

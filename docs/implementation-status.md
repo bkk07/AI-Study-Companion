@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 38 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 39 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -53,7 +53,7 @@
 | 32 | Quiz Generation | ⏳ Pending | — | — | — |
 | 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
 | 34 | Quiz Frontend | ⏳ Pending | — | — | — |
-| 35 | Open-Ended Assessment | ⏳ Pending | — | — | — |
+| 35 | Open-Ended Assessment | ✅ Complete | 2026-09-16 | Pass (grade+verdict, mocked) | `grade_open_ended` + `POST assessment/open-ended` + 9 tests |
 | 36 | Explain-It-Back | ⏳ Pending | — | — | — |
 | 37 | Mastery Engine | ⏳ Pending | — | — | — |
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
@@ -589,6 +589,16 @@
 **Verify:** gap/extremes/unrated/empty/rollup/separation/rejection suites; `pytest -q` 143 passed (6+137); `compose config` 0; no migration, no rebuild.
 **Guard:** Mastery separation structural — the module cannot see mastery state.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 39 (Open-Ended Assessment).
+
+---
+
+## Phase 39 — Detail (compact)
+
+**Scope:** Free-text grading only — synchronous, validated, side-effect-free; no mastery writes, no new tables.
+**Files:** `backend/app/services/open_ended_assessment_service.py` (`GradeOutline` + `grade_open_ended` + `verdict_for`: input/scope/source guards + `chat_json` + 1 retry + deterministic verdict), `backend/app/schemas/assessment.py` (`OpenEndedGradeRequest/Response`), `backend/app/api/v1/assessment.py` (`POST /projects/{project_id}/assessment/open-ended`), `main.py` wire, `backend/tests/test_open_ended_assessment.py` (9 tests), `docs/*`.
+**Verify:** 9 pass real PG (pass/partial/fail + boundaries + retry discipline + guards + chunkless-from-summary + zero-writes + API shape/map/isolation); `pytest -q` 156 passed (9+147); `compose config` 0; `alembic check` no new ops head `a8948d1582d1`; no migration, no rebuild.
+**Guard:** Grading is evidence source only — zero writes; durable `mastery_evidence` arrives Phase 40/41.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 40 (Explain-It-Back).
 
 ---
 

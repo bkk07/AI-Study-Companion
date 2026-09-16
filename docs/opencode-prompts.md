@@ -1144,3 +1144,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 5 pass real PG (valid 1 call + chunk text in prompt + options/index/difficulty/concept persisted; flaky→valid 2 calls one quiz; out-of-range twice → error + 2 calls + 0 rows project-scoped; empty/missing/foreign → error + client uncalled; bad num/mode/difficulty → ValueError + uncalled); full `pytest -q` 128 passed (5+123); `compose config` 0; no migration, no rebuild.
 **Guard:** No endpoints yet; nothing persisted before validation passes.
 **Known:** `source_chunk_id` NULL (no invented per-question attribution); over-long question sets truncated by rejection (`>num` → retry), not silent trim; test counts project-scoped (shared dev DB).
+
+## Phase 36 — Adaptive Quiz Selection (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 36 (deterministic selector, synthetic mastery, rule flagged for confirmation)
+**Objective:** Pure deterministic next-question selector — weakest mastery first, exposure-balanced, fully explainable.
+**Contract:** `adaptive_quiz_service.select_questions(candidates, mastery, count)`: `CandidateQuestion(question_id, concept_id, difficulty, times_asked, last_asked_at?)` + `mastery: {concept_id: 0–100}` (missing → 50.0 neutral) → concepts sorted (mastery asc, exposure asc, id asc) → round-robin picking unseen-then-easier per concept → deterministic ties by id; `count` 1–20 else ValueError; empty → `[]`. No DB, no LLM (mastery/attempt wiring lands with endpoint/mastery phases).
+**Files:** `backend/app/services/adaptive_quiz_service.py`
+**Guard:** LLM never decides sequencing; rule + defaults flagged for confirmation (see post).
+**Verify:** unit tests synthetic — weakest-first; unseen-before-seen; exposure recency tie-break; unknown-mastery default; determinism (repeat identical); empty/all-covered edges; full `pytest -q` green; `compose config` 0.
+
+### Phase 36 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Confirmed rule:** weakest-first + difficulty-matched (user choice 2026-09-16; alternatives offered: plain exposure variant, balanced round-robin).
+**Files:** `backend/app/services/adaptive_quiz_service.py` (`CandidateQuestion` frozen + `select_questions`: input validation + concepts by mastery/exposure/id + round-robin + within-concept unseen→least-asked→least-recent→difficulty-distance→id; unknown mastery 50.0; count 1–20), `backend/tests/test_adaptive_quiz.py` (6 tests, no DB), `docs/*`
+**Verify:** 6 pass (weakest-first round-robin `w1,s1,w2`; weak→easy + strong→hard; fresh→old→recent; neutral-default + id tie-break; repeat-identical + empty + over-count; bad count/difficulty/mastery → ValueError); full `pytest -q` 134 passed (6+128); `compose config` 0; no migration, no rebuild.
+**Guard:** Pure function — no DB reads, no LLM; callers supply mastery/coverage facts.
+**Known:** Roadmap gaps (not filled here): no attempt/answer-submit or quiz-generate endpoint phase exists before Phase 37 frontend (which assumes both); mastery-score feed arrives with Phase 41 — until then callers pass synthetic/derived maps; difficulty bands (<34/34–66/>66) provisional with the threshold.

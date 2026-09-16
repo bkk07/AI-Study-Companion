@@ -1110,3 +1110,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `npm run build` 89 mods `css 9.59kB js 333.07kB`; manual flow vs rebuilt `api` container — empty project `200 supported:false` offline (short-circuit; first attempt exposed 502-before-check, fixed), blank 400, anon 401, missing 404; `pytest -q` 120 passed (1+119); `compose config` 0; no migration.
 **Guard:** No direct AI calls from frontend; failures render state, never answers.
 **Known:** Browser click-through not run (no browser here) — flow verified at the exact contract the UI consumes; chat history is session-local (persistence is a later phase).
+
+## Phase 34 — Quiz Data Model (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 34 + blueprint §7 DDL (`quizzes`, `quiz_questions`, `quiz_attempts`, `quiz_answers`)
+**Objective:** Durable assessment records for quizzes + mastery evidence — models only, no endpoints/generation.
+**Contract:** `models/quiz.py` (`Quiz`: `project_id` CASCADE ix + `mode` CHECK practice/exam + `question_count` + `time_limit_seconds?`; `QuizQuestion`: `quiz_id` CASCADE ix + `concept_id` NOT NULL CASCADE ix + `question_text` + `options` JSONB list + `correct_index` INT + `difficulty` CHECK easy/medium/hard + `source_chunk_id?` CASCADE) + `models/quiz_attempt.py` (`QuizAttempt`: `quiz_id` + `user_id` CASCADE ix + `started_at?`/`completed_at?` + `score` NUMERIC(5,2)?; `QuizAnswer`: `attempt_id` CASCADE ix + `question_id` CASCADE + `selected_option_id` TEXT + `is_correct` BOOL + `confidence` INT? CHECK 1–5 + `answered_at` server now()). Evidence stays concept+project tied (denormalized `concept_id` on questions; attempts reach project via quiz).
+**Files:** `backend/app/models/quiz.py`, `backend/app/models/quiz_attempt.py`, migration, `models/__init__.py` + `alembic/env.py` wiring
+**Guard:** No generation/grading/endpoints — pure persistence for Phase 35+; no orphan evidence (all CASCADE).
+**Verify:** `upgrade head` new revision + `downgrade -1`/`upgrade` round-trip; round-trip test (quiz→questions→attempt→answers incl. confidence + correctness); cascade delete quiz→questions/attempts/answers; CHECK violations (bad mode/difficulty/confidence) rejected; full `pytest -q` green; `compose config` 0.
+
+### Phase 34 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/models/quiz.py` (`Quiz`: project CASCADE ix + mode CHECK + count + limit?; `QuizQuestion`: quiz/concept CASCADE ix + text + options JSONB + `correct_index` + difficulty CHECK + `source_chunk_id?`), `backend/app/models/quiz_attempt.py` (`QuizAttempt`: quiz/user CASCADE ix + started/completed? + `score NUMERIC(5,2)?`; `QuizAnswer`: attempt CASCADE ix + question CASCADE + `selected_index` + `is_correct` + `confidence?` CHECK 1–5 + `answered_at` now()), `backend/alembic/versions/4b3487d354d6_create_quizzes_questions_attempts_.py`, `models/__init__.py` + `alembic/env.py` wiring, `backend/tests/test_quiz_models.py` (3 tests), `docs/*`
+**Verify:** `upgrade`→`4b3487d354d6` + `downgrade -1`→`ab60908d37ca`→`upgrade` head + `alembic check` clean; 3 pass (full round-trip incl. options JSONB + confidence 4/None + `answered_at` + score 50.00; quiz delete wipes questions/attempts/answers; bad mode/difficulty/confidence 0+6/concept-null all `IntegrityError`); full `pytest -q` 123 passed (3+120); `compose config` 0.
+**Guard:** Evidence concept+project tied; no endpoints yet — nothing queryable until Phase 36+.
+**Known:** Index-based options (`correct_index`/`selected_index` per roadmap Phase 34 §2 + Phase 35) instead of blueprint DDL's `correct_option_id`/`selected_option_id TEXT` — coherent with list-options JSONB; test-only failures during dev were session-rollback artifacts, models clean.

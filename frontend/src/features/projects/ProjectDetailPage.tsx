@@ -119,16 +119,6 @@ export function ProjectDetailPage() {
                     <AnalyticsView projectId={projectId} />
                   </div>
                 )}
-                {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
-                {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
-                {tab === "structure" && projectId && <StructureView projectId={projectId} />}
-                {tab === "progress" && projectId && (
-                  <div className="space-y-8">
-                    <ProgressMap projectId={projectId} />
-                    <GrowthView projectId={projectId} />
-                    <AnalyticsView projectId={projectId} />
-                  </div>
-                )}
               </div>
             </div>
           ) : null}

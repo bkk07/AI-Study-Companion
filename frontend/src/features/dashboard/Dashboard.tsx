@@ -55,6 +55,9 @@ type DashboardData = {
 
 type FlashCard = { id: string; concept_id: string }
 
+type PracticeCandidate = { concept_id: string; name: string; reasoning: string }
+type PracticeRecs = { items: PracticeCandidate[]; fallback: PracticeCandidate | null }
+
 type TopicNode = {
   id: string
   title: string
@@ -117,6 +120,7 @@ export function Dashboard({
   const [streak, setStreak] = useState<number | null>(null)
   const [dueCards, setDueCards] = useState<FlashCard[]>([])
   const [dueTotal, setDueTotal] = useState(0)
+  const [recs, setRecs] = useState<PracticeCandidate[]>([])
   const [conceptMeta, setConceptMeta] = useState<Map<string, { title: string; topic: string }>>(new Map())
 
   const load = useCallback(async () => {
@@ -147,6 +151,17 @@ export function Dashboard({
       })
       .catch(() => {
         if (!cancelled) setStreak(null)
+      })
+    apiClient
+      .get<PracticeRecs>(`/projects/${projectId}/practice/recommendations?limit=4`)
+      .then((res) => {
+        if (cancelled) return
+        const list = [...res.data.items]
+        if (res.data.fallback) list.push(res.data.fallback)
+        setRecs(list)
+      })
+      .catch(() => {
+        if (!cancelled) setRecs([])
       })
     apiClient
       .get<{ cards: FlashCard[]; due_count: number }>(`/projects/${projectId}/flashcards?due_only=true&limit=100`)
@@ -233,6 +248,53 @@ export function Dashboard({
   const [topDueConceptId, topDueCount] = dueByConcept[0] ?? [null, 0]
   const topDueTitle = topDueConceptId ? (conceptMeta.get(topDueConceptId)?.title ?? "Flashcards") : null
 
+  type Secondary = { key: string; eyebrow: string; title: string; body: string; run: () => void }
+  const secondaries: Secondary[] = []
+  const featured = new Set<string>()
+  if (topDueConceptId && topDueTitle) {
+    featured.add(topDueConceptId)
+    secondaries.push({
+      key: `due-${topDueConceptId}`,
+      eyebrow: "Review flashcards",
+      title: topDueTitle,
+      body: `${topDueCount} flashcard${topDueCount === 1 ? " is" : "s are"} overdue based on spaced repetition schedule.`,
+      run: () => go("flashcards"),
+    })
+  }
+  if (unassessed) {
+    featured.add(unassessed.concept_id)
+    secondaries.push({
+      key: `new-${unassessed.concept_id}`,
+      eyebrow: "Practice",
+      title: unassessed.title,
+      body: "Not yet assessed. Understanding this concept requires applying it — not just recognizing it.",
+      run: () => practice(unassessed.concept_id),
+    })
+  }
+  if (dueTotal > 0) {
+    secondaries.push({
+      key: "due-all",
+      eyebrow: "Review",
+      title: `${dueTotal} due flashcard${dueTotal === 1 ? "" : "s"}`,
+      body:
+        dueTopics.length > 0
+          ? `Cards are due across ${dueTopics.slice(0, 2).join(" and ")} topics.`
+          : "Cards are due for review based on spaced repetition.",
+      run: () => go("flashcards"),
+    })
+  }
+  for (const r of recs) {
+    if (secondaries.length >= 3 || featured.has(r.concept_id)) continue
+    featured.add(r.concept_id)
+    secondaries.push({
+      key: `rec-${r.concept_id}`,
+      eyebrow: "Practice",
+      title: r.name,
+      body: r.reasoning,
+      run: () => practice(r.concept_id),
+    })
+  }
+
   const byTopic = new Map<string, ConceptProgress[]>()
   for (const c of data.concepts) {
     const list = byTopic.get(c.topic) ?? []
@@ -264,7 +326,7 @@ export function Dashboard({
           <StatCard label="Mismatches" value={flagged.length} accent="amber" icon={<Info size={18} />} />
           <StatCard
             label="Study Streak"
-            value={streak === null ? "—" : `${streak} day${streak === 1 ? "" : "s"}`}
+            value={typeof streak !== "number" ? "—" : `${streak} day${streak === 1 ? "" : "s"}`}
             accent="indigo"
             icon={<Flame size={18} />}
           />
@@ -443,46 +505,20 @@ export function Dashboard({
             </button>
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-3">
-          {topDueConceptId && topDueTitle && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
-              <div className="mb-0.5 text-xs text-slate-500">Review flashcards</div>
-              <div className="mb-2 text-sm font-semibold text-slate-800">{topDueTitle}</div>
-              <p className="mb-3 text-xs leading-relaxed text-slate-400">
-                {topDueCount} flashcard{topDueCount === 1 ? " is" : "s are"} overdue based on spaced repetition schedule.
-              </p>
-              <button type="button" onClick={() => go("flashcards")} className="text-xs font-medium text-indigo-600 hover:underline">
-                Go →
-              </button>
-            </div>
-          )}
-          {unassessed && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
-              <div className="mb-0.5 text-xs text-slate-500">Practice</div>
-              <div className="mb-2 text-sm font-semibold text-slate-800">{unassessed.title}</div>
-              <p className="mb-3 text-xs leading-relaxed text-slate-400">
-                Not yet assessed. Understanding this concept requires applying it — not just recognizing it.
-              </p>
-              <button type="button" onClick={() => practice(unassessed.concept_id)} className="text-xs font-medium text-indigo-600 hover:underline">
-                Go →
-              </button>
-            </div>
-          )}
-          {dueTotal > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
-              <div className="mb-0.5 text-xs text-slate-500">Review</div>
-              <div className="mb-2 text-sm font-semibold text-slate-800">{dueTotal} due flashcards</div>
-              <p className="mb-3 text-xs leading-relaxed text-slate-400">
-                {dueTopics.length > 0
-                  ? `Cards are due across ${dueTopics.slice(0, 2).join(" and ")} topics.`
-                  : "Cards are due for review based on spaced repetition."}
-              </p>
-              <button type="button" onClick={() => go("flashcards")} className="text-xs font-medium text-indigo-600 hover:underline">
-                Go →
-              </button>
-            </div>
-          )}
-        </div>
+        {secondaries.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {secondaries.slice(0, 3).map((s) => (
+              <div key={s.key} className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+                <div className="mb-0.5 text-xs text-slate-500">{s.eyebrow}</div>
+                <div className="mb-2 text-sm font-semibold text-slate-800">{s.title}</div>
+                <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{s.body}</p>
+                <button type="button" onClick={s.run} className="text-xs font-medium text-indigo-600 hover:underline">
+                  Go →
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

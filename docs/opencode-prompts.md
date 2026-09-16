@@ -1254,3 +1254,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 9 pass real PG (persist ids/type/score/feedback 85/pass; 2 submits → 40+75 ordered; flaky→valid 1 row/2 calls; bad-twice → error + 2 calls + 0 rows; guards uncalled + 0 rows; CHECK rejects `vibes`; per-user attribution; API 201 shape + 422/404/400 map + foreign 404 + no-token 401/403 + blank 422); `alembic upgrade` → `f3a1c9e2b4d5` + `check` no new ops; full `pytest -q` 165 passed (9+156); `compose config` 0; no rebuild.
 **Guard:** No mastery import/recompute anywhere — evidence feed only; writers append, nothing updates/deletes rows.
 **Known:** No `weight`/`resulting_*` columns yet (Phase 41 adds with the confirmed formula); sync grading only (no Celery `evaluate_assessment` yet); no UI for explain-back (frontend phases later).
+
+## Phase 41 — Mastery Engine (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 41 (deterministic bounded formula; FLAGGED for confirmation — asked, not invented)
+**Objective:** Compute `mcq_mastery` / `applied_mastery` per (user, project, concept) from append-only evidence.
+**Contract:** `mastery_service`: pure core `compute_mastery(points) -> MasteryScores(mcq, applied, counts, last_at)` over `EvidenceInput(evidence_type, score 0–100, difficulty?, at)` + thin read-only `mastery_for_concept(db, user, project, concept)` (no writes anywhere — evidence stays append-only, no `concept_mastery` state table; mastery is derived on read). Streams: `mcq` → mcq_mastery, `open_ended`/`explain_back` → applied_mastery; unknown types → ValueError; empty stream → None (explicit unknown; consumers map it, e.g. adaptive already defaults 50). Confidence is not an input — exclusion is structural. NO producer rewiring (quiz completion → mcq rows is a separate step, noted below).
+**Files:** `backend/app/services/mastery_service.py`, `backend/tests/test_mastery.py` (synthetic pure + one real-PG reader test)
+**Guard:** No LLM, no confidence input, no writes; evidence rows never mutated.
+**Verify:** unit tests — bounds (all-0/all-100/out-of-range/empty), stream independence, confidence-absence (structural), recency/difficulty behavior per confirmed formula, determinism, reader on real PG; full `pytest -q` green; `compose config` 0; `alembic check` clean (no migration); no rebuild.
+
+### Phase 41 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Confirmed formula:** Blueprint EMA (user choice 2026-09-16; alternatives offered: plain mean, last-5 window).
+**Files:** `backend/app/services/mastery_service.py` (`EvidenceInput` w/o confidence + `compute_mastery` pure + `mastery_for_concept` read-only; seed-first EMA, difficulty base easy .2/med .3/hard .4/free-text .3, +0.1 gap boost strictly >7d capped .5, clamp 0–100, `mcq`→mcq / `open_ended`+`explain_back`→applied, empty→None), `backend/tests/test_mastery.py` (7 tests: 6 synthetic + 1 real-PG reader), `docs/*`
+**Verify:** 7 pass (bounds/seed/empty-None + bool/NaN/type/difficulty rejections; independence + open/explain routing 20→23; easy 20 vs hard 40; same-day 65 vs 10d-gap 70 vs 7d-edge 65 vs hard+gap capped 75; field/signature structural + repeat determinism + time-sorted reversal + mixed-time rejections; reader 52.0/count/last_at + LookupError); full `pytest -q` 172 passed (7+165); `compose config` 0; `alembic check` no new ops; no migration, no rebuild.
+**Guard:** No LLM/confidence/writes anywhere; leak-proof reader (user+project+concept filter + scope check).
+**Known:** No `concept_mastery` state table (derived on read per roadmap wording); quiz completion does NOT yet append `mcq` evidence rows (producer wiring is a separate step — engine consumes whatever `mastery_evidence` holds); scale 0–100 (÷100 if a 0–1 API is ever needed).

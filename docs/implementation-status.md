@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 40 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 41 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -55,7 +55,7 @@
 | 34 | Quiz Frontend | ⏳ Pending | — | — | — |
 | 35 | Open-Ended Assessment | ✅ Complete | 2026-09-16 | Pass (grade+verdict, mocked) | `grade_open_ended` + `POST assessment/open-ended` + 9 tests |
 | 36 | Explain-It-Back | ✅ Complete | 2026-09-16 | Pass (evidence rows, mocked) | `submit_explanation` + `mastery_evidence` + 9 tests |
-| 37 | Mastery Engine | ⏳ Pending | — | — | — |
+| 37 | Mastery Engine | ✅ Complete | 2026-09-16 | Pass (EMA bounds/independence) | `mastery_service` confirmed formula + 7 tests |
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
 | 39 | Mismatch Detection | ⏳ Pending | — | — | — |
 | 40 | Decision / Recommendation Engine | ⏳ Pending | — | — | — |
@@ -609,6 +609,16 @@
 **Verify:** 9 pass real PG (persist/append-only/retry/reject/guards/CHECK/attribution + API shape/map/isolation); `alembic upgrade` → `f3a1c9e2b4d5` + `check` clean; `pytest -q` 165 passed (9+156); `compose config` 0; no rebuild.
 **Guard:** Evidence feed only — no mastery import; nothing updates/deletes evidence rows.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 41 (Mastery Engine).
+
+---
+
+## Phase 41 — Detail (compact)
+
+**Scope:** Deterministic mastery derivation only — pure engine + read-only helper; no state table, no producer rewiring, no endpoints.
+**Files:** `backend/app/services/mastery_service.py` (`EvidenceInput`/`StreamMastery`/`MasteryScores` + `compute_mastery` + `mastery_for_concept`), `backend/tests/test_mastery.py` (7 tests), `docs/*`.
+**Verify:** 7 pass (bounds/seed/empty + rejections; independence/routing; difficulty speed; gap boost/edge/cap; structural confidence-absence + determinism + ordering; real-PG reader 52.0 + scope); `pytest -q` 172 passed (7+165); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Formula user-confirmed 2026-09-16 (Blueprint EMA); no LLM/confidence/writes.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 42 (Mismatch Engine).
 
 ---
 

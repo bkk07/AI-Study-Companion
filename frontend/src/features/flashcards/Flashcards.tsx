@@ -298,16 +298,6 @@ export function Flashcards({ projectId }: { projectId: string }) {
     return map
   }, [topics, cards])
 
-  const conceptSubtopics = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const t of topics ?? []) {
-      for (const s of t.subtopics) {
-        for (const c of s.concepts ?? []) map.set(c.id, s.id)
-      }
-    }
-    return map
-  }, [topics])
-
   const stats = useMemo(() => {
     let fresh = 0, learning = 0, mastered = 0
     for (const c of cards) {
@@ -560,7 +550,6 @@ export function Flashcards({ projectId }: { projectId: string }) {
             <div className="space-y-2">
               {libraryCards.map((card) => {
                 const state = cardState(card)
-                const subId = conceptSubtopics.get(card.concept_id)
                 return (
                   <div key={card.id} className="rounded-xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-slate-300">
                     <div className="flex items-start gap-4">
@@ -570,17 +559,17 @@ export function Flashcards({ projectId }: { projectId: string }) {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <Tag color={state === "mastered" ? "green" : state === "learning" ? "amber" : "indigo"}>{state}</Tag>
-                        {subId && (
-                          <button
-                            type="button"
-                            title="Study this deck"
-                            onClick={() => void start(subId)}
-                            disabled={starting !== null}
-                            className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                          >
-                            <Play size={14} />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          title="Study this card"
+                          onClick={() => {
+                            setSession({ cards: [card], total: 1 })
+                            setView("study")
+                          }}
+                          className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <Play size={14} />
+                        </button>
                       </div>
                     </div>
                     <div className="mt-2 flex gap-4 text-xs text-slate-400">

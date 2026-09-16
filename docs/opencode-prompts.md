@@ -1530,6 +1530,13 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `alembic check` clean (fixed one index-naming drift before proceeding); 1313 dev concepts backfilled CONCEPT/CORE, count unchanged; downgrade→upgrade round-trip lossless; 68 affected tests green (10s).
 **Known:** `meta` attr ↔ `metadata` column (DeclarativeBase reserves `metadata`); quiz-picker/structure-tree gating deferred to Phase C; no reprocessing; containers untouched.
 
+### Audit fixes 1+2 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `services/mastery_levels.py` (+`mastery_target_criterion()` SQL twin using `DEFAULT_IMPORTANCE`, no new literal), `services/dashboard_service.py` (uses helper, dropped `func` import), `services/adaptive_quiz_service.py` (`_target_level` imports `NEEDS_BELOW`/`DEVELOPING_UPTO`, exact boundaries kept), `tests/test_learning_objects.py` (+2 criterion tests), `tests/test_adaptive_quiz.py` (+1 single-source/boundary test), `docs/*`
+**Verify:** 37 tests green (learning_objects/adaptive/mastery/dashboard/recommendation); `alembic check` clean, still at `9f3a7c1e5b28` head — no schema change. Strict scope kept: no extraction/quiz-targeting/growth/analytics/schema changes.
+**Known:** Phase B remains parked.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

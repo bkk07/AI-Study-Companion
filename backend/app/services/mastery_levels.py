@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.models.concept import DEFAULT_IMPORTANCE, OBSOLETE_STATUS
+from sqlalchemy import func
+
+from app.models.concept import DEFAULT_IMPORTANCE, OBSOLETE_STATUS, Concept
 
 NOT_STARTED = "Not Started"
 NEEDS_PRACTICE = "Needs Practice"
@@ -68,3 +70,15 @@ def is_mastery_target(concept: Any) -> bool:
     if isinstance(meta, dict) and meta.get("status") == OBSOLETE_STATUS:
         return False
     return True
+
+
+def mastery_target_criterion():
+    """SQLAlchemy filter expression matching `is_mastery_target` for stored rows.
+
+    SQL cannot call the Python gate, so SQL readers use this twin instead of
+    re-spelling the importance literal. COALESCE keeps hypothetical legacy
+    NULLs on the CORE side, mirroring the gate's None-handling. (The obsolete
+    guard lives only in the Python gate — obsolete rows cannot exist before
+    Phase B, and dashboard applies both.)
+    """
+    return func.coalesce(Concept.importance, DEFAULT_IMPORTANCE) == DEFAULT_IMPORTANCE

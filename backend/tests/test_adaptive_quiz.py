@@ -4,7 +4,15 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.services.adaptive_quiz_service import CandidateQuestion, select_questions
+from app.services.adaptive_quiz_service import (
+    DEVELOPING_UPTO,
+    NEEDS_BELOW,
+    CandidateQuestion,
+    _target_level,
+    select_questions,
+)
+from app.services.mastery_levels import DEVELOPING_UPTO as LEVELS_UPTO
+from app.services.mastery_levels import NEEDS_BELOW as LEVELS_BELOW
 
 T0 = datetime(2026, 1, 1)
 T1 = T0 + timedelta(days=1)
@@ -19,6 +27,16 @@ def test_weakest_concept_first_round_robin():
     cands = [_c("w1", "weak"), _c("w2", "weak"), _c("s1", "strong"), _c("s2", "strong")]
     got = select_questions(cands, {"weak": 20.0, "strong": 90.0}, 3)
     assert [c.question_id for c in got] == ["w1", "s1", "w2"]
+
+
+def test_target_level_bands_single_sourced():
+    # Audit fix: bands come from mastery_levels — same objects, same values,
+    # exact boundary semantics (<34 → 0, <=66 → 1, else 2).
+    assert NEEDS_BELOW is LEVELS_BELOW and DEVELOPING_UPTO is LEVELS_UPTO
+    assert (NEEDS_BELOW, DEVELOPING_UPTO) == (34.0, 66.0)
+    assert _target_level(0) == 0 and _target_level(33.9) == 0
+    assert _target_level(34) == 1 and _target_level(66) == 1
+    assert _target_level(66.1) == 2 and _target_level(100) == 2
 
 
 def test_difficulty_matched_to_mastery():

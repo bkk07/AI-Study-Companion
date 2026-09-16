@@ -36,6 +36,7 @@ from app.services.mastery_levels import (
     STATUSES,
     STRONG,
     is_mastery_target,
+    mastery_target_criterion,
     status_for,
 )
 
@@ -78,6 +79,39 @@ def test_gate_obsolete_excluded_even_when_core():
     assert is_mastery_target(_concept(meta={"status": "obsolete"})) is False
     assert is_mastery_target(_concept(meta={"status": "active"})) is True
     assert is_mastery_target(_concept()) is True  # meta None → active
+
+
+# --- SQL criterion twin ----------------------------------------------------
+
+
+def test_criterion_matches_gate_on_sql_shape():
+    compiled = str(mastery_target_criterion().compile(compile_kwargs={"literal_binds": True}))
+    assert "coalesce" in compiled.lower()
+    assert "concepts.importance" in compiled
+    assert "CORE" in compiled  # single-sourced via DEFAULT_IMPORTANCE, no new literal
+
+
+def test_criterion_behavior_matches_gate():
+    db = _session()
+    try:
+        project, sub = _scaffold(db)
+        core = Concept(project_id=project.id, subtopic_id=sub.id, title="Kept",
+                       summary="core row")
+        supp = Concept(project_id=project.id, subtopic_id=sub.id, title="Dropped",
+                       summary="supporting row", importance="SUPPORTING")
+        db.add_all([core, supp])
+        db.flush()
+        got = {
+            c.title
+            for c in db.query(Concept)
+            .filter(Concept.project_id == project.id, mastery_target_criterion())
+            .all()
+        }
+        assert got == {"Kept"}
+        assert is_mastery_target(core) is True and is_mastery_target(supp) is False
+        db.commit()
+    finally:
+        db.close()
 
 
 # --- statuses -------------------------------------------------------------

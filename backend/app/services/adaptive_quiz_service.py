@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.services.mastery_levels import DEVELOPING_UPTO, NEEDS_BELOW
+
 DIFFICULTIES = ("easy", "medium", "hard")
 MIN_COUNT = 1
 MAX_COUNT = 20
@@ -30,9 +32,11 @@ class CandidateQuestion:
 
 
 def _target_level(mastery: float) -> int:
-    if mastery < 34:
+    # Bands single-sourced from mastery_levels (audit fix): <34 easy, 34-66
+    # medium, >66 hard. Boundary semantics preserved exactly.
+    if mastery < NEEDS_BELOW:
         return 0
-    if mastery <= 66:
+    if mastery <= DEVELOPING_UPTO:
         return 1
     return 2
 

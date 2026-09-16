@@ -22,6 +22,7 @@ import app.models.material  # noqa: F401,E402 — ensure Material metadata
 import app.models.subtopic  # noqa: F401,E402 — ensure Subtopic metadata
 import app.models.topic  # noqa: F401,E402 — ensure Topic metadata
 import app.models.project  # noqa: F401,E402 — ensure Project metadata
+import app.models.recommendation  # noqa: F401,E402 — ensure Recommendation metadata
 import app.models.quiz  # noqa: F401,E402 — ensure Quiz/QuizQuestion metadata
 import app.models.quiz_attempt  # noqa: F401,E402 — ensure QuizAttempt/QuizAnswer metadata
 import app.models.space  # noqa: F401,E402 — ensure Space metadata

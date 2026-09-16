@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 42 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 43 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -58,7 +58,7 @@
 | 37 | Mastery Engine | ✅ Complete | 2026-09-16 | Pass (EMA bounds/independence) | `mastery_service` confirmed formula + 7 tests |
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
 | 39 | Mismatch Detection | ✅ Complete | 2026-09-16 | Pass (threshold/gating/rank) | `mismatch_service` confirmed rule + 6 tests |
-| 40 | Decision / Recommendation Engine | ⏳ Pending | — | — | — |
+| 40 | Decision / Recommendation Engine | ✅ Complete | 2026-09-16 | Pass (scoring/supersede) | `recommendation_service` confirmed formula + 8 tests |
 | 41 | Recommendations API + Frontend | ⏳ Pending | — | — | — |
 | 42 | Growth Analysis | ⏳ Pending | — | — | — |
 | 43 | Project Analytics | ⏳ Pending | — | — | — |
@@ -629,6 +629,16 @@
 **Verify:** 6 pass (threshold edge/gating/unknown-skip/type-priority/ranking/rejections); `pytest -q` 178 passed (6+172); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Rule user-confirmed 2026-09-16 (Blueprint full set); no LLM; unknown/thin never flags.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 43 (Recommendation Engine).
+
+---
+
+## Phase 43 — Detail (compact)
+
+**Scope:** Deterministic scoring + one-current persistence; no accept/dismiss endpoints, no UI.
+**Files:** `backend/app/models/recommendation.py` + migration `e7b2d4a1c6f8`, `backend/app/services/recommendation_service.py` (`ConceptSignal`/`score_action`/`is_eligible`/`recommend`), `backend/tests/test_recommendation.py` (8 tests), `models/__init__.py` + `alembic/env.py`, `docs/*`.
+**Verify:** 8 pass (formula terms/edges + persist/supersede/penalty-window/scope); `alembic upgrade` → `e7b2d4a1c6f8` + `check` clean; `pytest -q` 186 passed (8+178); `compose config` 0; no rebuild.
+**Guard:** Formula user-confirmed 2026-09-16 (Blueprint full); no LLM; reproducible winner/score/words.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 44 (Mastery/Mismatch/Recommendation UI).
 
 ---
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Concept = { id: string; title: string; summary: string }
 type Subtopic = { id: string; title: string; concepts: Concept[] }
@@ -23,8 +24,7 @@ export function StructureView({ projectId }: { projectId: string }) {
       })
       .catch((e: unknown) => {
         if (cancelled) return
-        const status = (e as { response?: { status?: number } }).response?.status
-        const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        const { status, message: detail } = apiError(e)
         if (status === 404) setError("Learning structure not found for this project.")
         else setError(detail ?? "Failed to load learning structure")
       })

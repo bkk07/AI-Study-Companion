@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
+import { apiError } from "@/lib/api-error"
 
 export function Register() {
   const { register } = useAuth()
@@ -18,9 +19,7 @@ export function Register() {
       await register(email, password)
       nav("/")
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
-        "Registration failed — email may already be taken"
+      const msg = apiError(err).message ?? "Registration failed — email may already be taken"
       setError(msg)
     } finally {
       setLoading(false)

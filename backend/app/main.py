@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.exceptions import register_error_handlers
 from app.api.v1.admin import router as admin_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.assessment import router as assessment_router
@@ -23,6 +24,9 @@ app = FastAPI(
     version="0.1.0",
     description="FastAPI backend shell — Phase 04. Service layer owns domain logic; routes stay thin.",
 )
+
+# Phase 48: one JSON error envelope for every failure path.
+register_error_handlers(app)
 
 # CORS — origins from settings (CORS_ORIGINS, comma-separated) per blueprint §22
 _settings = get_settings()

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Citation = {
   chunk_id: string
@@ -44,8 +45,7 @@ export function TutorChat({ projectId }: { projectId: string }) {
         { kind: "assistant", answer: res.data.answer, supported: res.data.supported, citations: res.data.citations },
       ])
     } catch (e: unknown) {
-      const status = (e as { response?: { status?: number } }).response?.status
-      const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      const { status, message: detail } = apiError(e)
       setMessages((m) => [...m, { kind: "failure", text: failureText(status, detail), question: q }])
     } finally {
       setPending(false)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Space = { id: string; name: string }
 type Project = { id: string; name: string; space_id: string; created_at: string }
@@ -26,8 +27,7 @@ export function SpaceProjectsPage() {
       setSpace(spaceRes.data)
       setProjects(projRes.data)
     } catch (e: unknown) {
-      const detail = (e as { response?: { data?: { detail?: string }; status?: number } }).response?.data?.detail
-      const status = (e as { response?: { status?: number } }).response?.status
+      const { status, message: detail } = apiError(e)
       if (status === 404) setError("Space not found or not owned by you.")
       else setError(detail ?? "Failed to load space/projects")
     } finally {
@@ -51,7 +51,7 @@ export function SpaceProjectsPage() {
       const res = await apiClient.get<Project[]>(`/spaces/${spaceId}/projects`)
       setProjects(res.data)
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? "Failed to create project"
+      const msg = apiError(e).message ?? "Failed to create project"
       setError(msg)
     } finally {
       setCreating(false)

@@ -1382,4 +1382,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Guard:** Privilege never self-grantable (register schema has no such field; extra ignored); UI gate cosmetic.
 **Known:** User list unpaginated (fine at prototype scale); overview has no per-user drill-down (by design — no PII beyond the list).
 
+## Phase 48 — Error Handling (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 48 (standardize failure behavior)
+**Contract:** `core/exceptions.py` + `main.py` + `schemas/errors.py`. One JSON envelope `{"error":{"code","message","details?"}}` with stable machine codes; map validation/auth/not-found/rate-limit/upstream-AI consistently; internals never leak; tests per error path assert shape+status.
+**Design (additive, minimum):** Status→code table in `core/exceptions.py` + `register_error_handlers(app)`: `RequestValidationError`→422 `validation_error` with sanitized `{loc,msg,type}` details; `StarletteHTTPException`→code-by-status keeping the route's domain message for 4xx/502 (fixed safe strings by construction) but generic "Internal server error" for 500/other-5xx + non-str details; unhandled `Exception`→500 generic (logged server-side); headers (e.g. `WWW-Authenticate`) preserved. 429→`rate_limited` mapped though no limiter exists yet (limiter is Phase 49). No route/service edits — normalization lives at the boundary, satisfying the no-incompatible-payloads guard.
+**Files:** `backend/app/schemas/errors.py` (new), `backend/app/core/exceptions.py` (new), `main.py` wire, `backend/tests/test_error_handling.py` (new: 422/401/403/404/429-mapping/500-generic/502 shapes), `test_auth.py:176` envelope update, `frontend/src/lib/api-error.ts` (new single reader, legacy `detail` fallback) + 12 feature files switched to it.
+**Verify:** new tests + full `pytest -q` + `npm run build` + `compose config` + `alembic check` (no migration); no rebuild.
+
+### Phase 48 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/schemas/errors.py` (`ErrorDetail`/`ErrorEnvelope`), `backend/app/core/exceptions.py` (status→code table + `register_error_handlers`: validation/HTTP/unhandled), `main.py` wire, `backend/tests/test_error_handling.py` (9 tests, real PG), `test_auth.py:176` envelope update, `frontend/src/lib/api-error.ts` (single reader, legacy `detail` fallback) + 12 feature files migrated (local extractors deleted)
+**Verify:** 9 pass (422+details / 401+WWW-Authenticate / expired / 403 exact / 404 strict-keys / 400 exact / 500 generic with secret-absence proof / 502 via malformed provider payload / code-table incl. 429); `pytest -q` 209 passed (200+9); `npm run build` 95 mods; `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** No route invents payloads — normalization at boundary; 5xx/non-str details genericized; originals logged server-side.
+**Known:** 429 mapped but producer-less until Phase 49 limiter; status-specific friendly texts in UI unchanged (codes available for future use).
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Space = { id: string; name: string; created_at: string }
 
@@ -19,7 +20,7 @@ export function SpacesPage() {
       const res = await apiClient.get<Space[]>("/spaces")
       setSpaces(res.data)
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? "Failed to load spaces"
+      const msg = apiError(e).message ?? "Failed to load spaces"
       setError(msg)
     } finally {
       setLoading(false)
@@ -44,7 +45,7 @@ export function SpacesPage() {
       setName("")
       await fetchSpaces()
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? "Failed to create space"
+      const msg = apiError(e).message ?? "Failed to create space"
       setError(msg)
     } finally {
       setCreating(false)

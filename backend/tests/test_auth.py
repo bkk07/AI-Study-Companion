@@ -173,7 +173,9 @@ def test_expired_jwt_rejected(client_and_engine):
     expired_token = create_access_token(subject=uid, expires_delta=timedelta(seconds=-1))
     resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {expired_token}"})
     assert resp.status_code == 401
-    assert "expired" in resp.json()["detail"].lower() or "could not validate" in resp.json()["detail"].lower()
+    err = resp.json()["error"]
+    assert err["code"] == "authentication_required"
+    assert "expired" in err["message"].lower() or "could not validate" in err["message"].lower()
 
     # cleanup
     from sqlalchemy import create_engine as ce

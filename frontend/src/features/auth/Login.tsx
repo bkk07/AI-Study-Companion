@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
+import { apiError } from "@/lib/api-error"
 
 export function Login() {
   const { login } = useAuth()
@@ -18,13 +19,7 @@ export function Login() {
       await login(email, password)
       nav("/")
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error && "response" in (err as never)
-          ? // axios error
-            ((err as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
-            "Invalid email or password")
-          : "Invalid email or password"
-      setError(msg)
+      setError(apiError(err).message ?? "Invalid email or password")
     } finally {
       setLoading(false)
     }

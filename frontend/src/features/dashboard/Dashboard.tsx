@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Mismatch = {
   mismatch_type: string
@@ -54,13 +55,6 @@ function mismatchLabel(type: string): string {
   return type
 }
 
-function extractError(e: unknown): { status?: number; detail?: string } {
-  return {
-    status: (e as { response?: { status?: number } }).response?.status,
-    detail: (e as { response?: { data?: { detail?: string } } }).response?.data?.detail,
-  }
-}
-
 function MasteryBar({ label, value, count }: { label: string; value: number | null; count: number }) {
   if (value === null) {
     return (
@@ -101,7 +95,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
       const res = await apiClient.get<DashboardData>(`/projects/${projectId}/dashboard`)
       setData(res.data)
     } catch (e: unknown) {
-      const { status, detail } = extractError(e)
+      const { status, message: detail } = apiError(e)
       if (status === 404) setError("Project not found for this dashboard.")
       else setError(detail ?? "Failed to load progress.")
     } finally {
@@ -121,7 +115,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
       await apiClient.post(`/projects/${projectId}/dashboard/${path}`)
       await load()
     } catch (e: unknown) {
-      const { status, detail } = extractError(e)
+      const { status, message: detail } = apiError(e)
       if (status === 404 && path !== "refresh") setError("No active recommendation to update.")
       else if (status === 404) setError("Nothing scorable yet — answer quizzes or explain a concept first.")
       else setError(detail ?? "Action failed.")

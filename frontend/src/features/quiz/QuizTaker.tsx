@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Concept = { id: string; title: string }
 type Question = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
@@ -71,8 +72,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
         setReveal(null)
         setStage({ name: "answering" })
       } catch (e: unknown) {
-        const status = (e as { response?: { status?: number } }).response?.status
-        const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        const { status, message: detail } = apiError(e)
         setStage({ name: "failure", text: errText(status, detail), retry: () => void run() })
       }
     }
@@ -90,8 +90,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
       )
       setReveal(res.data)
     } catch (e: unknown) {
-      const status = (e as { response?: { status?: number } }).response?.status
-      const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      const { status, message: detail } = apiError(e)
       setSubmitError(errText(status, detail)) // attempt + selection preserved; retry re-submits
     } finally {
       setSubmitting(false)
@@ -113,8 +112,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
       )
       setStage({ name: "done", score: res.data.score, correct: res.data.correct_count, total: res.data.total })
     } catch (e: unknown) {
-      const status = (e as { response?: { status?: number } }).response?.status
-      const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      const { status, message: detail } = apiError(e)
       setStage({ name: "failure", text: errText(status, detail), retry: () => void next() })
     }
   }

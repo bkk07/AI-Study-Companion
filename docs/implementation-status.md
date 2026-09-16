@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 47 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 48 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -65,7 +65,7 @@
 | 44 | Global/Admin Analytics | ⏳ Pending | — | — | — |
 | 45 | Admin Dashboard (Read-Only) | ✅ Complete | 2026-09-16 | Pass (boundary) | `get_current_admin` + admin API/UI + 4 tests |
 | 46 | Activity Events & AI Usage | ⏳ Pending | — | — | — |
-| 47 | Error Handling & Edge Cases | ⏳ Pending | — | — | — |
+| 47 | Error Handling & Edge Cases | ✅ Complete | 2026-09-16 | Pass (shape+status) | Central envelope + handlers + 9 tests |
 | 48 | Observability & Health | ⏳ Pending | — | — | — |
 | 49 | Security Hardening | ⏳ Pending | — | — | — |
 | 50 | Rate Limiting & CORS | ⏳ Pending | — | — | — |
@@ -679,6 +679,14 @@
 **Verify:** 4 pass real PG (401/403/200 + key-set/no-leak + DB-equal counts + escalation fails); `npm run build` 94 mods; `pytest -q` 200 passed (4+196); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Same JWT, server-side privilege on every call.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 48 (Error Handling).
+
+## Phase 48 — Detail (compact)
+
+**Scope:** One JSON error envelope for every failure path; no route/service logic touched.
+**Files:** `backend/app/schemas/errors.py` + `backend/app/core/exceptions.py` + `main.py` wire + `backend/tests/test_error_handling.py` (9 tests) + `test_auth.py` envelope update + `frontend/src/lib/api-error.ts` + 12 feature files, `docs/*`.
+**Verify:** 9 pass real PG (422/details, 401+challenge, expired, 403/404/400 exact, 500 generic no-leak, 502 provider, code-table); `pytest -q` 209 passed (200+9); `npm run build` 95 mods; `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Boundary normalization only; 5xx/non-str genericized + logged.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 49 (Security Hardening).
 
 ---
 

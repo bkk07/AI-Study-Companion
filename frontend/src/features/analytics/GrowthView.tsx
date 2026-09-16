@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type GrowthPoint = {
   at: string
@@ -45,13 +46,6 @@ function fmtSigned(value: number | null): string {
   return `${sign}${value.toFixed(1)} points`
 }
 
-function extractError(e: unknown): { status?: number; detail?: string } {
-  return {
-    status: (e as { response?: { status?: number } }).response?.status,
-    detail: (e as { response?: { data?: { detail?: string } } }).response?.data?.detail,
-  }
-}
-
 export function GrowthView({ projectId }: { projectId: string }) {
   const [overview, setOverview] = useState<ProjectGrowth | null>(null)
   const [selected, setSelected] = useState<string>("")
@@ -69,7 +63,7 @@ export function GrowthView({ projectId }: { projectId: string }) {
       setSeries(null)
       setSelected("")
     } catch (e: unknown) {
-      const { status, detail } = extractError(e)
+      const { status, message: detail } = apiError(e)
       if (status === 404) setError("Project not found for this view.")
       else setError(detail ?? "Failed to load growth.")
     } finally {
@@ -94,7 +88,7 @@ export function GrowthView({ projectId }: { projectId: string }) {
       })
       setSeries(res.data)
     } catch (e: unknown) {
-      const { detail } = extractError(e)
+      const { message: detail } = apiError(e)
       setError(detail ?? "Failed to load concept history.")
     } finally {
       setSeriesLoading(false)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 
 type Analytics = {
   materials_total: number
@@ -18,13 +19,6 @@ function fmt(value: number | null): string {
   return value === null ? "—" : value.toFixed(1)
 }
 
-function extractError(e: unknown): { status?: number; detail?: string } {
-  return {
-    status: (e as { response?: { status?: number } }).response?.status,
-    detail: (e as { response?: { data?: { detail?: string } } }).response?.data?.detail,
-  }
-}
-
 export function AnalyticsView({ projectId }: { projectId: string }) {
   const [data, setData] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(true)
@@ -37,7 +31,7 @@ export function AnalyticsView({ projectId }: { projectId: string }) {
       const res = await apiClient.get<Analytics>(`/projects/${projectId}/analytics`)
       setData(res.data)
     } catch (e: unknown) {
-      const { status, detail } = extractError(e)
+      const { status, message: detail } = apiError(e)
       if (status === 404) setError("Project not found for this view.")
       else setError(detail ?? "Failed to load analytics.")
     } finally {

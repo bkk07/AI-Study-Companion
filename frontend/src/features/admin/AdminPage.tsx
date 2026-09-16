@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 import { useAuth } from "@/context/AuthContext"
 
 type AdminUser = {
@@ -21,13 +22,6 @@ type Overview = {
   recommendations: number
 }
 
-function extractError(e: unknown): { status?: number; detail?: string } {
-  return {
-    status: (e as { response?: { status?: number } }).response?.status,
-    detail: (e as { response?: { data?: { detail?: string } } }).response?.data?.detail,
-  }
-}
-
 export function AdminPage() {
   const { user } = useAuth()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
@@ -46,7 +40,7 @@ export function AdminPage() {
       setUsers(u.data)
       setOverview(o.data)
     } catch (e: unknown) {
-      const { status, detail } = extractError(e)
+      const { status, message: detail } = apiError(e)
       if (status === 403) setError("Forbidden — admins only.")
       else setError(detail ?? "Failed to load admin data.")
     } finally {

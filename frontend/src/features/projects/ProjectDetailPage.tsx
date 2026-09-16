@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { apiError } from "@/lib/api-error"
 import { Dashboard } from "@/features/dashboard/Dashboard"
 import { AnalyticsView } from "@/features/analytics/AnalyticsView"
 import { GrowthView } from "@/features/analytics/GrowthView"
@@ -32,8 +33,7 @@ export function ProjectDetailPage() {
         if (spaceData) setSpace(spaceData as Space)
       })
       .catch((e: unknown) => {
-        const status = (e as { response?: { status?: number } }).response?.status
-        const detail = (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        const { status, message: detail } = apiError(e)
         if (status === 404) setError("Project not found or not owned by you.")
         else setError(detail ?? "Failed to load project")
       })

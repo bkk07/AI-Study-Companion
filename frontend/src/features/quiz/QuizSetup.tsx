@@ -116,10 +116,14 @@ export function QuizSetup({
   projectId,
   busy,
   onStart,
+  initialConceptId,
+  onConsumed,
 }: {
   projectId: string
   busy: boolean
   onStart: (payload: QuizStartPayload) => void
+  initialConceptId?: string | null
+  onConsumed?: () => void
 }) {
   const [scope, setScope] = useState<QuizScope>("project")
   const [qCount, setQCount] = useState(5)
@@ -129,6 +133,16 @@ export function QuizSetup({
   const [subId, setSubId] = useState<string | null>(null)
   const [conceptId, setConceptId] = useState<string | null>(null)
   const [recs, setRecs] = useState<Recommendations | null>(null)
+
+  // Deep link from Dashboard ("Study this"): preselect the concept scope.
+  useEffect(() => {
+    if (initialConceptId) {
+      setScope("concept")
+      setConceptId(initialConceptId)
+      onConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConceptId])
 
   useEffect(() => {
     let cancelled = false
@@ -195,7 +209,7 @@ export function QuizSetup({
   const recommended = recs ? [...recs.items.slice(0, 2), ...(recs.fallback ? [recs.fallback] : [])].slice(0, 3) : null
 
   return (
-    <div className="mx-auto max-w-lg px-8 py-10">
+    <div className="mx-auto max-w-2xl px-8 py-10">
       <SectionHeader title="Adaptive Quiz" subtitle="Questions are selected based on your mastery evidence" />
 
       {recommended && recommended.length > 0 && (

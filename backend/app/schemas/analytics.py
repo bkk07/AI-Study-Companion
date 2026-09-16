@@ -11,4 +11,5 @@ class ProjectAnalyticsRead(BaseModel):
     avg_mcq: float | None
     avg_applied: float | None
     evidenced_concepts: int
+    streak_days: int = 0
     tutor_interactions: None = None

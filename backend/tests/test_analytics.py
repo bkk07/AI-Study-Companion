@@ -23,7 +23,7 @@ from app.models.space import Space
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
 from app.models.user import User
-from app.services.analytics_service import project_analytics
+from app.services.analytics_service import project_analytics, study_streak_days
 from app.services.growth_service import project_growth
 
 T0 = datetime(2026, 9, 1, tzinfo=timezone.utc)
@@ -92,6 +92,34 @@ def test_aggregates_match_domain_and_growth():
         db.close()
 
 
+def test_study_streak_counts_consecutive_days():
+    from datetime import timedelta
+
+    db = _session()
+    try:
+        user, project = _seed(db, uuid.uuid4().hex[:8])
+        concept = db.query(Concept).filter(Concept.project_id == project.id).one()
+        today = datetime.now(timezone.utc).date()
+
+        def _evidence(days_ago: int):
+            at = datetime.combine(today - timedelta(days=days_ago), datetime.min.time(),
+                                  tzinfo=timezone.utc)
+            db.add(MasteryEvidence(user_id=user.id, project_id=project.id,
+                                   concept_id=concept.id, evidence_type="mcq",
+                                   raw_score=70, created_at=at))
+
+        # today + yesterday + (gap) + 3 days ago -> streak of 2
+        _evidence(0)
+        _evidence(1)
+        _evidence(3)
+        db.commit()
+        assert study_streak_days(db, user_id=user.id, project_id=project.id) == 2
+        stats = project_analytics(db, user_id=user.id, project_id=project.id)
+        assert stats.streak_days == 2
+    finally:
+        db.close()
+
+
 def _setup():
     os.environ["DATABASE_URL"] = os.getenv(
         "DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5433/ai_study_companion"
@@ -139,7 +167,7 @@ def test_api_empty_isolation_and_auth():
         assert body == {"materials_total": 0, "materials_by_status": {}, "topics_count": 0,
                         "concepts_count": 0, "quiz_attempts": 0, "quiz_attempts_completed": 0,
                         "avg_mcq": None, "avg_applied": None, "evidenced_concepts": 0,
-                        "tutor_interactions": None}
+                        "streak_days": 0, "tutor_interactions": None}
         assert client.get(f"/api/v1/projects/{pid}/analytics", headers=headers["b"]).status_code == 404
         assert client.get(f"/api/v1/projects/{pid}/analytics").status_code in (401, 403)
         assert client.get(f"/api/v1/projects/{uuid.uuid4()}/analytics", headers=headers["a"]).status_code == 404

@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.concept import Concept
 from app.models.material import Material
+from app.models.mastery_evidence import MasteryEvidence
 from app.models.project import Project
 from app.models.quiz import Quiz
 from app.models.quiz_attempt import QuizAttempt
@@ -39,7 +41,35 @@ class ProjectAnalytics:
     avg_mcq: float | None = None
     avg_applied: float | None = None
     evidenced_concepts: int = 0
+    streak_days: int = 0
     tutor_interactions: None = None  # untracked until the Activity Events phase
+
+
+def study_streak_days(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) -> int:
+    """Consecutive UTC days with >= 1 evidence row, ending today/yesterday.
+
+    Evidence timestamps come from the DB clock, so sub-day skew can yield a
+    date one day in the future — clamp to today instead of breaking the run.
+    """
+    rows = (
+        db.query(func.date(MasteryEvidence.created_at))
+        .filter(MasteryEvidence.user_id == user_id, MasteryEvidence.project_id == project_id)
+        .distinct()
+        .all()
+    )
+    today = datetime.now(timezone.utc).date()
+    days = sorted({min(r[0], today) for r in rows}, reverse=True)
+    if not days or days[0] < today - timedelta(days=1):
+        return 0
+    streak = 0
+    cursor = today
+    for day in days:
+        if day == cursor:
+            streak += 1
+            cursor -= timedelta(days=1)
+        elif day < cursor:
+            break
+    return streak
 
 
 def project_analytics(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) -> ProjectAnalytics:
@@ -79,4 +109,5 @@ def project_analytics(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID)
         avg_mcq=growth.avg_mcq,
         avg_applied=growth.avg_applied,
         evidenced_concepts=growth.evidenced_concepts,
+        streak_days=study_streak_days(db, user_id=user_id, project_id=project.id),
     )

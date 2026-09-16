@@ -31,7 +31,15 @@ function difficultyTint(d: string): "violet" | "amber" | "rose" {
   return "violet"
 }
 
-export function QuizTaker({ projectId }: { projectId: string }) {
+export function QuizTaker({
+  projectId,
+  focusConceptId,
+  onFocusConsumed,
+}: {
+  projectId: string
+  focusConceptId?: string | null
+  onFocusConsumed?: () => void
+}) {
   const [stage, setStage] = useState<Stage>({ name: "setup" })
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -114,9 +122,15 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   if (stage.name === "setup" || stage.name === "busy") {
     return (
       <div>
-        <QuizSetup projectId={projectId} busy={stage.name === "busy"} onStart={(p) => void generate(p)} />
+        <QuizSetup
+          projectId={projectId}
+          busy={stage.name === "busy"}
+          onStart={(p) => void generate(p)}
+          initialConceptId={focusConceptId}
+          onConsumed={onFocusConsumed}
+        />
         {stage.name === "busy" && (
-          <p className="mx-auto mt-3 flex max-w-lg items-center gap-2 px-8 text-sm text-slate-500">
+          <p className="mx-auto mt-3 flex max-w-2xl items-center gap-2 px-8 text-sm text-slate-500">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
             {stage.label}
           </p>
@@ -132,7 +146,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   if (stage.name === "done") {
     const pct = stage.score ?? 0
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center">
+      <div className="mx-auto max-w-4xl rounded-xl border border-slate-200 bg-white p-8 text-center">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
           <PartyPopper size={22} />
         </span>
@@ -160,7 +174,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   const q = questions[index]
   if (!q) return null
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-4xl">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-slate-900">
           Question {index + 1} <span className="font-normal text-slate-500">of {questions.length}</span>

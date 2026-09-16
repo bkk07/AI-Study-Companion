@@ -1537,6 +1537,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 37 tests green (learning_objects/adaptive/mastery/dashboard/recommendation); `alembic check` clean, still at `9f3a7c1e5b28` head — no schema change. Strict scope kept: no extraction/quiz-targeting/growth/analytics/schema changes.
 **Known:** Phase B remains parked.
 
+### Phase B Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `schemas/structure.py` (+v2 outlines), `services/structure_extraction_service.py` (+pass1/pass2/taggers, old fn frozen), `services/structure_persistence_service.py` (+`persist_knowledge_map`, old fn frozen), `services/relationship_service.py` (new), `worker/tasks/structure.py` (rewritten flow, same contract), `tests/test_knowledge_map.py` (new, 16 tests), `tests/test_pipeline_chain.py` (4 seam patches → v2), `docs/learning-model-design.md` (§21), `docs/*`
+**Verify:** 94 affected tests green (10s); `alembic check` clean; ONE live Mercury scratch reprocess (2 topics/6 LOs/2 edges, guideline notes fired, scratch fully removed — 0 leftovers); no user documents touched.
+**Known:** shared-subtopic NULL-material obsolete ambiguity (visible/reversible); legacy case-variant ties → earliest created; same-project concurrent reprocess UQ race out of scope. Phase C/D parked.
+
+## Phase B — Extraction v2 (user-approved, in progress)
+
+**Recorded:** 2026-09-16 before impl | Source: user Phase B instruction + design §§4–9
+**Scope:** two-pass extraction (Pass 1 TopicMapOutline + page spans; Pass 2 per-topic LOs w/ 7 types, importance, pages, ≤5 edge proposals) → identity-preserving `persist_knowledge_map` (exact→topic-scope→insert; alnum-fold merge keeps most-evidenced id; obsolete-flag never delete; material stamp only if NULL) → task rewrite (same signature/lifecycle/backoff; +relationships/obsoleted/failed_topics/guideline_notes) → minimal `relationship_service.get_related` (derived hierarchy ∪ stored edges). Old `extract_structure`/`persist_structure` frozen. 2–8 CORE = job-result notes only.
+**Files:** `schemas/structure.py`, `services/structure_extraction_service.py`, `services/structure_persistence_service.py`, `services/relationship_service.py` (new), `worker/tasks/structure.py`, `tests/test_knowledge_map.py` (new), `tests/test_pipeline_chain.py` (4 seam patches → v2), `docs/*`.
+**Verify:** new focused tests + existing extraction/structure/persistence/pipeline + Phase A regression + `alembic check` (no schema change) + ONE scratch-project live Mercury reprocess (never touch user maps); single commit. Phase C/D parked.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

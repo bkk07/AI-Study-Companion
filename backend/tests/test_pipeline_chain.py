@@ -163,6 +163,25 @@ def _outline():
     )
 
 
+def _topic_map():
+    from app.schemas.structure import TopicMapOutline
+
+    return TopicMapOutline.model_validate(
+        {"topics": [{"title": "T", "page_start": 1, "page_end": 1,
+                     "subtopics": [{"title": "S", "page_start": 1, "page_end": 1}]}]}
+    )
+
+
+def _topic_los():
+    from app.schemas.structure import TopicLearningObjects
+
+    return TopicLearningObjects.model_validate(
+        {"objects": [{"name": "C", "subtopic": "S", "type": "CONCEPT",
+                      "importance": "CORE", "summary": "sum",
+                      "page_start": 1, "page_end": 1}]}
+    )
+
+
 def test_build_structure_success_persists_map():
     from app.models.topic import Topic
     from app.worker.tasks.structure import build_structure
@@ -185,11 +204,15 @@ def test_build_structure_success_persists_map():
         sjid = str(sjob.id)
         db.close()
 
-        with patch("app.worker.tasks.structure.extract_structure", return_value=_outline()):
+        with (
+            patch("app.worker.tasks.structure.extract_topic_map", return_value=_topic_map()),
+            patch("app.worker.tasks.structure.extract_learning_objects", return_value=_topic_los()),
+        ):
             result = build_structure.apply(args=[sjid, mid]).get()
 
         assert result["status"] == "completed", result
         assert result["concepts"] == 1
+        assert result["failed_topics"] == []
         db = Sess()
         try:
             assert db.query(Topic).filter(Topic.project_id == uuid.UUID(proj_id)).count() == 1
@@ -227,7 +250,7 @@ def test_retry_exhaustion_marks_job_failed_not_stuck():
         db.close()
 
         with patch(
-            "app.worker.tasks.structure.extract_structure",
+            "app.worker.tasks.structure.extract_topic_map",
             side_effect=httpx.ConnectError("provider down"),
         ):
             build_structure.push_request(args=[sjid, mid], retries=3)
@@ -286,7 +309,7 @@ def test_structure_429_schedules_minute_backoff_not_fast_retry():
         db.close()
 
         with (
-            patch("app.worker.tasks.structure.extract_structure", side_effect=_http_error(429)),
+            patch("app.worker.tasks.structure.extract_topic_map", side_effect=_http_error(429)),
             patch.object(build_structure, "retry", side_effect=Retry()) as mock_retry,
         ):
             build_structure.push_request(args=[sjid, mid], retries=0)
@@ -322,11 +345,11 @@ def test_build_structure_failure_fails_only_its_job():
         sjid = str(sjob.id)
         db.close()
 
-        with patch("app.worker.tasks.structure.extract_structure", side_effect=RuntimeError("GROQ_API_KEY is not configured")):
+        with patch("app.worker.tasks.structure.extract_topic_map", side_effect=RuntimeError("INCEPTION_API_KEY is not configured")):
             result = build_structure.apply(args=[sjid, mid]).get()
 
         assert result["status"] == "failed", result
-        assert "GROQ_API_KEY" in result["error"]
+        assert "INCEPTION_API_KEY" in result["error"]
         db = Sess()
         try:
             assert job_service.get_job(db, uuid.UUID(sjid)).status == "failed"

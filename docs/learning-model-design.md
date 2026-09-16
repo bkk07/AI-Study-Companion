@@ -543,3 +543,36 @@ drill-down view is additive.
   as CONCEPT/CORE (gate is pass-through); all five `concepts.id` FK holders
   untouched; no reprocessing performed; containers not rebuilt (old code
   ignores new columns).
+
+## 21. Phase B implementation notes (recorded 2026-09-16)
+
+- Built: `TopicMapOutline`/`LearningObjectOutline` schemas (validators reuse
+  model vocab constants — single source); `extract_topic_map` (Pass 1,
+  12k-char page-tagged budget, span sanity enforced) +
+  `extract_learning_objects` (Pass 2 per-topic, 20k-char cap) +
+  `build_page_tagged_text`/`slice_topic_source`; `persist_knowledge_map`
+  (§9 rules: exact → revive → topic-scope move → alnum-fold merge by evidence
+  → insert; obsolete sweep incl. NULL-material rows in touched subtopics;
+  edge resolve subtopic → topic → project, cap 5 stored, unresolvable
+  dropped with counts); `relationship_service.get_related` (derived hierarchy
+  ∪ stored edges); task rewrite (same signature/lifecycle/backoff; Pass-2
+  transport errors skip the topic, reported in `failed_topics`).
+- Deviations/refinements vs §§8–9: (a) LO-named unknown subtopics materialize
+  under the topic (never drop/misfile genuine objects); (b) exact hits on
+  obsolete rows revive them; (c) rule-2 moves rename exact-title obsolete
+  squatters with " (superseded)" to respect the UQ; (d) material stamp writes
+  only when NULL; (e) 2–8 CORE reported as `guideline_notes`, advisory only.
+- Edge cases (accepted): shared-subtopic NULL-material rows may obsolete on
+  another material's reprocess (visible in job result, reversible by
+  reprocessing); legacy case-variant duplicates resolve deterministically
+  (earliest created); concurrent same-project reprocesses could race the
+  triple-UQ (out of scope, single worker in practice).
+- Live verification (scratch project, real Mercury, fully cleaned up after):
+  2-page bio PDF → 2 topics with correct page spans, 6 LOs typed
+  PROCESS/CONCEPT/TERM (5 CORE + 1 SUPPORTING), pages + material stamped,
+  2 evidenced edges, guideline notes fired. Quality watch-items (v1
+  acceptable): "Krebs Cycle" → TERM/SUPPORTING is debatable; one USES edge
+  direction is debatable. No user documents reprocessed.
+- Verified: 94 affected tests green; `alembic check` clean (no schema
+  change); legacy `extract_structure`/`persist_structure` frozen and still
+  passing. Phase C/D untouched.

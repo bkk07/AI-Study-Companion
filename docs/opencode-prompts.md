@@ -1485,6 +1485,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** chain suite 7 pass; full `pytest -q` 234 passed; rebuilt+deployed; live logs show new schedule working (2s→120s→8s); identical-shape probe calls 200 (400s proven transient Groq-side); DB marker test sane (earlier missing-row reads were flakes, single api/worker confirmed).
 **Known:** Free-tier quota saturated tonight (my verification traffic + user uploads) — failed structures fail cleanly with messages now; re-dispatch the 2 user materials once quiet. No migration.
 
+## Groq 400 Sanitize (out-of-band bugfix)
+
+**Recorded:** 2026-09-16 before impl | Source: English Lab structure 400s persisting past quota cooldown
+**Diagnosis:** Captured the 400 body: `json_validate_failed` — Groq's constrained generation chokes; its `failed_generation` shows U+FFFD replacement chars from PDF extraction (`candidates�ability`) derailing output. Same dirty text flows into quiz/tutor/assessment prompts. Also learned free tier = 8k TPM and one 12k-char structure prompt ≈ 3.2k tokens — explains instant 429s on concurrent dispatches (stagger, don't parallelize).
+**Fix:** Sanitize inside `groq_client.chat_json` (single choke point, all present+future Groq calls benefit, zero caller changes): NFKC normalize, U+FFFD→space, strip Cc/C1 controls except `\n\t`. Unit tests on the sanitizer + a passthrough test that payload text arrives cleaned.
+**Files:** `services/ai/groq_client.py`, `tests/test_groq_client.py` (new), redispatch English Lab last, `docs/*`.
+**Verify:** new tests + full `pytest -q` + rebuild + single staggered redispatch + Map populated; single commit.
+
+### Groq 400 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `services/ai/groq_client.py` (`sanitize_for_llm` + applied in `chat_json`), `tests/test_groq_client.py` (5 tests), `docs/*`
+**Verify:** affected suites 65 pass (20s); English Lab structure completed first try after sanitize (5 topics / 16 subtopics / 38 concepts); ML map done earlier (2/6/24). Per user request, full suite skipped in favor of affected-only runs.
+**Known:** 8k TPM free-tier budget ≈ 2 concurrent structure calls — stagger dispatches; user uploads share the same quota.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

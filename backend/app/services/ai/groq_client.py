@@ -6,12 +6,32 @@ API key is never logged.
 """
 
 import json
+import re
+import unicodedata
 
 import httpx
 
 from app.core.config import get_settings
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# PDF extraction leaves junk that derails constrained JSON generation
+# (observed: U+FFFD replacement chars → Groq `json_validate_failed` 400s).
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
+def sanitize_for_llm(text: str) -> str:
+    """Make extracted text safe for LLM prompts without changing its meaning.
+
+    NFKC folds ligatures/compatibility forms, replacement chars (evidence of
+    undecodable bytes, never real content) become spaces, and control codes
+    that have no business in JSON prompts are dropped. Newlines/tabs kept.
+    """
+    if not text:
+        return text
+    cleaned = unicodedata.normalize("NFKC", text)
+    cleaned = cleaned.replace("\ufffd", " ")
+    return _CONTROL_RE.sub("", cleaned)
 
 
 def chat_json(
@@ -33,6 +53,7 @@ def chat_json(
     api_key = settings.groq_api_key
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not configured")
+    system, user = sanitize_for_llm(system), sanitize_for_llm(user)
     resolved_model = model or settings.groq_model
     headers = {
         "Authorization": "Bearer " + api_key,

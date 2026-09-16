@@ -1204,3 +1204,11 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Checked clean:** embeddings idempotency/retry/failed-states; retrieval SQL-side scope + short-circuit; RAG bounds/truncation flags; quiz generation retry-then-reject + scope guards; attempt scoring/locks/isolation; adaptive determinism; confidence separation; authorization 404-hiding joins; upload magic/size/traversal/orphan-cleanup; extraction idempotency/retry/backoff.
 **Verify:** `upgrade`→`d323053b3a54` + `alembic check` clean; `pytest -q` 145 passed; `compose config` 0.
 **Deferred (prototype-acceptable):** worker-crash mid-processing leaves material `processing` (no heartbeat — needs design, later phase); upload reads file into memory (10MB cap); `start_attempt` allows repeat attempts (by design — UI offers retake).
+
+## Ops 2026-09-16 — Groq-only live wiring (no phase)
+
+**Change:** `docker-compose.yml` `GROQ_API_KEY: ${GROQ_API_KEY:-dummy-...}` for `api`+`worker` (secret never in repo; OPENAI stays dummy per Groq-only scope); default `GROQ_MODEL` `llama-3.3-70b-versatile` → `openai/gpt-oss-20b` (`config.py` + `.env.example`).
+**Why:** first real Groq call 404'd — the 3.3 model is retired; `/v1/models` listing showed `openai/gpt-oss-20b` (+120b, qwen3, compound) as available text models; 20b chosen for tutor <3s target.
+**Live proof (key server-side only, never printed):** structure extraction on photosynthesis text → 4 sensible topics; `POST generate` on seeded concept → 201, 2 validated persisted MCQs (Rubisco/ATP+NADPH, correct indices right).
+**Verify:** `pytest -q` 145 passed; `compose config --quiet` ok; rebuilt `api` healthy.
+**Note:** `GROQ_REASONING_MODEL` in local `.env` is inert (app reads `GROQ_MODEL`); embeddings/retrieval-embed still dummy — live embedding awaits a future `OPENAI_API_KEY` decision.

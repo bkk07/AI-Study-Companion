@@ -50,6 +50,9 @@ class DocumentChunk(Base, UUIDTimestampMixin):
         index=True,
     )
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Hybrid-pipeline provenance: "TEXT" (PyMuPDF) or "OCR" (Tesseract).
+    # NULL = pre-OCR legacy rows, which were all PyMuPDF text.
+    extraction_method: Mapped[str | None] = mapped_column(String(8), nullable=True)
     source_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

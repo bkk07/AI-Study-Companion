@@ -87,6 +87,9 @@ services:
       INCEPTION_MODEL: mercury-2.5
       OPENAI_API_KEY: dummy-openai-key-for-phase05-build
       EMBEDDING_MODEL: text-embedding-3-small
+      OCR_ENABLED: ${OCR_ENABLED:-true}
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-eng}
+      OCR_DPI: ${OCR_DPI:-300}
       UPLOAD_DIR: /data/uploads
       ENVIRONMENT: development
     volumes:

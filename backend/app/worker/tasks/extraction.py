@@ -5,7 +5,12 @@ from app.models.background_job import BackgroundJob
 from app.models.material import Material
 from app.services import job_service
 from app.services.chunking_service import chunk_pages, persist_chunks
-from app.services.document_extraction_service import extract_pages, extract_pdf_text
+from app.services.document_extraction_service import (
+    combine_page_texts,
+    extract_document_pages,
+    extract_pages,
+    no_content_error,
+)
 from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session as _get_task_session
 
@@ -15,13 +20,16 @@ log = logging.getLogger(__name__)
 @celery_app.task(name="process_pdf", bind=True, max_retries=3)
 def process_pdf(self, job_id: str, material_id: str) -> dict:
     """
-    Phase 23: PyMuPDF extraction worker.
+    Hybrid extraction worker (PyMuPDF text + per-page Tesseract OCR for scans).
 
     - Loads PDF from shared storage_path inside worker
-    - Extracts text via PyMuPDF, persists to materials.extracted_text
+    - Routes every page independently (TEXT / OCR / EMPTY), persists the
+      combined text to materials.extracted_text
     - Updates job pending→running→completed/failed + material pending→processing→ready/failed atomically
     - Idempotency: if material already processing with same job running, skip; re-run updates
-    - Corrupt PDF → failed immediately (no retry); transient errors retry 3x with backoff
+    - Corrupt PDF or no usable content on any page → failed immediately (no retry);
+      transient errors retry 3x with backoff. One bad page (incl. OCR failure)
+      never fails the document.
     """
     try:
         jid = uuid.UUID(job_id)
@@ -64,9 +72,21 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
         db.refresh(material)
         db.refresh(job)
 
-        # Extract (worker reads shared volume path)
+        # Extract (worker reads shared volume path) — one routed pass; the
+        # resulting pages are reused downstream so scanned pages are OCR'd once.
         try:
-            text, page_count = extract_pdf_text(material.storage_path)
+            pages = extract_document_pages(material.storage_path)
+            text = combine_page_texts(pages)
+            if not text.strip():
+                raise no_content_error(pages)
+            page_count = len(pages)
+            ocr_pages = sum(1 for p in pages if p.get("extraction_method") == "OCR")
+            log.info(
+                "extraction routed: material=%s pages=%s ocr_pages=%s",
+                material.id,
+                page_count,
+                ocr_pages,
+            )
         except ValueError as e:
             # Corrupt/empty PDF — do not retry, straight to failed
             msg = str(e)[:1000]
@@ -129,24 +149,38 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 job.status = "completed"
                 db.commit()
 
-        chained = _chain_downstream(db, material)
-        return {"status": "completed", "material_id": str(mid), "page_count": page_count, "chars": len(text), **chained}
+        chained = _chain_downstream(db, material, pages)
+        return {
+            "status": "completed",
+            "material_id": str(mid),
+            "page_count": page_count,
+            "chars": len(text),
+            "ocr_pages": ocr_pages,
+            **chained,
+        }
     finally:
         db.close()
 
 
-def _chain_downstream(db, material: Material) -> dict:
+def _chain_downstream(db, material: Material, pages: list[dict] | None = None) -> dict:
     """Continue the pipeline after extraction: chunk inline, then queue
     embeddings + structure. Every step is best-effort — extraction stays
     `completed` even when a downstream stage cannot run (broker down, no
     Groq key); failures are returned in the result dict, never raised.
+
+    `pages` are the already-routed extraction records (reused so scanned
+    pages are OCR'd once); when omitted they are re-read from storage.
     """
     out: dict = {"chunks": 0, "embed_job": None, "structure_job": None}
 
     # 1. Chunk inline — deterministic local code, no network.
     try:
-        pages = extract_pages(material.storage_path)
-        drafts = chunk_pages([p["text"] for p in pages])
+        if pages is None:
+            pages = extract_pages(material.storage_path)
+        drafts = chunk_pages(
+            [p.get("text") or "" for p in pages],
+            methods=[p.get("extraction_method") for p in pages],
+        )
         persist_chunks(db, material.project_id, material.id, drafts, source_name=material.filename)
         out["chunks"] = len(drafts)
     except Exception as e:

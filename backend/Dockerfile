@@ -6,9 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps — kept minimal; PyMuPDF ships wheels, but gcc is needed only if building from source
+# System deps — PyMuPDF ships wheels (gcc only if building from source);
+# tesseract-ocr (+ English data) powers the hybrid pipeline's scanned-page branch (worker).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

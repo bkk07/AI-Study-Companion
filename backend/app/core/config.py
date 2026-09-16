@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
 
+    # Documents — hybrid PDF pipeline: PyMuPDF text + per-page Tesseract OCR
+    # for scanned pages (worker only). Render DPI 300 is Tesseract's sweet spot.
+    ocr_enabled: bool = Field(default=True, alias="OCR_ENABLED")
+    ocr_language: str = Field(default="eng", alias="OCR_LANGUAGE")
+    ocr_dpi: int = Field(default=300, alias="OCR_DPI")
+
     # Background
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
     celery_broker_url: str = Field(default="redis://redis:6379/0", alias="CELERY_BROKER_URL")

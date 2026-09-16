@@ -97,18 +97,23 @@ def chunk_pages(
     pages: list[str],
     chunk_size: int = CHUNK_SIZE_CHARS,
     overlap: int = CHUNK_OVERLAP_CHARS,
+    methods: list[str | None] | None = None,
 ) -> list[dict]:
     """Chunk per-page texts without ever spanning a page boundary.
 
     Empty pages yield no chunks. Each draft carries 1-indexed page_number.
+    `methods` is an optional parallel list of per-page extraction_method
+    values ("TEXT"/"OCR") from the hybrid router — carried onto drafts for
+    source traceability; defaults to "TEXT" (the pre-OCR pipeline output).
     """
     _validate_params(chunk_size, overlap)
     drafts: list[dict] = []
     for i, page_text in enumerate(pages):
         if not page_text or not page_text.strip():
             continue
+        method = methods[i] if methods and i < len(methods) and methods[i] else "TEXT"
         for d in chunk_text(page_text, chunk_size=chunk_size, overlap=overlap):
-            drafts.append({**d, "page_number": i + 1})
+            drafts.append({**d, "page_number": i + 1, "extraction_method": method})
     return drafts
 
 
@@ -144,6 +149,7 @@ def persist_chunks(
                     topic_id=d.get("topic_id"),
                     subtopic_id=d.get("subtopic_id"),
                     page_number=d.get("page_number"),
+                    extraction_method=d.get("extraction_method"),
                     source_name=source_name,
                     chunk_index=idx,
                     content=d["text"],

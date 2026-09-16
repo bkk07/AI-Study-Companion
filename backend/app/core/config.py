@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     groq_model: str = Field(default="openai/gpt-oss-20b", alias="GROQ_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
 
     # Background
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")

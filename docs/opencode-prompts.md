@@ -1212,3 +1212,11 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Live proof (key server-side only, never printed):** structure extraction on photosynthesis text → 4 sensible topics; `POST generate` on seeded concept → 201, 2 validated persisted MCQs (Rubisco/ATP+NADPH, correct indices right).
 **Verify:** `pytest -q` 145 passed; `compose config --quiet` ok; rebuilt `api` healthy.
 **Note:** `GROQ_REASONING_MODEL` in local `.env` is inert (app reads `GROQ_MODEL`); embeddings/retrieval-embed still dummy — live embedding awaits a future `OPENAI_API_KEY` decision.
+
+## Ops 2026-09-16 — Free local embeddings via fastembed (no phase)
+
+**Decision:** user chose local fastembed over Gemini/Cohere free tiers and paid OpenAI.
+**Change:** `fastembed>=0.3.0` (`requirements.txt`+`pyproject.toml`); `embedding_client.py` dispatches `EMBEDDING_PROVIDER` (`local` default → `BAAI/bge-small-en-v1.5`, 384 dims, lazy singleton; `openai` path kept, needs key + 1536 column); `config.py` +`EMBEDDING_PROVIDER`; `EMBEDDING_DIMS` 1536→384; migration `a8948d1582d1` (hand-fixed: missing pgvector import + explicit USING + DELETE of retired 1536 rows, which are re-generatable); Dockerfile bakes the model (`FASTEMBED_CACHE_PATH`, ~130MB one-time); `.env.example` documents the switch; existing OpenAI client tests pinned via autouse `EMBEDDING_PROVIDER=openai` fixture + 2 real local tests (384 dims, deterministic).
+**Live proof (zero keys, zero network):** rebuilt `api`+`worker` healthy; eager `generate_embeddings` in container → `completed`, 2×384 rows; `retrieve("Where is carbon dioxide fixed?")` → ranked hits (0.2376/0.2543).
+**Verify:** `upgrade`→`a8948d1582d1` + `alembic check` clean; `pytest -q` 147 passed; `compose config --quiet` ok.
+**Known:** old 1536 OpenAI vectors wiped by migration (dev/test data only); re-setting provider to `openai` requires resizing the column back — the two backends cannot mix dims.

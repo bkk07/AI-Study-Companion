@@ -16,6 +16,16 @@ def _mock_resp(payload: dict) -> MagicMock:
     return resp
 
 
+@pytest.fixture(autouse=True)
+def _openai_provider():
+    """Pin the legacy OpenAI path — local-provider tests live at the bottom."""
+    os.environ["EMBEDDING_PROVIDER"] = "openai"
+    get_settings.cache_clear()
+    yield
+    os.environ.pop("EMBEDDING_PROVIDER", None)
+    get_settings.cache_clear()
+
+
 def test_embed_returns_vectors_in_order():
     payload = {
         "data": [
@@ -97,3 +107,29 @@ def test_http_error_propagates_for_retry():
         finally:
             os.environ.pop("OPENAI_API_KEY", None)
             get_settings.cache_clear()
+
+
+class TestLocalProvider:
+    @pytest.fixture(autouse=True)
+    def _local(self, _openai_provider):
+        os.environ["EMBEDDING_PROVIDER"] = "local"
+        get_settings.cache_clear()
+        yield
+        get_settings.cache_clear()
+
+    def test_local_returns_384_vectors_in_order(self):
+        from app.models.embedding import EMBEDDING_DIMS
+
+        vectors = embed(["hello world", "second text"])
+        assert len(vectors) == 2
+        assert all(len(v) == EMBEDDING_DIMS == 384 for v in vectors)
+        assert all(isinstance(x, float) for v in vectors for x in v)
+        again = embed(["hello world", "second text"])
+        assert again == vectors  # deterministic, no network
+
+    def test_local_one_and_empty(self):
+        assert len(embed_one("query")) == 384
+        with pytest.raises(ValueError):
+            embed([])
+        with pytest.raises(ValueError):
+            embed(["   "])

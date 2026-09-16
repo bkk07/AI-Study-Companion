@@ -7,7 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
 
-EMBEDDING_DIMS = 1536  # text-embedding-3-small per blueprint
+# Local default is BAAI/bge-small-en-v1.5 (384 dims, no key); the OpenAI path
+# (text-embedding-3-small, 1536) needs a matching column to be re-enabled.
+EMBEDDING_DIMS = 384
 
 
 class Embedding(Base, UUIDTimestampMixin):

@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ArrowRight, BadgeCheck, BrainCircuit, MessagesSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
-import { apiError } from "@/lib/api-error"
+import { authErrorMessage } from "@/lib/api-error"
 import { Logo } from "@/components/ui"
 
 const PERKS = [
@@ -27,7 +27,7 @@ export function Login() {
       await login(email, password)
       nav("/")
     } catch (err: unknown) {
-      setError(apiError(err).message ?? "Invalid email or password")
+      setError(authErrorMessage(err, "Sign-in failed — please try again."))
     } finally {
       setLoading(false)
     }

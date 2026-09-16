@@ -22,3 +22,16 @@ export function apiError(e: unknown): ApiErrorInfo {
     message: data?.error?.message ?? data?.detail,
   }
 }
+
+/**
+ * Honest auth-form messaging: show the server's message when there is one,
+ * admit connectivity problems when there is no response at all, and otherwise
+ * stay neutral — never blame the email/password without the server saying so.
+ */
+export function authErrorMessage(e: unknown, fallback: string): string {
+  const info = apiError(e)
+  if (info.message) return info.message
+  const hasResponse = (e as { response?: unknown })?.response != null
+  if (!hasResponse) return "Can't reach the server — check your connection and try again."
+  return fallback
+}

@@ -1449,6 +1449,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Found live:** (1) `self.retry()` re-raises the ORIGINAL error after max retries (not `MaxRetriesExceededError`), so provider outages escaped all three worker tasks and left jobs stuck `running` — fixed in `extraction.py`/`embeddings.py`/`structure.py` via explicit `request.retries >= 3` guard + regression test (5 chain tests pass). (2) Compose `environment:` overrides the app's `backend/.env`, so the containers ran the dummy key until `$env:GROQ_API_KEY` was exported in the same shell as `docker compose up -d` — key now live (56ch `gsk_`, ping `{'ok': True}`); `.env.example` header documents the export requirement.
 **Live result:** Kiran_AIProf.pdf map built (2 topics / 7 subtopics / 28 concepts, verified in DB); both materials fully chunked+embedded (28/28); Project_Requirements structure completed after 429 window reset (771 topics / 952 concepts total) — RESOLVED, tutor/quiz/map all live.
 
+## JWT 2-Day Expiry + Honest Register Errors (out-of-band, user-requested)
+
+**Recorded:** 2026-09-16 before impl | Source: user — 2-day sessions + misleading register error
+**Diagnosis:** `user5@gmail.com` was NOT taken (verified: 0 rows) — the "already taken" text is the frontend generic fallback, shown because the request failed with no response body (api was mid-restart during tonight's rebuilds). Live register test right now → 201 for the same email. Fix the message, not the endpoint. (My probe rows deleted after — email free again.)
+**Changes:** `jwt_expire_minutes` default 60→2880 (2 days) in `config.py` + compose api/worker env + `.env.example`; Register/Login distinguish server message vs no-response ("Can't reach the server…") vs neutral generic — never blame the email without a 400 saying so. Existing tokens keep old exp (mint-time); tests use explicit deltas, unaffected.
+**Files:** `core/config.py`, `docker-compose.yml`, `.env.example`, `features/auth/Register.tsx`, `features/auth/Login.tsx`, `docs/*`.
+**Verify:** auth tests + `npm run build` + recreate api/worker + live register probe; single commit.
+
+### JWT + Register Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `core/config.py` + `docker-compose.yml` (api+worker) + `.env.example` (2880), `lib/api-error.ts` (`authErrorMessage`), `Register.tsx`/`Login.tsx`, `docs/*`
+**Verify:** auth+error suites 14 pass; `npm run build` green; containers recreated with `JWT_EXPIRE_MINUTES=2880` (Groq key preserved via same-shell export); live probe register 201 + login 200, decoded token lifetime exactly 2880 min (48.0h), probe row deleted; `user5@gmail.com` confirmed free (my 2 probe rows removed).
+
 ## Quiz 422 Fix — concept source fallback (out-of-band bugfix)
 
 **Recorded:** 2026-09-16 before impl | Source: user screenshot — quiz 422 on new project

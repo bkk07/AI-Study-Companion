@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Auth
     jwt_secret: str = Field(default="change-me-to-a-long-random-string-at-least-32-chars", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    jwt_expire_minutes: int = Field(default=60, alias="JWT_EXPIRE_MINUTES")
+    jwt_expire_minutes: int = Field(default=2880, alias="JWT_EXPIRE_MINUTES")
 
     # AI
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")

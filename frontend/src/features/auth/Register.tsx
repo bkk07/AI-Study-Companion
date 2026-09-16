@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ArrowRight, FileUp, MessagesSquare, Wand2 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
-import { apiError } from "@/lib/api-error"
+import { authErrorMessage } from "@/lib/api-error"
 import { Logo } from "@/components/ui"
 
 const STEPS = [
@@ -27,7 +27,7 @@ export function Register() {
       await register(email, password)
       nav("/")
     } catch (err: unknown) {
-      setError(apiError(err).message ?? "Registration failed — email may already be taken")
+      setError(authErrorMessage(err, "Registration failed — please try again."))
     } finally {
       setLoading(false)
     }

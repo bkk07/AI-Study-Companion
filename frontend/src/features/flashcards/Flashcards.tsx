@@ -522,30 +522,6 @@ export function Flashcards({ projectId }: { projectId: string }) {
                   </div>
                 </div>
               )}
-
-              <div className="mt-8 space-y-4">
-                {topics.map((t) => (
-                  <div key={t.id}>
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{t.title}</p>
-                    <div className="space-y-2">
-                      {t.subtopics.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{s.title}</p>
-                            <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                              <span>{s.core_count} learning targets</span>
-                              <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600">auto deck</span>
-                            </p>
-                          </div>
-                          <Button type="button" size="sm" variant="secondary" onClick={() => void start(s.id)} disabled={starting !== null}>
-                            <Play size={14} /> {starting === s.id ? "Loading…" : "Study"}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </>
           )}
         </>

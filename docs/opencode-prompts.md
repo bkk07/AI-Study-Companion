@@ -1272,3 +1272,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 7 pass (bounds/seed/empty-None + bool/NaN/type/difficulty rejections; independence + open/explain routing 20→23; easy 20 vs hard 40; same-day 65 vs 10d-gap 70 vs 7d-edge 65 vs hard+gap capped 75; field/signature structural + repeat determinism + time-sorted reversal + mixed-time rejections; reader 52.0/count/last_at + LookupError); full `pytest -q` 172 passed (7+165); `compose config` 0; `alembic check` no new ops; no migration, no rebuild.
 **Guard:** No LLM/confidence/writes anywhere; leak-proof reader (user+project+concept filter + scope check).
 **Known:** No `concept_mastery` state table (derived on read per roadmap wording); quiz completion does NOT yet append `mcq` evidence rows (producer wiring is a separate step — engine consumes whatever `mastery_evidence` holds); scale 0–100 (÷100 if a 0–1 API is ever needed).
+
+## Phase 42 — Mismatch Engine (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 42 (deterministic divergence rule; FLAGGED for confirmation — asked, not invented)
+**Objective:** Flag concepts where recognition outruns understanding, with explainable reasons and cross-concept priority.
+**Contract:** `models/mismatch.py` (derived domain types ONLY — no DB table: mismatch is computed on read like mastery, a persisted snapshot would go stale with every new evidence row): frozen `Mismatch(concept_id, mismatch_type, mcq_mastery, applied_mastery, gap, reason)` + type constants + priority order. `mismatch_service.detect_mismatches(states) -> list[Mismatch]`: per concept skip unknown mastery (None) or thin data; primary `mcq-applied >= GAP` → `mcq_high_applied_low`; optional calibration input (avg_confidence/accuracy over evaluated records only) → `overconfident`/`underconfident` bands; one badge per concept by type priority; cross-concept rank by (type priority, gap desc, concept_id asc). Never LLM. Reason strings carry the numbers, non-judgmental.
+**Files:** `backend/app/models/mismatch.py`, `backend/app/services/mismatch_service.py`, `backend/tests/test_mismatch.py` (synthetic, no DB)
+**Guard:** Deterministic + explainable — same inputs always give same ranked list with same reasons.
+**Verify:** unit tests — threshold edge (gap exactly/at±1), thin-data gating each minimum, unknown-mastery skip, type priority, cross-concept ranking incl. tie-break, invalid inputs; full `pytest -q` green; `compose config` 0; `alembic check` clean (no migration); no rebuild.
+
+### Phase 42 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Confirmed rule:** Blueprint full set (user choice 2026-09-16; alternatives offered: primary-only, stricter gate).
+**Files:** `backend/app/models/mismatch.py` (frozen `Mismatch` + type constants + priority — derived types, deliberately no DB table: a snapshot would go stale with every new evidence row), `backend/app/services/mismatch_service.py` (`ConceptState` validated + `detect_mismatches`: primary gap≥25 w/ 3 mcq + 1 applied minima, calibration secondary over evaluated-only inputs, one badge per concept, rank by type/gap/id), `backend/tests/test_mismatch.py` (6 tests, synthetic, no DB), `docs/*`
+**Verify:** 6 pass (edge 25 flags/24.9 not + reversed never + gap 38; thin-mcq/no-applied gated + minima-met flags; None mastery never; over/under bands + unevaluated excluded + mid-band quiet + primary wins badge; type-then-gap ranking + id tie-break + repeat identical; reason numbers + 4 rejections); full `pytest -q` 178 passed (6+172); `compose config` 0; `alembic check` no new ops; no migration, no rebuild.
+**Guard:** No LLM; unknown/thin never flags; same inputs → same ranked reasons.
+**Known:** No table/endpoints — consumers (recommendation, dashboard) compute on read; calibration inputs must be evaluated-only aggregates (caller contract); `applied_high_mcq_low` is intentionally not a type (blueprint only flags recognition-outrunning-understanding).

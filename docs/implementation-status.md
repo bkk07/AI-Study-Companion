@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 41 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 42 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -57,7 +57,7 @@
 | 36 | Explain-It-Back | ✅ Complete | 2026-09-16 | Pass (evidence rows, mocked) | `submit_explanation` + `mastery_evidence` + 9 tests |
 | 37 | Mastery Engine | ✅ Complete | 2026-09-16 | Pass (EMA bounds/independence) | `mastery_service` confirmed formula + 7 tests |
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
-| 39 | Mismatch Detection | ⏳ Pending | — | — | — |
+| 39 | Mismatch Detection | ✅ Complete | 2026-09-16 | Pass (threshold/gating/rank) | `mismatch_service` confirmed rule + 6 tests |
 | 40 | Decision / Recommendation Engine | ⏳ Pending | — | — | — |
 | 41 | Recommendations API + Frontend | ⏳ Pending | — | — | — |
 | 42 | Growth Analysis | ⏳ Pending | — | — | — |
@@ -619,6 +619,16 @@
 **Verify:** 7 pass (bounds/seed/empty + rejections; independence/routing; difficulty speed; gap boost/edge/cap; structural confidence-absence + determinism + ordering; real-PG reader 52.0 + scope); `pytest -q` 172 passed (7+165); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Formula user-confirmed 2026-09-16 (Blueprint EMA); no LLM/confidence/writes.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 42 (Mismatch Engine).
+
+---
+
+## Phase 42 — Detail (compact)
+
+**Scope:** Deterministic divergence detection only — pure service + derived types; no table, no endpoints.
+**Files:** `backend/app/models/mismatch.py` (`Mismatch` + constants + priority), `backend/app/services/mismatch_service.py` (`ConceptState` + `detect_mismatches`), `backend/tests/test_mismatch.py` (6 tests), `docs/*`.
+**Verify:** 6 pass (threshold edge/gating/unknown-skip/type-priority/ranking/rejections); `pytest -q` 178 passed (6+172); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Rule user-confirmed 2026-09-16 (Blueprint full set); no LLM; unknown/thin never flags.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 43 (Recommendation Engine).
 
 ---
 

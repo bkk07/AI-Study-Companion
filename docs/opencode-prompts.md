@@ -1162,3 +1162,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 6 pass (weakest-first round-robin `w1,s1,w2`; weak→easy + strong→hard; fresh→old→recent; neutral-default + id tie-break; repeat-identical + empty + over-count; bad count/difficulty/mastery → ValueError); full `pytest -q` 134 passed (6+128); `compose config` 0; no migration, no rebuild.
 **Guard:** Pure function — no DB reads, no LLM; callers supply mastery/coverage facts.
 **Known:** Roadmap gaps (not filled here): no attempt/answer-submit or quiz-generate endpoint phase exists before Phase 37 frontend (which assumes both); mastery-score feed arrives with Phase 41 — until then callers pass synthetic/derived maps; difficulty bands (<34/34–66/>66) provisional with the threshold.
+
+## Phase 37 — Quiz Frontend (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 37 (quiz-taking UI + confidence control; backend is source of truth)
+**Objective:** Student quiz-taking experience over a real backend bridge (gap resolution below).
+**Contract:** `frontend/src/features/quiz/` (`QuizTaker.tsx`: load sequence → one question at a time + 1–5 confidence slider + submit → completion with score; failures/retries never lose the attempt; correctness comes only from backend) mounted in `ProjectDetailPage`. Backend bridge (thin, no new logic): `POST /projects/{id}/quizzes/generate` (concept, count, mode → `generate_quiz`, Groq errors → 502), `POST /quizzes/{id}/attempts` (start → attempt id + questions WITHOUT `correct_index`), `POST /attempts/{id}/answers` (question + selected_index + confidence → correctness + running score), `POST /attempts/{id}/complete` (final score). Attempt endpoints verify quiz→project ownership + attempt→user ownership; answers locked once completed.
+**Files:** `frontend/src/features/quiz/QuizTaker.tsx`, `ProjectDetailPage.tsx`, `backend/app/api/v1/quizzes.py`, `backend/app/services/quiz_attempt_service.py`, `backend/app/schemas/quiz.py` (+API shapes)
+**Guard:** Frontend never computes correctness/mastery; `correct_index` never leaves the backend before answering.
+**Verify:** `npm run build` green; backend tests (start hides answers, submit scores + confidence stored, double-answer/completed-attempt rejected, foreign 404); live manual flow vs container (generate mocked? no — needs Groq… manual flow uses seeded quiz via shell); full `pytest -q` green; `compose config` 0.
+
+### Phase 37 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16 (scope: thin bridge + UI, user-confirmed 2026-09-16)
+**Files:** `backend/app/services/quiz_attempt_service.py` (start/answer/complete; server-side scoring; one-answer-per-question; completed-attempt lock; scope checks), `backend/app/api/v1/quizzes.py` (`POST generate` 201/404/422/400/502/500 + `POST {quiz}/attempts` answer-free + `POST attempts/{id}/answers` reveal + `POST attempts/{id}/complete` score; project+user ownership), `backend/app/schemas/quiz.py` (+7 API shapes; `QuestionRead` has no `correct_index`), `main.py` wire, `backend/tests/test_quiz_api.py` (3 tests), `frontend/src/features/quiz/QuizTaker.tsx` (concept select → generate → one-at-a-time + 1–5 confidence + per-question reveal + running score + completion; inline submit retry preserves attempt; 422/502/404 states), `ProjectDetailPage.tsx` Quiz section, `tests/test_quiz_models.py` (scoped `.one()` — shared-DB hardening), `docs/*`
+**Verify:** `npm run build` 90 mods; live container loop — start 201 no-leak + correct→`True/1/1/1` + wrong→`False/1/2/1` + complete `50.0`; `pytest -q` 137 passed (3+134); `compose config` 0; no migration.
+**Guard:** Correctness only from backend; failures keep attempt state client-side.
+**Known:** Generate path needs live Groq (unit-mocked; manual flow seeded); exam `time_limit_seconds` not enforced yet (no timer in UI/service — later phase); mastery-weighted selection not wired to endpoints (Phase 41 feed).

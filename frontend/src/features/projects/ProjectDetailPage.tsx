@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
 import { StructureView } from "@/features/structure/StructureView"
+import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
@@ -86,6 +87,10 @@ export function ProjectDetailPage() {
           <div className="mt-6 border-t pt-4">
             <h2 className="text-lg font-semibold">Tutor</h2>
             {projectId ? <TutorChat projectId={projectId} /> : null}
+          </div>
+          <div className="mt-6 border-t pt-4">
+            <h2 className="text-lg font-semibold">Quiz</h2>
+            {projectId ? <QuizTaker projectId={projectId} /> : null}
           </div>
         </div>
       ) : null}

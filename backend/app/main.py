@@ -9,6 +9,7 @@ from app.api.v1.materials import router as materials_router
 from app.api.v1.projects import direct_router as projects_direct_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.spaces import router as spaces_router
+from app.api.v1.quizzes import router as quizzes_router
 from app.api.v1.structure import router as structure_router
 from app.api.v1.tutor import router as tutor_router
 
@@ -41,6 +42,7 @@ app.include_router(materials_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(structure_router, prefix="/api/v1")
 app.include_router(tutor_router, prefix="/api/v1")
+app.include_router(quizzes_router, prefix="/api/v1")
 
 
 @app.get("/")

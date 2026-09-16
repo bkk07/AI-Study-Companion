@@ -117,7 +117,8 @@ def test_cascade_quiz_deletes_questions_attempts_answers():
         db.flush()
         db.add(QuizAnswer(attempt_id=attempt.id, question_id=q.id, selected_index=0, is_correct=True, confidence=5))
         db.commit()
-        qid, aid, anid = q.id, attempt.id, db.query(QuizAnswer).one().id
+        qid, aid = q.id, attempt.id
+        anid = db.query(QuizAnswer).filter(QuizAnswer.attempt_id == attempt.id).one().id
 
         db.delete(quiz)
         db.commit()

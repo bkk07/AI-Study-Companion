@@ -1,11 +1,15 @@
+import logging
 import uuid
 
 from app.models.background_job import BackgroundJob
 from app.models.material import Material
 from app.services import job_service
-from app.services.document_extraction_service import extract_pdf_text
+from app.services.chunking_service import chunk_pages, persist_chunks
+from app.services.document_extraction_service import extract_pages, extract_pdf_text
 from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session as _get_task_session
+
+log = logging.getLogger(__name__)
 
 
 @celery_app.task(name="process_pdf", bind=True, max_retries=3)
@@ -125,6 +129,52 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 job.status = "completed"
                 db.commit()
 
-        return {"status": "completed", "material_id": str(mid), "page_count": page_count, "chars": len(text)}
+        chained = _chain_downstream(db, material)
+        return {"status": "completed", "material_id": str(mid), "page_count": page_count, "chars": len(text), **chained}
     finally:
         db.close()
+
+
+def _chain_downstream(db, material: Material) -> dict:
+    """Continue the pipeline after extraction: chunk inline, then queue
+    embeddings + structure. Every step is best-effort — extraction stays
+    `completed` even when a downstream stage cannot run (broker down, no
+    Groq key); failures are returned in the result dict, never raised.
+    """
+    out: dict = {"chunks": 0, "embed_job": None, "structure_job": None}
+
+    # 1. Chunk inline — deterministic local code, no network.
+    try:
+        pages = extract_pages(material.storage_path)
+        drafts = chunk_pages([p["text"] for p in pages])
+        persist_chunks(db, material.project_id, material.id, drafts, source_name=material.filename)
+        out["chunks"] = len(drafts)
+    except Exception as e:
+        log.exception("Chunking failed for material %s", material.id)
+        out["chain_error"] = f"chunking failed: {e}"[:500]
+        return out  # without chunks, embeddings/structure are pointless
+
+    # 2. Queue embeddings + structure under their own jobs (lazy imports:
+    # tasks package already imports this module at worker startup).
+    try:
+        from app.worker.tasks.embeddings import generate_embeddings
+        from app.worker.tasks.structure import build_structure
+
+        embed_job = job_service.create_job(db, job_type="generate_embeddings", material_id=material.id)
+        struct_job = job_service.create_job(db, job_type="build_structure", material_id=material.id)
+        out["embed_job"] = str(embed_job.id)
+        out["structure_job"] = str(struct_job.id)
+        try:
+            generate_embeddings.delay(str(embed_job.id), str(material.id))
+        except Exception as e:
+            log.warning("Embeddings dispatch failed for material %s: %s", material.id, e)
+            out["embed_dispatch"] = f"dispatch failed: {e}"[:200]
+        try:
+            build_structure.delay(str(struct_job.id), str(material.id))
+        except Exception as e:
+            log.warning("Structure dispatch failed for material %s: %s", material.id, e)
+            out["structure_dispatch"] = f"dispatch failed: {e}"[:200]
+    except Exception as e:
+        log.exception("Downstream job creation failed for material %s", material.id)
+        out["chain_error"] = f"downstream setup failed: {e}"[:500]
+    return out

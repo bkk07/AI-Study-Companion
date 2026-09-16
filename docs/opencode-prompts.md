@@ -1428,4 +1428,19 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `npm run build` green (tsc + vite, 1954 mods); `npm run lint` no errors (pre-existing effect-pattern warnings only); `git status` frontend-only, zero backend files.
 **Known:** Google Fonts degrades to system stack offline; `/dashboard` placeholder route removed (nothing linked to it); poll interval fixed 5s.
 
+## Pipeline Fix — wire extraction→chunk→structure→embed (out-of-band bugfix)
+
+**Recorded:** 2026-09-16 before impl | Source: user screenshots — tutor "not covered", empty Map despite Ready PDF
+**Diagnosis:** `process_pdf` extracted text and stopped; NOTHING dispatched `generate_embeddings`, nothing created chunks, nothing called structure extract/persist (all only reachable from tests). Live proof: user project 0 chunks / 0 embeddings. ALSO: running api container has dummy `GROQ_API_KEY` (host shell has none) — Groq-dependent steps need a real key from the user.
+**Fix:** `process_pdf` success path chunks inline (`extract_pages`+`chunk_pages`+`persist_chunks`, deterministic local) then creates + best-effort-dispatches `generate_embeddings` and new `build_structure` Celery task (extract+persist, Groq failure → job failed, never breaks extraction); `celery_app` include; tests for chain (dispatch patched) + structure task success/failure; backfill user's material post-deploy (chunks+embeddings local; structure needs user key).
+**Files:** `worker/tasks/extraction.py`, `worker/tasks/structure.py` (new), `worker/celery_app.py`, `tests/test_pipeline_chain.py` (new), `docs/*`.
+**Verify:** targeted suites + full `pytest -q` + `docker compose up -d --build api worker` + backfill + DB counts + `alembic check`; single commit.
+
+### Pipeline Fix Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `worker/tasks/extraction.py` (`_chain_downstream`: inline chunk + 2 jobs + best-effort dispatch), `worker/tasks/structure.py` (new `build_structure`), `celery_app.py` + `tasks/__init__.py` includes, `tests/test_pipeline_chain.py` (4 tests), `docs/*`
+**Verify:** 4 pass; full `pytest -q` 227 passed (223+4); rebuilt api+worker, `build_structure` registered; backfilled both user materials (3+25 chunks, 28 embeddings 384d, embed jobs succeeded); structure jobs correctly isolated-failed on Groq 401 (dummy key); `alembic check` clean; no migration.
+**Known:** Live AI (structure map, tutor answers, quiz generation) needs a real `GROQ_API_KEY` in compose env + re-dispatch of failed structure jobs; stray `careflow.handle_event` worker warnings come from unrelated laptop software sharing localhost:6379, harmless.
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

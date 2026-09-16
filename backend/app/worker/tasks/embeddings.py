@@ -74,15 +74,16 @@ def generate_embeddings(self, job_id: str, material_id: str) -> dict:
                 db.commit()
             return {"status": "failed", "error": msg, "material_id": str(mid)}
         except httpx.HTTPError as e:
-            try:
-                raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
-            except self.MaxRetriesExceededError:
+            # Same guard as build_structure: retry() re-raises the original
+            # error once exhausted, so count attempts explicitly.
+            if self.request.retries >= 3:
                 msg = f"Embedding failed after retries: {e}"[:1000]
                 try:
                     job_service.mark_failed(db, jid, msg)
                 except Exception:
                     pass
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
+            raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
 
         dims = {len(v) for v in vectors}
         if len(vectors) != len(chunks) or dims != {EMBEDDING_DIMS}:

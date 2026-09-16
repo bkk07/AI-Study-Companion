@@ -196,6 +196,53 @@ def test_build_structure_success_persists_map():
         _teardown(engine)
 
 
+def test_retry_exhaustion_marks_job_failed_not_stuck():
+    """Groq 429s past max retries must fail the job visibly (regression:
+    retry() re-raises the original error, which used to escape and leave
+    the job `running` forever)."""
+    import httpx
+
+    from app.worker.tasks.structure import build_structure
+
+    tmpdir = tempfile.mkdtemp(prefix="chain_")
+    client, engine = _setup(tmpdir)
+    try:
+        h = _login(client, f"chr_{uuid.uuid4().hex[:8]}@example.com")
+        with patch("app.api.v1.materials.process_pdf"):
+            proj_id = _project(client, h)
+        mid, _ = _material_job(engine, tmpdir, proj_id, ["content"] * 20)
+
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        mat = db.get(Material, uuid.UUID(mid))
+        mat.extracted_text = "Some study text."
+        mat.status = "ready"
+        db.commit()
+        sjob = job_service.create_job(db, job_type="build_structure", material_id=uuid.UUID(mid))
+        sjid = str(sjob.id)
+        db.close()
+
+        with patch(
+            "app.worker.tasks.structure.extract_structure",
+            side_effect=httpx.ConnectError("provider down"),
+        ):
+            build_structure.push_request(args=[sjid, mid], retries=3)
+            try:
+                result = build_structure.run(sjid, mid)
+            finally:
+                build_structure.pop_request()
+
+        assert result["status"] == "failed", result
+        assert "retries" in result["error"]
+        db = Sess()
+        try:
+            assert job_service.get_job(db, uuid.UUID(sjid)).status == "failed"
+        finally:
+            db.close()
+    finally:
+        _teardown(engine)
+
+
 def test_build_structure_failure_fails_only_its_job():
     from app.worker.tasks.structure import build_structure
 

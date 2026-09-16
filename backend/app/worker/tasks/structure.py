@@ -61,15 +61,17 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
                 pass
             return {"status": "failed", "error": msg, "material_id": str(mid)}
         except httpx.HTTPError as e:
-            try:
-                raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
-            except self.MaxRetriesExceededError:
+            # NB: when retries are exhausted, self.retry() re-raises the
+            # original error instead of MaxRetriesExceededError — count
+            # attempts explicitly so the job is always marked failed.
+            if self.request.retries >= 3:
                 msg = f"Structure provider unavailable after retries: {e}"[:1000]
                 try:
                     job_service.mark_failed(db, jid, msg)
                 except Exception:
                     pass
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
+            raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
 
         counts = persist_structure(db, material.project_id, outline)
         try:

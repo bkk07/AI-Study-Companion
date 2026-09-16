@@ -98,10 +98,9 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 pass
             return {"status": "failed", "error": msg, "material_id": str(mid)}
         except Exception as e:
-            # Transient — retry 3x with backoff, then failed
-            try:
-                raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
-            except self.MaxRetriesExceededError:
+            # Transient — retry 3x with backoff, then failed. Count attempts
+            # explicitly: retry() re-raises the original error once exhausted.
+            if self.request.retries >= 3:
                 msg = f"Extraction failed after retries: {e}"[:1000]
                 material.status = "failed"
                 material.error_message = msg
@@ -111,6 +110,7 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 except Exception:
                     pass
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
+            raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
 
         # Success — persist atomically: material ready + job completed
         material.extracted_text = text

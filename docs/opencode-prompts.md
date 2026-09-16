@@ -1443,4 +1443,11 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 4 pass; full `pytest -q` 227 passed (223+4); rebuilt api+worker, `build_structure` registered; backfilled both user materials (3+25 chunks, 28 embeddings 384d, embed jobs succeeded); structure jobs correctly isolated-failed on Groq 401 (dummy key); `alembic check` clean; no migration.
 **Known:** Live AI (structure map, tutor answers, quiz generation) needs a real `GROQ_API_KEY` in compose env + re-dispatch of failed structure jobs; stray `careflow.handle_event` worker warnings come from unrelated laptop software sharing localhost:6379, harmless.
 
+### Pipeline Fix Follow-up — retry exhaustion + key activation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Found live:** (1) `self.retry()` re-raises the ORIGINAL error after max retries (not `MaxRetriesExceededError`), so provider outages escaped all three worker tasks and left jobs stuck `running` — fixed in `extraction.py`/`embeddings.py`/`structure.py` via explicit `request.retries >= 3` guard + regression test (5 chain tests pass). (2) Compose `environment:` overrides the app's `backend/.env`, so the containers ran the dummy key until `$env:GROQ_API_KEY` was exported in the same shell as `docker compose up -d` — key now live (56ch `gsk_`, ping `{'ok': True}`); `.env.example` header documents the export requirement.
+**Live result:** Kiran_AIProf.pdf map built (2 topics / 7 subtopics / 28 concepts, verified in DB); both materials fully chunked+embedded (28/28); Project_Requirements structure pending Groq 429 window reset → single re-dispatch outstanding.
+**Verify:** chain tests 5 pass; worker `build_structure` registered; failed jobs now carry messages instead of hanging.
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

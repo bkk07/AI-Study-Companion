@@ -1572,6 +1572,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 101 affected tests green; `npm run build` green; no schema change; growth/analytics/mastery/recommendation untouched.
 **Known:** no frontend test infra (contracts backend-tested); trigram/bbox/bulk-reprocess still reserved per §18. Learning-model track A→D complete.
 
+## Quiz→mastery evidence gap (user-reported bug, fixing)
+
+**Recorded:** 2026-09-16 before impl | Source: "quiz does not update mastery, same concept re-recommended"
+**Diagnosis:** `complete_attempt` stamps attempt score but never writes `MasteryEvidence` — only explain-back writes evidence in the whole codebase. Proven live: kiran has 4 completed attempts (100/100/40/40, 5 answers each) and 0 evidence rows, so mcq mastery is permanently None and recommendations never move.
+**Fix:** `complete_attempt` writes one `mcq` evidence row per answered question (100/0, question's concept — matches model's "one row per graded learning action"; difficulty column doesn't exist on the table so default weight applies, same as all current evidence). Single-write safe: completion of a completed attempt is rejected before any write. One-off backfill for the 4 orphaned attempts with time-window dedupe (script, not migration).
+**Files:** `services/quiz_attempt_service.py`, `tests/test_quiz_attempt_evidence.py` (new), `docs/*`. Strict scope: mcq only — open-ended assessment evidence is the same bug class, flagged as follow-up.
+**Verify:** new tests + quiz/mastery/dashboard/recommendation suites + backfill counts + rebuild api (attempt flow serves from api) + live mastery moves; single commit.
+
+### Quiz-evidence Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `services/quiz_attempt_service.py` (+`write_mcq_evidence`, called by `complete_attempt`), `tests/test_quiz_attempt_evidence.py` (new, 3 tests), `docs/*`
+**Verify:** 30 tests green; backfilled 33 attempts → 80 mcq rows (incl. kiran's 4 attempts → 20 rows; one attempt initially skipped by the script's own time-window dedupe colliding with backfill timestamps — caught by audit, backfilled directly, verified 20/20 joinable); api rebuilt, writer confirmed live in container; kiran mastery now Supervised Learning 100, Divisibility 44.7, Task 34.3 (EMA order-correct).
+**Known:** open-ended assessment evidence is the same bug class — flagged, not fixed (strict scope); difficulty weighting dormant (no difficulty column on the table — pre-existing).
+
 ## Phase B — Extraction v2 (user-approved, in progress)
 
 **Recorded:** 2026-09-16 before impl | Source: user Phase B instruction + design §§4–9

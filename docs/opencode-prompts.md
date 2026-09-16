@@ -1350,4 +1350,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Guard:** No counters, no invented trends — sparse series say so explicitly.
 **Known:** Replay is O(n²) in evidence rows per concept (fine at prototype scale; a single-pass fold is the Phase 57 optimization); trends are running-deltas, not regression slopes; project means are over evidenced concepts only.
 
+## Phase 46 — Project Analytics (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 46 (aggregate stats endpoint + simple view; read-model only)
+**Contract:** `analytics_service.project_analytics` (read-only, per current user): materials total + by-status breakdown, concepts/topics counts, quiz attempts total + completed, average mastery by REUSING `growth_service.project_growth` (one derivation path — no parallel truth), `tutor_interactions: null` — honestly untracked, no tutor/message store exists until the later Activity Events phase; inventing a counter would violate the guard. `GET /projects/{id}/analytics`. Counts via single `func.count` queries (mastery loop inherited from growth — prototype-acceptable). `frontend/src/features/analytics/AnalyticsView.tsx`: stat cards + loading/empty/error/Retry; mounted in `ProjectDetailPage`.
+**Files:** `backend/app/services/analytics_service.py`, `backend/app/schemas/analytics.py`, `backend/app/api/v1/analytics.py`, `main.py` wire, `backend/tests/test_analytics.py` (real PG), `frontend/src/features/analytics/AnalyticsView.tsx`, `ProjectDetailPage.tsx`
+**Guard:** Read-model over existing tables + the growth derivation — nothing new persisted, no second source of truth.
+**Verify:** integration tests — counts incl. by-status, attempts total/completed, mastery reuse equals growth overview, tutor null, empty-project zeros/nulls, foreign 404 + no-token 401; `npm run build` green; full `pytest -q` green; `compose config` 0; `alembic check` clean (no migration); no rebuild.
+
+### Phase 46 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/analytics_service.py` (frozen `ProjectAnalytics`; single-count queries + growth reuse; tutor None by design), `backend/app/schemas/analytics.py`, `backend/app/api/v1/analytics.py` (`GET analytics`, 404 on missing), `main.py` wire, `backend/tests/test_analytics.py` (2 tests, real PG), `frontend/src/features/analytics/AnalyticsView.tsx` (stat cards + by-status line + loading/error/Retry), `ProjectDetailPage.tsx` section, `docs/*`
+**Verify:** 2 pass real PG (3 materials 2-ready/1-processing + attempts 2/1 + mastery reuse (80.0, None) + tutor None + LookupError; empty-project exact-zero body + foreign 404 + no-token 401/403 + unknown-project 404); `npm run build` 93 mods; full `pytest -q` 196 passed (2+194); `compose config` 0; `alembic check` no new ops; no migration, no rebuild.
+**Guard:** Read-only; mastery has exactly one derivation path; tutor shows "not tracked yet", never a fake zero.
+**Known:** Mastery loop inherited from growth (prototype N+1); attempts are per-user; by-status dict only lists present statuses.
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 45 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 46 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -61,7 +61,7 @@
 | 40 | Decision / Recommendation Engine | ✅ Complete | 2026-09-16 | Pass (scoring/supersede) | `recommendation_service` confirmed formula + 8 tests |
 | 41 | Recommendations API + Frontend | ✅ Complete | 2026-09-16 | Pass (bridge + UI build) | `dashboard` API + `Dashboard` UI + 3 tests |
 | 42 | Growth Analysis | ✅ Complete | 2026-09-16 | Pass (EMA replay) | `growth_service` + API + `GrowthView` + 4 tests |
-| 43 | Project Analytics | ⏳ Pending | — | — | — |
+| 43 | Project Analytics | ✅ Complete | 2026-09-16 | Pass (read-model) | `analytics` API + `AnalyticsView` + 2 tests |
 | 44 | Global/Admin Analytics | ⏳ Pending | — | — | — |
 | 45 | Admin Dashboard (Read-Only) | ⏳ Pending | — | — | — |
 | 46 | Activity Events & AI Usage | ⏳ Pending | — | — | — |
@@ -659,6 +659,16 @@
 **Verify:** 4 pass real PG (replay/trends/honesty/scopes + overview + API); `npm run build` 92 mods; `pytest -q` 194 passed (4+190); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Derived from evidence + confirmed engine only; sparse histories say so.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 46 (Project Analytics).
+
+---
+
+## Phase 46 — Detail (compact)
+
+**Scope:** Project read-model aggregates + simple view; nothing persisted, no second truth.
+**Files:** `backend/app/services/analytics_service.py` + `backend/app/schemas/analytics.py` + `backend/app/api/v1/analytics.py` + `main.py` wire + `backend/tests/test_analytics.py` (2 tests) + `frontend/src/features/analytics/AnalyticsView.tsx` + `ProjectDetailPage.tsx` section, `docs/*`.
+**Verify:** 2 pass real PG (counts/breakdown/attempts + growth reuse + tutor None + empty zeros + isolation); `npm run build` 93 mods; `pytest -q` 196 passed (2+194); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Mastery via the one growth derivation; tutor honestly untracked.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 47 (Global/Admin Analytics).
 
 ---
 

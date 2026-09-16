@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import {
   ArrowLeft,
   FileUp,
+  Layers,
   LayoutDashboard,
   LineChart,
   MessagesSquare,
@@ -14,6 +15,7 @@ import { apiError } from "@/lib/api-error"
 import { AppShell } from "@/components/AppShell"
 import { Card, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
 import { Dashboard } from "@/features/dashboard/Dashboard"
+import { Flashcards } from "@/features/flashcards/Flashcards"
 import { AnalyticsView } from "@/features/analytics/AnalyticsView"
 import { GrowthView } from "@/features/analytics/GrowthView"
 import { ProgressMapCard } from "@/features/progress/ProgressMap"
@@ -31,6 +33,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "tutor", label: "Tutor", icon: MessagesSquare },
   { id: "quiz", label: "Quiz", icon: Wand2 },
+  { id: "flashcards", label: "Flashcards", icon: Layers },
   { id: "materials", label: "Materials", icon: FileUp },
   { id: "structure", label: "Map", icon: Network },
   { id: "progress", label: "Progress", icon: LineChart },
@@ -137,6 +140,11 @@ export function ProjectDetailPage() {
               {tab === "quiz" && projectId && (
                 <Card className="p-5 sm:p-6">
                   <QuizTaker projectId={projectId} />
+                </Card>
+              )}
+              {tab === "flashcards" && projectId && (
+                <Card className="p-5 sm:p-6">
+                  <Flashcards projectId={projectId} />
                 </Card>
               )}
               {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}

@@ -1,0 +1,46 @@
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+
+class DeckBuildRequest(BaseModel):
+    """Scope for deck building — at most one of subtopic/topic; neither = project."""
+
+    subtopic_id: uuid.UUID | None = None
+    topic_id: uuid.UUID | None = None
+
+
+class DeckBuildResponse(BaseModel):
+    created: int
+    total: int
+
+
+class FlashcardRead(BaseModel):
+    id: uuid.UUID
+    concept_id: uuid.UUID
+    front: str
+    back: str
+    repetitions: int
+    lapses: int
+    interval_days: int
+    efactor: float
+    next_review_at: datetime | None = None
+    total_reviews: int
+    correct_reviews: int
+    due: bool = False
+
+
+class FlashcardListRead(BaseModel):
+    cards: list[FlashcardRead] = Field(default_factory=list)
+    due_count: int = 0
+
+
+class ReviewRequest(BaseModel):
+    grade: str = Field(pattern="^(again|hard|good|easy)$")
+
+
+class ReviewResponse(BaseModel):
+    card: FlashcardRead
+    quality: int
+    score: float

@@ -17,6 +17,7 @@ import app.models.background_job  # noqa: F401,E402 — ensure BackgroundJob met
 import app.models.chunk  # noqa: F401,E402 — ensure DocumentChunk metadata
 import app.models.concept  # noqa: F401,E402 — ensure Concept metadata
 import app.models.concept_relationship  # noqa: F401,E402 — ensure ConceptRelationship metadata
+import app.models.flashcard  # noqa: F401,E402 — ensure Flashcard metadata
 import app.models.embedding  # noqa: F401,E402 — ensure Embedding metadata
 import app.models.mastery_evidence  # noqa: F401,E402 — ensure MasteryEvidence metadata
 import app.models.material  # noqa: F401,E402 — ensure Material metadata

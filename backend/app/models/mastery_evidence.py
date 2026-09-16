@@ -16,12 +16,14 @@ class MasteryEvidence(Base, UUIDTimestampMixin):
     enum now so later phases (mcq, open-ended feeds) insert without migrating.
     `weight` / `resulting_*` mastery columns are deliberately absent — they
     belong to the flagged-open mastery formula, owned by Phase 41.
+    `flashcard` rows (Flashcards v1) feed the applied stream like other
+    free-recall evidence.
     """
 
     __tablename__ = "mastery_evidence"
     __table_args__ = (
         CheckConstraint(
-            "evidence_type IN ('mcq', 'open_ended', 'explain_back')",
+            "evidence_type IN ('mcq', 'open_ended', 'explain_back', 'flashcard')",
             name="ck_mastery_evidence_type",
         ),
         CheckConstraint("raw_score BETWEEN 0 AND 100", name="ck_mastery_evidence_score"),

@@ -10,8 +10,8 @@ per stream, seed mastery with the first score, then for each later point
 - gap boost: +0.1 when the gap since the previous evidence in that stream
   strictly exceeds 7 days (relearning after a gap counts more).
 
-Stream routing: `mcq` feeds mcq_mastery; `open_ended` and `explain_back`
-feed applied_mastery. A stream with no evidence yields None (explicit
+Stream routing: `mcq` feeds mcq_mastery; `open_ended`, `explain_back`, and
+`flashcard` feed applied_mastery. A stream with no evidence yields None (explicit
 unknown — consumers map it, e.g. adaptive selection already defaults to
 neutral 50). Confidence is not an input anywhere in this module: the
 mastery/confidence separation is structural.
@@ -42,7 +42,8 @@ MAX_WEIGHT = 0.5
 GAP_THRESHOLD = timedelta(days=7)
 
 MCQ_TYPE = "mcq"
-APPLIED_TYPES = frozenset({"open_ended", "explain_back"})
+FLASHCARD_TYPE = "flashcard"
+APPLIED_TYPES = frozenset({"open_ended", "explain_back", FLASHCARD_TYPE})
 KNOWN_TYPES = frozenset({MCQ_TYPE}) | APPLIED_TYPES
 DIFFICULTY_WEIGHTS = {"easy": EASY_WEIGHT, "medium": MEDIUM_WEIGHT, "hard": HARD_WEIGHT}
 

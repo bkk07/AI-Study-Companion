@@ -1602,6 +1602,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 26 tests green; api rebuilt with fix live; kiran live: previously-stuck loop broken (weakest-evidenced rank), mastered excluded, fresh-neutral fallbacks honest.
 **Known:** `recommend()`/dashboard single-recommendation keeps old behavior (may still surface mastered — flagged follow-up); review-fallback path untriggered in live data (no all-mastered project yet) but test-covered.
 
+## Flashcards v1 (user-approved, in progress)
+
+**Recorded:** 2026-09-16 before impl | Source: user "Yes Implement Flash Cards" (spec-first agreed)
+**Spec:** `flashcards` table (project/concept FKs, front/back, source, SM-2 state efactor/interval/repetitions/lapses/next_review_at, counters, unique(concept_id, front)) + `flashcard` evidence type → applied stream (score = quality×20, transparent). Deck build from CORE active LOs per subtopic/topic, deterministic fronts by LO type, idempotent. Review grades again|hard|good|easy → q 0|3|4|5, classic SM-2 (1/6/ef×, floor 1.3, lapse resets). Endpoints: POST build, GET list (subtopic/topic/due_only/limit), POST review. UI: Flashcards tab, subtopic rows with due counts, study queue (due first), flip + 4 grades. No LLM generation v1 (deterministic cards).
+**Files:** migration, `models/flashcard.py`, `models/mastery_evidence.py` (CHECK), `services/mastery_service.py` (routing), `services/flashcard_service.py` (new), `api/v1/flashcards.py` (new), `schemas/flashcard.py` (new), `main.py`, `features/flashcards/Flashcards.tsx` (new), `ProjectDetailPage.tsx`, `tests/test_flashcards.py` (new), `docs/*`.
+**Verify:** new tests + mastery/quiz/growth/dashboard suites + `alembic check` + `npm run build` + rebuild api; single commit.
+
+### Flashcards v1 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** migration `c4d2e8a1f7b3` (flashcards table + evidence CHECK, applied to dev DB, head), `models/flashcard.py` (new), `models/mastery_evidence.py` (CHECK), `services/mastery_service.py` (flashcard→applied routing + docstring), `services/flashcard_service.py` (new: templates/deck/review/SM-2/due), `api/v1/flashcards.py` + `schemas/flashcard.py` (new), `main.py`, `features/flashcards/Flashcards.tsx` (new), `ProjectDetailPage.tsx` (tab), `tests/test_flashcards.py` (new, 6 tests), `docs/*`
+**Verify:** 67 affected tests green; `alembic check` clean (fixed the same index-naming drift as Phase A before proceeding); `npm run build` green; api rebuilt, routes live (401 probe). No user data written; no LLM calls (deterministic cards).
+**Known:** no manual card creation UI v1 (auto decks only); review reasons stay templated; open-ended assessment evidence still open.
+
 ## Full-document extraction on Mercury (user-approved)
 
 **Recorded:** 2026-09-16 before impl | Source: "100-page PDF, don't care about tokens, extract all"

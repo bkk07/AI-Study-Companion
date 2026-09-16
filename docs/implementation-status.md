@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 34 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 35 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -46,6 +46,7 @@
 | 30 | Tutor Frontend | ✅ Complete | 2026-09-16 | Pass (build + live contract flow) | `TutorChat` + retrieval short-circuit |
 | 31 | Confidence Capture | ⏳ Pending | — | — | — |
 | — | Quiz Data Model (detail §34) | ✅ Complete | 2026-09-16 | Pass (models + migration) | `quizzes/questions/attempts/answers` + `4b3487d354d6` + 3 tests |
+| — | Quiz Generation (detail §35) | ✅ Complete | 2026-09-16 | Pass (validate-persist+retry) | `generate_quiz` + `quiz.py` schemas + 5 tests |
 | 32 | Quiz Generation | ⏳ Pending | — | — | — |
 | 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
 | 34 | Quiz Frontend | ⏳ Pending | — | — | — |
@@ -545,6 +546,16 @@
 **Verify:** `upgrade`→`4b3487d354d6` + down/up round-trip + `alembic check` clean; round-trip (options JSONB + confidence 4/None + `answered_at` + score 50.00 + concept linkage); cascade quiz→all; bad mode/difficulty/confidence-0+6/concept-null → `IntegrityError`; `pytest -q` 123 passed (3+120); `compose config` 0.
 **Guard:** All evidence CASCADE-tied to concept/project; index-based options per roadmap (deviates from blueprint `*_option_id TEXT` — see Known).
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 35 (Quiz Generation).
+
+---
+
+## Phase 35 — Detail (compact)
+
+**Scope:** Generation service only — no endpoints, no attempt flow (Phase 36+).
+**Files:** `backend/app/services/quiz_generation_service.py` (`MAX_SOURCE_CHARS 6000`, `SYSTEM_PROMPT` JSON shape, `QuizGenerationError`, `_load_source` concept chunks ordered, `_validate_outline` count+range, `generate_quiz` validate→scope→source→call+retry→persist), `backend/app/schemas/quiz.py` (outline schemas), `backend/tests/test_quiz_generation.py` (5 stub-client tests), `docs/*`.
+**Verify:** valid/flaky/bad-twice/empty-source+scope/input suites pass on real PG; `pytest -q` 128 passed (5+123); `compose config` 0; no migration, no rebuild.
+**Guard:** Nothing persisted before validation; source chunks are data.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 36 (Quiz Attempt & Answer Flow).
 
 ---
 

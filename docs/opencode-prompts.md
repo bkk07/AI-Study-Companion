@@ -1127,3 +1127,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `upgrade`→`4b3487d354d6` + `downgrade -1`→`ab60908d37ca`→`upgrade` head + `alembic check` clean; 3 pass (full round-trip incl. options JSONB + confidence 4/None + `answered_at` + score 50.00; quiz delete wipes questions/attempts/answers; bad mode/difficulty/confidence 0+6/concept-null all `IntegrityError`); full `pytest -q` 123 passed (3+120); `compose config` 0.
 **Guard:** Evidence concept+project tied; no endpoints yet — nothing queryable until Phase 36+.
 **Known:** Index-based options (`correct_index`/`selected_index` per roadmap Phase 34 §2 + Phase 35) instead of blueprint DDL's `correct_option_id`/`selected_option_id TEXT` — coherent with list-options JSONB; test-only failures during dev were session-rollback artifacts, models clean.
+
+## Phase 35 — Quiz Generation (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 35 (Groq MCQ + validate-before-persist, Phase 24 discipline)
+**Objective:** Validated MCQ generation from concept-scoped chunks — model proposes, app validates + persists.
+**Contract:** `generate_quiz(db, project_id, concept_id, num_questions?=5, mode?="practice", difficulty?, client?)`: ValueError on bad input (empty ids, num 1–20, bad mode); LookupError on missing/foreign project+concept (client never called); source = `DocumentChunk`s by project+concept ordered (`chunk_index`) bounded 6000ch — none → `QuizGenerationError`, no LLM call; `chat_json` `{"questions": [{question_text, options[2–6], correct_index in range, difficulty}]}` → Pydantic validate → 1 retry → still-bad raises `QuizGenerationError` with zero rows; persist `Quiz(question_count=actual)` + questions in one commit/rollback. `source_chunk_id` left NULL (no invented attribution). No endpoints.
+**Files:** `backend/app/services/quiz_generation_service.py`, `backend/app/schemas/quiz.py` (outline only; API shapes deferred)
+**Guard:** LLM proposes content; deterministic code validates + persists; source text is data, never obeyed.
+**Verify:** mocked-client tests on real PG — valid persists (quiz + N questions + concept linkage, 1 call, chunk text in prompt); flaky→valid 2 calls single persist; bad twice → error + 2 calls + 0 rows; empty source / missing+foreign concept → error + client uncalled; full `pytest -q` green; `compose config` 0.
+
+### Phase 35 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/quiz_generation_service.py` (`generate_quiz`: ValueError on num 1–20/mode/difficulty + LookupError on missing+foreign project/concept + source = concept chunks ordered bounded 6000ch (none → error, no LLM) + `chat_json {"questions"}` Pydantic + range check vs num + 1 retry → error with zero rows + single-commit persist `question_count=actual`, `source_chunk_id` NULL), `backend/app/schemas/quiz.py` (`MCQQuestionOutline` 2–6 options/`correct_index`≥0/difficulty pattern + `MCQOutline` 1–20), `backend/tests/test_quiz_generation.py` (5 tests, stub client), `docs/*`
+**Verify:** 5 pass real PG (valid 1 call + chunk text in prompt + options/index/difficulty/concept persisted; flaky→valid 2 calls one quiz; out-of-range twice → error + 2 calls + 0 rows project-scoped; empty/missing/foreign → error + client uncalled; bad num/mode/difficulty → ValueError + uncalled); full `pytest -q` 128 passed (5+123); `compose config` 0; no migration, no rebuild.
+**Guard:** No endpoints yet; nothing persisted before validation passes.
+**Known:** `source_chunk_id` NULL (no invented per-question attribution); over-long question sets truncated by rejection (`>num` → retry), not silent trim; test counts project-scoped (shared dev DB).

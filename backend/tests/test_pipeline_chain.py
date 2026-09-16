@@ -6,6 +6,10 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
+import pytest
+from celery.exceptions import Retry
+
 import fitz
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -239,6 +243,60 @@ def test_retry_exhaustion_marks_job_failed_not_stuck():
             assert job_service.get_job(db, uuid.UUID(sjid)).status == "failed"
         finally:
             db.close()
+    finally:
+        _teardown(engine)
+
+
+def _http_error(status: int) -> httpx.HTTPStatusError:
+    req = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    return httpx.HTTPStatusError(f"{status} test", request=req, response=httpx.Response(status, request=req))
+
+
+def test_retry_delay_waits_out_rate_windows():
+    from app.worker.tasks import embeddings as emb_tasks
+    from app.worker.tasks import structure as struct_tasks
+
+    for mod in (emb_tasks, struct_tasks):
+        assert mod._retry_delay(_http_error(429), 0) == 60
+        assert mod._retry_delay(_http_error(429), 2) == 180
+        assert mod._retry_delay(_http_error(500), 0) == 2
+        assert mod._retry_delay(_http_error(503), 1) == 4
+        assert mod._retry_delay(httpx.ConnectError("down"), 0) == 2
+
+
+def test_structure_429_schedules_minute_backoff_not_fast_retry():
+    from app.worker.tasks.structure import build_structure
+
+    tmpdir = tempfile.mkdtemp(prefix="chain_")
+    client, engine = _setup(tmpdir)
+    try:
+        h = _login(client, f"cb_{uuid.uuid4().hex[:8]}@example.com")
+        with patch("app.api.v1.materials.process_pdf"):
+            proj_id = _project(client, h)
+        mid, _ = _material_job(engine, tmpdir, proj_id, ["content"] * 20)
+
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        mat = db.get(Material, uuid.UUID(mid))
+        mat.extracted_text = "Some study text."
+        mat.status = "ready"
+        db.commit()
+        sjob = job_service.create_job(db, job_type="build_structure", material_id=uuid.UUID(mid))
+        sjid = str(sjob.id)
+        db.close()
+
+        with (
+            patch("app.worker.tasks.structure.extract_structure", side_effect=_http_error(429)),
+            patch.object(build_structure, "retry", side_effect=Retry()) as mock_retry,
+        ):
+            build_structure.push_request(args=[sjid, mid], retries=0)
+            try:
+                with pytest.raises(Retry):
+                    build_structure.run(sjid, mid)
+            finally:
+                build_structure.pop_request()
+        assert mock_retry.call_count == 1
+        assert mock_retry.call_args.kwargs["countdown"] == 60
     finally:
         _teardown(engine)
 

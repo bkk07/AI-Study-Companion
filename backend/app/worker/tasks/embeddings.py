@@ -12,6 +12,15 @@ from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session
 
 
+def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
+    """429s are per-minute rate windows — wait them out (re-queued, worker not
+    blocked); anything else retries fast."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status == 429:
+        return 60 * (retries + 1)
+    return 2 ** retries * 2
+
+
 @celery_app.task(name="generate_embeddings", bind=True, max_retries=3)
 def generate_embeddings(self, job_id: str, material_id: str) -> dict:
     """
@@ -83,7 +92,7 @@ def generate_embeddings(self, job_id: str, material_id: str) -> dict:
                 except Exception:
                     pass
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
-            raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
+            raise self.retry(exc=e, countdown=_retry_delay(e, self.request.retries), max_retries=3)
 
         dims = {len(v) for v in vectors}
         if len(vectors) != len(chunks) or dims != {EMBEDDING_DIMS}:

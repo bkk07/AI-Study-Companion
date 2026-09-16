@@ -11,6 +11,15 @@ from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session
 
 
+def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
+    """Backoff seconds: 429s are per-minute rate windows, so wait the window
+    out (re-queued, worker not blocked); other errors retry fast."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status == 429:
+        return 60 * (retries + 1)
+    return 2 ** retries * 2
+
+
 @celery_app.task(name="build_structure", bind=True, max_retries=3)
 def build_structure(self, job_id: str, material_id: str) -> dict:
     """Extract + persist the Topic → Subtopic → Concept map for one material.
@@ -71,7 +80,7 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
                 except Exception:
                     pass
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
-            raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
+            raise self.retry(exc=e, countdown=_retry_delay(e, self.request.retries), max_retries=3)
 
         counts = persist_structure(db, material.project_id, outline)
         try:

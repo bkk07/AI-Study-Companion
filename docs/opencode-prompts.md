@@ -1471,6 +1471,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Files:** `docker-compose.yml` + `core/config.py` + `.env.example` (4 loopback origins), `tests/security/test_cors.py` (127 echo regression), `docs/*`
 **Verify:** CORS tests pass; `compose config` ok; live preflight `localhost:5173`/`127.0.0.1:5173`/`localhost:3000` all 200 with echo; probe users deleted (`user5@gmail.com` free).
 
+## Structure 429 Backoff (out-of-band bugfix)
+
+**Recorded:** 2026-09-16 before impl | Source: user screenshots — ML project Ready PDF, empty Map
+**Diagnosis:** Chain works (12–49 chunks + embeddings complete on all 4 materials); only `build_structure` dies, always on Groq 429. Root flaw: retry backoff 2/4/8s burns all 3 attempts inside the same per-minute rate-limit window — retries can never succeed. Fix: on 429 wait out the window (60s × attempt, re-queued not blocking); other errors keep fast backoff. Same treatment for embeddings task (same flaw, same Groq quota).
+**Files:** `worker/tasks/structure.py`, `worker/tasks/embeddings.py`, `tests/test_pipeline_chain.py` (+429-backoff tests), redispatch script (ops, uncommitted), `docs/*`.
+**Verify:** new tests + chain suite + rebuild + redispatch 2 failed structures + Map populated; single commit.
+
+### Structure 429 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16 (code), user maps pending Groq quota cooldown
+**Files:** `worker/tasks/structure.py` + `worker/tasks/embeddings.py` (`_retry_delay`: 429→60s×attempt, else fast) + `tests/test_pipeline_chain.py` (7 tests) + `docs/*`
+**Verify:** chain suite 7 pass; full `pytest -q` 234 passed; rebuilt+deployed; live logs show new schedule working (2s→120s→8s); identical-shape probe calls 200 (400s proven transient Groq-side); DB marker test sane (earlier missing-row reads were flakes, single api/worker confirmed).
+**Known:** Free-tier quota saturated tonight (my verification traffic + user uploads) — failed structures fail cleanly with messages now; re-dispatch the 2 user materials once quiet. No migration.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

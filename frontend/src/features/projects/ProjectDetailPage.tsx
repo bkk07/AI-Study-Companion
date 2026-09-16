@@ -11,13 +11,14 @@ import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
 import { MaterialsPanel } from "@/features/projects/MaterialsPanel"
+import { Assessments } from "@/features/assessment/Assessments"
 import { cn } from "@/lib/utils"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "assessments"
 
-const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress"]
+const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress", "assessments"]
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ spaceId: string; projectId: string }>()
@@ -96,6 +97,16 @@ export function ProjectDetailPage() {
                     projectId={projectId}
                     focusConceptId={quizFocus}
                     onFocusConsumed={() => setQuizFocus(null)}
+                  />
+                )}
+                {tab === "assessments" && projectId && (
+                  <Assessments
+                    projectId={projectId}
+                    onNavigate={goTab}
+                    onPracticeConcept={(id) => {
+                      setQuizFocus(id)
+                      setTab("quiz")
+                    }}
                   />
                 )}
                 {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}

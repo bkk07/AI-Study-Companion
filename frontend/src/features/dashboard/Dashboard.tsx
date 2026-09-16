@@ -67,7 +67,7 @@ type TopicNode = {
   subtopics: { id: string; title: string; concepts: { id: string; title: string }[] }[]
 }
 
-export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview"
+export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview" | "assessments"
 
 const ACTION_LABELS: Record<string, string> = {
   ask_tutor: "Ask the tutor",

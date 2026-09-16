@@ -6,6 +6,7 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Command,
   CreditCard,
   FileText,
@@ -22,7 +23,7 @@ import { Logo } from "@/components/ui"
 import { cn } from "@/lib/utils"
 import apiClient from "@/lib/axios"
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "assessments"
 
 const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <LayoutDashboard size={16} /> },
@@ -31,6 +32,7 @@ const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "tutor", label: "Tutor", icon: <MessageCircle size={16} /> },
   { id: "flashcards", label: "Flashcards", icon: <CreditCard size={16} /> },
   { id: "quiz", label: "Quiz", icon: <HelpCircle size={16} /> },
+  { id: "assessments", label: "Assessments", icon: <ClipboardCheck size={16} /> },
   { id: "progress", label: "Dashboard", icon: <BarChart2 size={16} /> },
 ]
 

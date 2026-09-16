@@ -13,6 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.concept import Concept
@@ -23,6 +24,7 @@ from app.models.recommendation import Recommendation
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
 from app.services import mastery_service, mismatch_service, recommendation_service
+from app.services.mastery_levels import is_mastery_target
 from app.services.mastery_service import MasteryScores
 from app.services.mismatch_service import ConceptState, Mismatch
 
@@ -49,10 +51,18 @@ def build_dashboard(
         db.query(Concept, Subtopic.title, Topic.title)
         .join(Subtopic, Concept.subtopic_id == Subtopic.id)
         .join(Topic, Subtopic.topic_id == Topic.id)
-        .filter(Concept.project_id == project.id)
+        .filter(
+            Concept.project_id == project.id,
+            # Learning-model gate (Phase A): dashboard progress + recommendation
+            # signals cover mastery targets only. Behavior-neutral today — every
+            # stored row is CORE — and it activates automatically once Phase B
+            # writes SUPPORTING/REFERENCE rows. COALESCE keeps legacy NULLs in.
+            func.coalesce(Concept.importance, "CORE") == "CORE",
+        )
         .order_by(Topic.created_at.asc(), Subtopic.created_at.asc(), Concept.created_at.asc())
         .all()
     )
+    rows = [r for r in rows if is_mastery_target(r[0])]  # python-side twin (obsolete guard)
     states: list[ConceptState] = []
     per_concept: list[tuple[Concept, str, str, MasteryScores, ConceptState, float | None]] = []
     for concept, subtopic_title, topic_title in rows:

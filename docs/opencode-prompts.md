@@ -1515,6 +1515,21 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** affected suites 69 pass (15s); live Mercury probe via rebuilt api container — `{'status':'ok','provider':'mercury'}` in 4.6s, JSON mode + auth + temp clamp proven end-to-end. Per user request, full suite skipped.
 **Known:** compose default stays `groq` (safe for CI/others); local `.env` flips to `inception`. `.env.example` never carries the real key.
 
+## Phase A — Learning-model schema (user-approved, in progress)
+
+**Recorded:** 2026-09-16 before impl | Source: user approved learning-model-design.md + final decisions
+**Decisions:** extend `concepts` in place (5 FK holders untouched); 7 LO types; 2–8 CORE/subtopic SOFT guideline (prompt-level, Phase B); `is_mastery_target()` single gate; EMA untouched; no reprocessing; merge/split = evidence-based w/ same-parent + semantic compatibility; prereq reasons deferred to C; existing API conventions.
+**Scope:** Alembic migration (nullable add → backfill CONCEPT/CORE → NOT NULL+defaults+CHECKs; new `concept_relationships` w/ evidence_span rule + self-edge ban; `material_id` FK SET NULL) → models (`Concept` cols + `ConceptRelationship`, `meta` attr maps to `metadata` column — `metadata` name is reserved by DeclarativeBase) → `services/mastery_levels.py` (thresholds + `status_for` + `is_mastery_target`) → gate applied ONLY in `dashboard_service.build_dashboard` (behavior-neutral today; quiz/browse gating is Phase C) → `tests/test_learning_objects.py`.
+**Files:** `alembic/versions/*_add_learning_object_fields.py`, `alembic/env.py`, `models/concept.py`, `models/concept_relationship.py` (new), `models/__init__.py`, `services/mastery_levels.py` (new), `services/dashboard_service.py`, `tests/test_learning_objects.py` (new), `docs/*`.
+**Verify:** `alembic check` no-new-drift + upgrade head on dev DB (+downgrade/up round-trip) + affected suites (learning_objects/mastery/dashboard/recommendation/quiz/structure/pipeline/mismatch/growth) + neutrality proof; single commit. No container rebuild (old code ignores new cols; new code runs in tests only).
+
+### Phase A Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `alembic/versions/9f3a7c1e5b28_add_learning_object_fields.py` (new), `alembic/env.py`, `models/concept.py` (+6 cols, vocab constants), `models/concept_relationship.py` (new), `models/__init__.py`, `services/mastery_levels.py` (new: thresholds + `status_for` + `is_mastery_target`), `services/dashboard_service.py` (gate in `build_dashboard` only), `tests/test_learning_objects.py` (new, 9 tests), `docs/learning-model-design.md` (§20 addendum), `docs/*`
+**Verify:** `alembic check` clean (fixed one index-naming drift before proceeding); 1313 dev concepts backfilled CONCEPT/CORE, count unchanged; downgrade→upgrade round-trip lossless; 68 affected tests green (10s).
+**Known:** `meta` attr ↔ `metadata` column (DeclarativeBase reserves `metadata`); quiz-picker/structure-tree gating deferred to Phase C; no reprocessing; containers untouched.
+
 ## CORS Port 5175 (out-of-band, user-requested)
 
 **Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)

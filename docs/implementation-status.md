@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 43 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 44 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -59,7 +59,7 @@
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
 | 39 | Mismatch Detection | ✅ Complete | 2026-09-16 | Pass (threshold/gating/rank) | `mismatch_service` confirmed rule + 6 tests |
 | 40 | Decision / Recommendation Engine | ✅ Complete | 2026-09-16 | Pass (scoring/supersede) | `recommendation_service` confirmed formula + 8 tests |
-| 41 | Recommendations API + Frontend | ⏳ Pending | — | — | — |
+| 41 | Recommendations API + Frontend | ✅ Complete | 2026-09-16 | Pass (bridge + UI build) | `dashboard` API + `Dashboard` UI + 3 tests |
 | 42 | Growth Analysis | ⏳ Pending | — | — | — |
 | 43 | Project Analytics | ⏳ Pending | — | — | — |
 | 44 | Global/Admin Analytics | ⏳ Pending | — | — | — |
@@ -639,6 +639,16 @@
 **Verify:** 8 pass (formula terms/edges + persist/supersede/penalty-window/scope); `alembic upgrade` → `e7b2d4a1c6f8` + `check` clean; `pytest -q` 186 passed (8+178); `compose config` 0; no rebuild.
 **Guard:** Formula user-confirmed 2026-09-16 (Blueprint full); no LLM; reproducible winner/score/words.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 44 (Mastery/Mismatch/Recommendation UI).
+
+---
+
+## Phase 44 — Detail (compact)
+
+**Scope:** Read-only dashboard + recommendation lifecycle endpoints + UI section; no new engines, no new tables.
+**Files:** `backend/app/services/dashboard_service.py` + `backend/app/schemas/dashboard.py` + `backend/app/api/v1/dashboard.py` + `main.py` wire + `backend/tests/test_dashboard.py` (3 tests) + `frontend/src/features/dashboard/Dashboard.tsx` + `ProjectDetailPage.tsx` section, `docs/*`.
+**Verify:** 3 pass real PG (composition/paths/flags + lifecycle + isolation); `npm run build` 91 mods; `pytest -q` 189 passed (3+186); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Backend owns every number; UI renders only.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 45 (Growth Analysis).
 
 ---
 

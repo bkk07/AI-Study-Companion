@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
+import { ArrowRight, FolderKanban, MessagesSquare, ShieldCheck, Wand2 } from "lucide-react"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { AppShell } from "@/components/AppShell"
+import { Card, PageHeader } from "@/components/ui"
+import { LandingPage } from "@/features/landing/LandingPage"
 import { Login } from "@/features/auth/Login"
 import { Register } from "@/features/auth/Register"
 import { AdminPage } from "@/features/admin/AdminPage"
@@ -9,95 +13,91 @@ import { SpaceProjectsPage } from "@/features/projects/SpaceProjectsPage"
 import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage"
 
 function Home() {
-  const { user, logout, token } = useAuth()
+  const { user, token } = useAuth()
+  if (!token) return <LandingPage />
+
+  const cards = [
+    {
+      to: "/spaces",
+      icon: FolderKanban,
+      tint: "from-violet-500 to-purple-600",
+      title: "My spaces",
+      text: "Organize subjects into spaces, then projects. Pick up exactly where you left off.",
+    },
+    {
+      to: "/spaces",
+      icon: MessagesSquare,
+      tint: "from-fuchsia-500 to-pink-500",
+      title: "Ask the tutor",
+      text: "Open any project and chat with your materials — answers cite your uploads.",
+    },
+    {
+      to: "/spaces",
+      icon: Wand2,
+      tint: "from-amber-500 to-orange-500",
+      title: "Quiz yourself",
+      text: "Generate adaptive quizzes tuned to your weakest concepts.",
+    },
+  ]
+
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">AI Study Companion</h1>
-        <div className="flex gap-2 text-sm">
-          {!token ? (
-            <>
-              <Link to="/login" className="rounded-md border px-3 py-1 hover:bg-muted">
-                Sign in
+    <AppShell>
+      <div className="bg-mesh">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+          <PageHeader
+            eyebrow={`Welcome back${user ? `, ${user.email.split("@")[0]}` : ""}`}
+            title={
+              <>
+                What are we <span className="text-gradient">learning today?</span>
+              </>
+            }
+            description="Your spaces hold every subject. Jump back in, or start something new."
+          />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cards.map((c, i) => (
+              <Link key={c.title} to={c.to}>
+                <Card
+                  className="animate-fade-up stagger group h-full p-6 transition-all hover:-translate-y-1 hover:shadow-lift"
+                  style={{ "--d": `${i * 80}ms` } as React.CSSProperties}
+                >
+                  <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-soft ${c.tint}`}>
+                    <c.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-4 flex items-center gap-1.5 font-bold">
+                    {c.title}
+                    <ArrowRight className="h-4 w-4 text-violet-500 transition-transform group-hover:translate-x-1" />
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{c.text}</p>
+                </Card>
               </Link>
-              <Link to="/register" className="rounded-md bg-primary px-3 py-1 text-primary-foreground hover:bg-primary/90">
-                Sign up
-              </Link>
-            </>
-          ) : (
-            <button onClick={logout} className="rounded-md border px-3 py-1 hover:bg-muted">
-              Sign out
-            </button>
+            ))}
+          </div>
+          {user?.is_admin && (
+            <Link to="/admin" className="mt-4 flex items-center gap-2 text-sm font-semibold text-violet-700 hover:underline">
+              <ShieldCheck className="h-4 w-4" /> Open admin overview
+            </Link>
           )}
         </div>
       </div>
-      <p className="mt-2 text-muted-foreground">
-        Project-scoped learning partner — upload PDFs, get a structured Topic → Subtopic → Concept map, and keep mastery isolated per project.
-      </p>
-      {user && (
-        <div className="mt-4 rounded-md border bg-card p-3 text-sm">
-          Signed in as <span className="font-medium">{user.email}</span> {user.is_admin && "(admin)"}
-        </div>
-      )}
-      <div className="mt-6 flex gap-4 text-sm">
-        <Link to="/" className="font-medium text-primary underline-offset-4 hover:underline">
-          Home
-        </Link>
-        {token ? (
-          <>
-            <Link to="/dashboard" className="text-primary hover:underline">
-              Dashboard
-            </Link>
-            <Link to="/spaces" className="text-primary hover:underline">
-              Spaces
-            </Link>
-            {user?.is_admin && (
-              <Link to="/admin" className="text-primary hover:underline">
-                Admin
-              </Link>
-            )}
-          </>
-        ) : (
-          <span className="text-muted-foreground">Dashboard (protected)</span>
-        )}
-      </div>
-      <div className="mt-8 rounded-lg border bg-card p-4">
-        <p className="text-sm text-muted-foreground">
-          Auth is now connected. API client attaches <code className="rounded bg-muted px-1 py-0.5">Authorization: Bearer</code> from <code className="rounded bg-muted px-1 py-0.5">localStorage</code>; expired tokens auto-clear and redirect to /login.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function Dashboard() {
-  const { user } = useAuth()
-  return (
-    <div className="mx-auto max-w-3xl p-8">
-      <h2 className="text-xl font-semibold">Dashboard</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Protected route — only visible with a valid JWT. User: {user?.email}
-      </p>
-      <div className="mt-4 flex gap-4 text-sm">
-        <Link to="/" className="text-primary hover:underline">
-          Back home
-        </Link>
-        <Link to="/spaces" className="text-primary hover:underline">
-          Spaces
-        </Link>
-      </div>
-    </div>
+    </AppShell>
   )
 }
 
 function NotFound() {
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <h2 className="text-xl font-semibold">Page not found</h2>
-      <Link to="/" className="text-sm text-primary hover:underline">
-        Go home
-      </Link>
-    </div>
+    <AppShell>
+      <div className="mx-auto max-w-2xl px-4 py-24 text-center sm:px-6">
+        <p className="text-7xl font-extrabold text-gradient">404</p>
+        <h2 className="mt-4 text-2xl font-bold">This page went off to study</h2>
+        <p className="mt-2 text-muted-foreground">The link might be wrong, or the page moved.</p>
+        <Link
+          to="/"
+          className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-soft hover:brightness-110"
+        >
+          Go home <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    </AppShell>
   )
 }
 
@@ -107,14 +107,6 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/spaces"
         element={

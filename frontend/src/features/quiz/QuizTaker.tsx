@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react"
+import { ArrowRight, CheckCircle2, PartyPopper, RotateCcw, Wand2, XCircle } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { Badge, Button, EmptyState, ErrorBox, LoadingState, ProgressBar, Select } from "@/components/ui"
+import { cn } from "@/lib/utils"
 
 type Concept = { id: string; title: string }
 type Question = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
 type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number }
-
 type Stage =
   | { name: "setup" }
   | { name: "busy"; label: string }
@@ -19,6 +21,14 @@ function errText(status?: number, detail?: string): string {
   if (status === 422) return "Quiz generation failed validation — nothing was saved. Retry to generate again."
   if (status === 404) return "Quiz or project not found."
   return detail ?? "Request failed — nothing was lost except this click."
+}
+
+const LETTERS = ["A", "B", "C", "D", "E", "F"]
+
+function difficultyTint(d: string): "violet" | "amber" | "rose" {
+  if (d === "hard") return "rose"
+  if (d === "medium") return "amber"
+  return "violet"
 }
 
 export function QuizTaker({ projectId }: { projectId: string }) {
@@ -118,71 +128,87 @@ export function QuizTaker({ projectId }: { projectId: string }) {
     }
   }
 
-  if (concepts === null) return <p className="mt-2 text-sm text-muted-foreground">Loading concepts…</p>
+  if (concepts === null) return <LoadingState text="Loading concepts…" />
 
   if (stage.name === "setup" || stage.name === "busy") {
     return (
-      <div className="mt-2">
+      <div>
         {concepts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No concepts yet — upload a PDF and quizzes unlock once processed.</p>
+          <EmptyState
+            icon={<Wand2 className="h-6 w-6" />}
+            title="No concepts yet"
+            hint="Upload a PDF and quizzes unlock once it's processed."
+          />
         ) : (
-          <div className="flex gap-2">
-            <select
-              value={conceptId}
-              onChange={(e) => setConceptId(e.target.value)}
-              disabled={stage.name === "busy"}
-              className="flex-1 rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50"
-            >
-              {concepts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => void generate()}
-              disabled={stage.name === "busy" || !conceptId}
-              className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              Generate quiz
-            </button>
+          <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-5 text-white shadow-soft sm:p-6">
+            <p className="flex items-center gap-2 font-bold">
+              <Wand2 className="h-5 w-5" /> Generate an adaptive quiz
+            </p>
+            <p className="mt-1 text-sm text-white/80">
+              Five questions tuned to the concept you pick — difficulty matched to your mastery.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <Select
+                value={conceptId}
+                onChange={(e) => setConceptId(e.target.value)}
+                disabled={stage.name === "busy"}
+                className="flex-1 border-white/30 bg-white/15 text-white backdrop-blur [&>option]:text-foreground"
+              >
+                {concepts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                type="button"
+                onClick={() => void generate()}
+                disabled={stage.name === "busy" || !conceptId}
+                className="bg-white text-violet-700 shadow-none hover:bg-white/90 hover:shadow-none"
+              >
+                {stage.name === "busy" ? "Working…" : "Generate quiz"}
+              </Button>
+            </div>
           </div>
         )}
-        {stage.name === "busy" && <p className="mt-2 text-sm text-muted-foreground">{stage.label}</p>}
+        {stage.name === "busy" && (
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-600" />
+            {stage.label}
+          </p>
+        )}
       </div>
     )
   }
 
   if (stage.name === "failure") {
-    return (
-      <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
-        <p className="text-sm text-destructive">{stage.text}</p>
-        <button type="button" onClick={stage.retry} className="mt-2 text-sm text-primary hover:underline">
-          Retry
-        </button>
-      </div>
-    )
+    return <ErrorBox message={stage.text} onRetry={stage.retry} retryLabel="Retry" />
   }
 
   if (stage.name === "done") {
+    const pct = stage.score ?? 0
     return (
-      <div className="mt-2 rounded-md border p-4">
-        <p className="font-semibold">Quiz complete</p>
+      <div className="flex flex-col items-center rounded-2xl border bg-gradient-to-b from-violet-50 to-card px-6 py-10 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-lift">
+          <PartyPopper className="h-8 w-8" />
+        </span>
+        <p className="mt-4 text-5xl font-extrabold tracking-tight text-gradient">{pct}%</p>
+        <p className="mt-1 font-bold">Quiz complete</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Score: {stage.score ?? 0}% ({stage.correct}/{stage.total} correct)
+          {stage.correct} of {stage.total} correct — mastery updated.
         </p>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          className="mt-5"
           onClick={() => {
             setAttemptId(null)
             setQuestions([])
             setStage({ name: "setup" })
           }}
-          className="mt-2 text-sm text-primary hover:underline"
         >
-          Take another quiz
-        </button>
+          <RotateCcw className="h-4 w-4" /> Take another quiz
+        </Button>
       </div>
     )
   }
@@ -190,77 +216,107 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   const q = questions[index]
   if (!q) return null
   return (
-    <div className="mt-2 rounded-md border p-4">
-      <p className="text-xs text-muted-foreground">
-        Question {index + 1} of {questions.length} · {q.difficulty}
-      </p>
-      <p className="mt-1 text-sm font-medium">{q.question_text}</p>
-      <div className="mt-2 space-y-1">
-        {q.options.map((opt, i) => (
-          <label
-            key={i}
-            className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-              reveal && i === reveal.correct_index ? "border-green-500 bg-green-500/10" : ""
-            } ${reveal && selected === i && !reveal.is_correct ? "border-destructive bg-destructive/10" : ""}`}
-          >
-            <input
-              type="radio"
-              name="option"
-              checked={selected === i}
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold">
+          Question {index + 1} <span className="font-medium text-muted-foreground">of {questions.length}</span>
+        </p>
+        <Badge tint={difficultyTint(q.difficulty)}>{q.difficulty}</Badge>
+      </div>
+      <ProgressBar value={questions.length ? (index / questions.length) * 100 : 0} className="mt-2" />
+      <p className="mt-4 text-lg font-bold leading-snug tracking-tight">{q.question_text}</p>
+      <div className="mt-4 space-y-2">
+        {q.options.map((opt, i) => {
+          const isCorrect = reveal && i === reveal.correct_index
+          const isWrongPick = reveal && selected === i && !reveal.is_correct
+          return (
+            <button
+              key={i}
+              type="button"
               disabled={reveal != null || submitting}
-              onChange={() => setSelected(i)}
-            />
-            {opt}
-          </label>
-        ))}
+              onClick={() => setSelected(i)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left text-sm font-medium transition-all",
+                isCorrect
+                  ? "border-emerald-400 bg-emerald-50 shadow-soft"
+                  : isWrongPick
+                    ? "border-rose-300 bg-rose-50"
+                    : selected === i
+                      ? "border-violet-500 bg-violet-50 shadow-glow"
+                      : "border-border bg-card hover:border-violet-300 hover:bg-violet-50/50",
+                reveal != null && "cursor-default",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-extrabold",
+                  isCorrect
+                    ? "bg-emerald-500 text-white"
+                    : isWrongPick
+                      ? "bg-rose-500 text-white"
+                      : selected === i
+                        ? "bg-violet-600 text-white"
+                        : "bg-muted text-muted-foreground",
+                )}
+              >
+                {isCorrect ? <CheckCircle2 className="h-4 w-4" /> : isWrongPick ? <XCircle className="h-4 w-4" /> : LETTERS[i]}
+              </span>
+              {opt}
+            </button>
+          )
+        })}
       </div>
       {reveal == null ? (
         <>
-        <div className="mt-3 flex items-center gap-3">
-          <label className="text-xs text-muted-foreground">
-            Confidence
-            <select
-              value={confidence}
-              onChange={(e) => setConfidence(Number(e.target.value))}
-              disabled={submitting}
-              className="ml-2 rounded-md border bg-background px-2 py-1 text-sm"
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={selected == null || submitting}
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {submitting ? "Submitting…" : "Submit answer"}
-          </button>
-        </div>
-        {submitError && (
-          <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-sm">
-            <p className="text-destructive">{submitError}</p>
-            <button type="button" onClick={() => void submit()} className="mt-1 text-sm text-primary hover:underline">
-              Retry submit
-            </button>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Confidence</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setConfidence(n)}
+                    disabled={submitting}
+                    aria-label={`Confidence ${n}`}
+                    className={cn(
+                      "h-8 w-8 rounded-lg text-sm font-bold transition-all",
+                      confidence >= n
+                        ? "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-soft"
+                        : "bg-muted text-muted-foreground hover:bg-amber-100",
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button type="button" onClick={() => void submit()} disabled={selected == null || submitting} className="ml-auto">
+              {submitting ? "Checking…" : <>Submit answer <ArrowRight className="h-4 w-4" /></>}
+            </Button>
           </div>
-        )}
+          {submitError && (
+            <div className="mt-3">
+              <ErrorBox message={submitError} onRetry={() => void submit()} retryLabel="Retry submit" />
+            </div>
+          )}
         </>
       ) : (
-        <div className="mt-3">
-          <p className={`text-sm font-medium ${reveal.is_correct ? "text-green-600" : "text-destructive"}`}>
-            {reveal.is_correct ? "Correct" : `Incorrect — correct answer: ${q.options[reveal.correct_index]}`}
+        <div className={cn("mt-4 rounded-2xl border p-4", reveal.is_correct ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
+          <p className={cn("flex items-center gap-1.5 font-bold", reveal.is_correct ? "text-emerald-700" : "text-amber-800")}>
+            {reveal.is_correct ? <><CheckCircle2 className="h-5 w-5" /> Correct — nice!</> : "Not quite"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          {!reveal.is_correct && (
+            <p className="mt-1 text-sm">
+              Correct answer: <strong>{q.options[reveal.correct_index]}</strong>
+            </p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
             Running score: {reveal.correct_count}/{reveal.answered_count}
           </p>
-          <button type="button" onClick={() => void next()} className="mt-2 text-sm text-primary hover:underline">
-            {index + 1 < questions.length ? "Next question" : "Finish quiz"}
-          </button>
+          <Button type="button" onClick={() => void next()} className="mt-3">
+            {index + 1 < questions.length ? <>Next question <ArrowRight className="h-4 w-4" /></> : "Finish quiz"}
+          </Button>
         </div>
       )}
     </div>

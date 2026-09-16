@@ -1413,4 +1413,19 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Guard:** No auth/storage/AI re-architecture — additive limiter + tests; budgets consumed post-ownership so strangers learn nothing.
 **Known:** In-memory buckets valid only while api runs single-process (compose default; document before scaling); structure extraction (Celery) intentionally unscoped — queued work, not request LLM spend; `storage_path` stays owner-visible (no consumer beyond owner, no download route).
 
+## Frontend Redesign (out-of-band, user-requested)
+
+**Recorded:** 2026-09-16 before impl | Source: user ask — StudyFetch-like, Tailwind, beautiful
+**Research:** StudyFetch patterns — bold benefit hero, mascot/illustration, icon feature grid (tutor/quizzes/notes/games), stats band, tabbed tool surface, bright violet + warm accent on light playful SaaS.
+**Design:** Light playful theme (violet primary `262 83% 58%`, amber accent, lavender-tinted bg `#f6f5ff`), Plus Jakarta Sans + system fallback, radius `0.875rem`, `tailwindcss-animate` keyframes (fade-up/float). One shared `components/ui.tsx` (Button/Card/Badge/Spinner/EmptyState/ErrorBox/Stat/PageHeader/avatar). App shell (glass navbar + footer) + logged-out landing (hero/stats/features/how/CTA) + logged-in home cards. Project page becomes tabbed workspace (Overview/Tutor/Quiz/Materials/Structure/Progress) + NEW `MaterialsPanel` (PDF dropzone + status list + auto-poll while processing) wired to existing materials endpoints only. Restyle all features; zero API/data-flow changes.
+**Files:** `index.html`, `index.css`, `tailwind.config.js`, `components/ui.tsx`, `components/AppShell.tsx`, `features/landing/LandingPage.tsx`, `App.tsx`, auth ×2, spaces, projects ×2 (+materials panel), tutor, quiz, dashboard, structure, analytics ×2, admin.
+**Verify:** `npm run build` green; backend untouched (`pytest` unaffected, no backend files); no rebuild needed (frontend-only); single commit.
+
+### Frontend Redesign Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**What:** Violet/amber playful theme (Plus Jakarta Sans, radius 0.875rem, fade-up/float/typing keyframes, mesh+dot backdrops); `components/ui.tsx` primitives + `AppShell` (glass navbar, footer); logged-out landing (hero with live product mock, stats, 6-feature grid, how-it-works, quote) + logged-in home cards; split-panel auth; tile-colored space/project grids; tabbed project workspace (Overview/Tutor/Quiz/Materials/Map/Progress); NEW `MaterialsPanel` (PDF dropzone, status badges, 5s auto-poll while processing) on existing endpoints; chat with avatars/chips/typing dots; quiz with progress bar/letter options/confidence pills/score celebration; recommendation spotlight + mastery grid; accordion learning map; icon stat cards; growth sparklines + trend badges; polished admin.
+**Verify:** `npm run build` green (tsc + vite, 1954 mods); `npm run lint` no errors (pre-existing effect-pattern warnings only); `git status` frontend-only, zero backend files.
+**Known:** Google Fonts degrades to system stack offline; `/dashboard` placeholder route removed (nothing linked to it); poll interval fixed 5s.
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

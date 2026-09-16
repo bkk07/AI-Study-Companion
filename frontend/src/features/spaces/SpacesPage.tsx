@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { ArrowRight, FolderKanban, Plus } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { AppShell } from "@/components/AppShell"
+import { Button, Card, EmptyState, ErrorBox, Input, LoadingState, PageHeader } from "@/components/ui"
 
 type Space = { id: string; name: string; created_at: string }
+
+const TILES = [
+  "from-violet-500 to-purple-600",
+  "from-fuchsia-500 to-pink-500",
+  "from-indigo-500 to-blue-500",
+  "from-emerald-500 to-teal-500",
+  "from-amber-500 to-orange-500",
+  "from-sky-500 to-cyan-500",
+]
+
+export function tileFor(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return TILES[h % TILES.length]
+}
 
 export function SpacesPage() {
   const [spaces, setSpaces] = useState<Space[]>([])
@@ -20,8 +38,7 @@ export function SpacesPage() {
       const res = await apiClient.get<Space[]>("/spaces")
       setSpaces(res.data)
     } catch (e: unknown) {
-      const msg = apiError(e).message ?? "Failed to load spaces"
-      setError(msg)
+      setError(apiError(e).message ?? "Failed to load spaces")
     } finally {
       setLoading(false)
     }
@@ -34,7 +51,7 @@ export function SpacesPage() {
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      setFieldError("Name is required")
+      setFieldError("Give your space a name first")
       return
     }
     setFieldError(null)
@@ -45,67 +62,78 @@ export function SpacesPage() {
       setName("")
       await fetchSpaces()
     } catch (e: unknown) {
-      const msg = apiError(e).message ?? "Failed to create space"
-      setError(msg)
+      setError(apiError(e).message ?? "Failed to create space")
     } finally {
       setCreating(false)
     }
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Spaces</h1>
-        <Link to="/" className="text-sm text-primary hover:underline">
-          Home
-        </Link>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">User → Space → Project hierarchy — create a space to hold projects.</p>
-
-      <form onSubmit={onCreate} className="mt-6 flex gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="New space name"
-          className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    <AppShell>
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <PageHeader
+          eyebrow="Library"
+          title={
+            <>
+              My <span className="text-gradient">spaces</span>
+            </>
+          }
+          description="One space per subject. Inside each: projects, PDFs, tutor chats, and quizzes."
         />
-        <button
-          type="submit"
-          disabled={creating}
-          className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
-        >
-          {creating ? "Creating…" : "Create"}
-        </button>
-      </form>
-      {fieldError && <p className="mt-2 text-sm text-destructive">{fieldError}</p>}
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 
-      <div className="mt-6 rounded-lg border bg-card">
-        {loading ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading…</p>
-        ) : spaces.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">No spaces yet — create your first space above.</p>
-            <button onClick={fetchSpaces} className="mt-2 text-sm text-primary hover:underline">
-              Retry
-            </button>
-          </div>
-        ) : (
-          <ul className="divide-y">
-            {spaces.map((s) => (
-              <li key={s.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-sm font-medium">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</p>
-                </div>
-                <Link to={`/spaces/${s.id}`} className="text-sm text-primary hover:underline">
-                  Open →
+        <Card className="mt-6 p-4 sm:p-5">
+          <form onSubmit={onCreate} className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="New space name — e.g. Linear Algebra"
+              aria-label="New space name"
+            />
+            {fieldError && <p className="text-sm font-medium text-rose-600 sm:hidden">{fieldError}</p>}
+            <Button type="submit" disabled={creating} className="shrink-0 px-5">
+              <Plus className="h-4 w-4" />
+              {creating ? "Creating…" : "New space"}
+            </Button>
+          </form>
+          {fieldError && <p className="mt-2 hidden text-sm font-medium text-rose-600 sm:block">{fieldError}</p>}
+        </Card>
+
+        <div className="mt-6">
+          {loading ? (
+            <LoadingState text="Loading spaces…" />
+          ) : error ? (
+            <ErrorBox message={error} onRetry={() => void fetchSpaces()} />
+          ) : spaces.length === 0 ? (
+            <EmptyState
+              icon={<FolderKanban className="h-6 w-6" />}
+              title="No spaces yet"
+              hint="Create your first space above — like a folder for everything about one subject."
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {spaces.map((s, i) => (
+                <Link key={s.id} to={`/spaces/${s.id}`}>
+                  <Card
+                    className="animate-fade-up stagger group h-full p-5 transition-all hover:-translate-y-1 hover:shadow-lift"
+                    style={{ "--d": `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}
+                  >
+                    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-soft ${tileFor(s.id)}`}>
+                      <FolderKanban className="h-6 w-6" />
+                    </span>
+                    <h3 className="mt-3.5 flex items-center gap-1.5 text-lg font-bold tracking-tight">
+                      <span className="truncate">{s.name}</span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-violet-500 transition-transform group-hover:translate-x-1" />
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                  </Card>
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </AppShell>
   )
 }

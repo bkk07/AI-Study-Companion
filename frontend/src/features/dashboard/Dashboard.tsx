@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
+import { AlertTriangle, Compass, Sparkles } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { Badge, Button, EmptyState, ErrorBox, LoadingState, ProgressBar } from "@/components/ui"
 
 type Mismatch = {
   mismatch_type: string
@@ -55,29 +57,14 @@ function mismatchLabel(type: string): string {
   return type
 }
 
-function MasteryBar({ label, value, count }: { label: string; value: number | null; count: number }) {
-  if (value === null) {
-    return (
-      <div className="mt-1">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{label}</span>
-          <span>No evidence yet</span>
-        </div>
-        <div className="mt-1 h-2 rounded bg-muted" />
-      </div>
-    )
-  }
+function MasteryRow({ label, value, count }: { label: string; value: number | null; count: number }) {
   return (
-    <div className="mt-1">
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{label}</span>
-        <span>
-          {value.toFixed(1)} ({count} evidence)
-        </span>
+    <div className="mt-2">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="font-semibold text-muted-foreground">{label}</span>
+        <span className="font-bold">{value === null ? "No evidence" : `${value.toFixed(0)} · ${count} evidence`}</span>
       </div>
-      <div className="mt-1 h-2 rounded bg-muted">
-        <div className="h-2 rounded bg-primary" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-      </div>
+      <ProgressBar value={value} className="mt-1" />
     </div>
   )
 }
@@ -124,105 +111,93 @@ export function Dashboard({ projectId }: { projectId: string }) {
     }
   }
 
-  if (loading) return <p className="mt-2 text-sm text-muted-foreground">Loading progress…</p>
-  if (error)
-    return (
-      <div className="mt-2">
-        <p className="text-sm text-destructive">{error}</p>
-        <button onClick={() => void load()} className="mt-1 text-sm text-primary hover:underline">
-          Retry
-        </button>
-      </div>
-    )
+  if (loading) return <LoadingState text="Loading progress…" />
+  if (error) return <ErrorBox message={error} onRetry={() => void load()} />
   if (!data) return null
 
   const rec = data.recommendation
 
   return (
-    <div className="mt-2 space-y-4">
-      {data.concepts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No learning structure yet — upload material and wait for processing, then your mastery will appear here.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {data.concepts.map((c) => (
-            <li key={c.concept_id} className="rounded-md border bg-card px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-sm font-medium">{c.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {c.topic} › {c.subtopic}
-                </p>
+    <div className="space-y-5">
+      {/* Recommendation spotlight */}
+      <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-[1.5px] shadow-soft">
+        <div className="rounded-2xl bg-card p-5">
+          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-600">
+            <Compass className="h-4 w-4" /> Up next for you
+          </p>
+          {!rec ? (
+            <div className="mt-2">
+              <p className="font-bold">No recommendation yet</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Generate one from your current progress and always know what to study next.
+              </p>
+              <Button onClick={() => void postAction("refresh")} disabled={acting} size="sm" className="mt-3">
+                <Sparkles className="h-4 w-4" /> {acting ? "Working…" : "Generate recommendation"}
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <p className="text-lg font-extrabold tracking-tight">
+                {actionLabel(rec.action_type)}: <span className="text-gradient">{rec.concept_name}</span>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{rec.reasoning}</p>
+              <p className="mt-2 flex items-center gap-2 text-xs">
+                <Badge tint="violet">Score {rec.score.toFixed(0)}</Badge>
+                <Badge tint={rec.status === "active" ? "emerald" : "muted"}>{rec.status}</Badge>
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button onClick={() => void postAction("refresh")} disabled={acting} size="sm">
+                  Refresh
+                </Button>
+                {rec.status === "active" && (
+                  <>
+                    <Button onClick={() => void postAction("accept")} disabled={acting} size="sm" variant="secondary">
+                      Accept
+                    </Button>
+                    <Button onClick={() => void postAction("dismiss")} disabled={acting} size="sm" variant="outline">
+                      Dismiss
+                    </Button>
+                  </>
+                )}
               </div>
-              <MasteryBar label="Recognition (MCQ)" value={c.mcq} count={c.mcq_count} />
-              <MasteryBar label="Applied" value={c.applied} count={c.applied_count} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {data.concepts.length === 0 ? (
+        <EmptyState
+          icon={<Sparkles className="h-6 w-6" />}
+          title="Mastery will appear here"
+          hint="Upload material and wait for processing, then answer a quiz or explain a concept."
+        />
+      ) : (
+        <ul className="grid gap-3 md:grid-cols-2">
+          {data.concepts.map((c) => (
+            <li key={c.concept_id} className="rounded-2xl border bg-card p-4 shadow-soft">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate text-sm font-bold">{c.title}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {c.topic} › {c.subtopic}
+              </p>
+              <MasteryRow label="Recognition" value={c.mcq} count={c.mcq_count} />
+              <MasteryRow label="Applied" value={c.applied} count={c.applied_count} />
               {c.mismatch && (
-                <div className="mt-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-2 py-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-                    {mismatchLabel(c.mismatch.mismatch_type)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{c.mismatch.reason}</p>
+                <div className="mt-2.5 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                      {mismatchLabel(c.mismatch.mismatch_type)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-amber-900/70">{c.mismatch.reason}</p>
+                  </div>
                 </div>
               )}
             </li>
           ))}
         </ul>
       )}
-
-      <div className="rounded-md border bg-card px-3 py-2">
-        <p className="text-sm font-medium">Current recommendation</p>
-        {!rec ? (
-          <div className="mt-1">
-            <p className="text-sm text-muted-foreground">
-              No recommendation yet — generate one from your current progress.
-            </p>
-            <button
-              onClick={() => void postAction("refresh")}
-              disabled={acting}
-              className="mt-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-            >
-              Generate recommendation
-            </button>
-          </div>
-        ) : (
-          <div className="mt-1">
-            <p className="text-sm">
-              {actionLabel(rec.action_type)}: <span className="font-medium">{rec.concept_name}</span>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{rec.reasoning}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Score {rec.score.toFixed(1)} · Status {rec.status}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={() => void postAction("refresh")}
-                disabled={acting}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-              >
-                Refresh
-              </button>
-              {rec.status === "active" && (
-                <>
-                  <button
-                    onClick={() => void postAction("accept")}
-                    disabled={acting}
-                    className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => void postAction("dismiss")}
-                    disabled={acting}
-                    className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
-                  >
-                    Dismiss
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

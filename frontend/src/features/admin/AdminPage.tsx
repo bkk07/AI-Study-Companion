@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import {
+  BookOpenText,
+  BrainCircuit,
+  FileUp,
+  FolderKanban,
+  GraduationCap,
+  ShieldAlert,
+  ShieldCheck,
+  Trophy,
+  Users,
+  Wand2,
+} from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { useAuth } from "@/context/AuthContext"
+import { AppShell } from "@/components/AppShell"
+import { Avatar, Badge, Card, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
 
 type AdminUser = {
   id: string
@@ -57,60 +70,72 @@ export function AdminPage() {
     if (user) void load()
   }, [user, load])
 
-  if (loading) return <p className="mt-2 text-sm text-muted-foreground">Loading admin…</p>
-  if (error)
-    return (
-      <div className="mx-auto max-w-3xl p-8">
-        <p className="text-sm text-destructive">{error}</p>
-        <div className="mt-2 flex gap-4 text-sm">
-          <button onClick={() => void load()} className="text-primary hover:underline">
-            Retry
-          </button>
-          <Link to="/" className="text-primary hover:underline">
-            Go home
-          </Link>
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <PageHeader
+          eyebrow="Operations"
+          title={
+            <span className="inline-flex items-center gap-2.5">
+              <ShieldCheck className="h-8 w-8 text-violet-600" /> Admin overview
+            </span>
+          }
+          description="Global usage counts and the user roster. Read-only."
+        />
+        <div className="mt-6">
+          {loading ? (
+            <LoadingState text="Loading admin…" />
+          ) : error ? (
+            <div className="max-w-2xl">
+              <ErrorBox message={error} onRetry={() => void load()} />
+              {error.startsWith("Forbidden") && (
+                <p className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <ShieldAlert className="h-4 w-4" /> This area requires an admin account.
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {(
+                  [
+                    [Users, "Users", overview?.users ?? 0, "bg-violet-100 text-violet-600"],
+                    [FolderKanban, "Spaces", overview?.spaces ?? 0, "bg-indigo-100 text-indigo-600"],
+                    [GraduationCap, "Projects", overview?.projects ?? 0, "bg-fuchsia-100 text-fuchsia-600"],
+                    [FileUp, "Materials", overview?.materials ?? 0, "bg-rose-100 text-rose-600"],
+                    [Wand2, "Quizzes", overview?.quizzes ?? 0, "bg-amber-100 text-amber-600"],
+                    [Trophy, "Quiz attempts", overview?.quiz_attempts ?? 0, "bg-emerald-100 text-emerald-600"],
+                    [BrainCircuit, "Evidence rows", overview?.evidence_rows ?? 0, "bg-sky-100 text-sky-600"],
+                    [BookOpenText, "Recommendations", overview?.recommendations ?? 0, "bg-teal-100 text-teal-600"],
+                  ] as const
+                ).map(([Icon, label, value, tint]) => (
+                  <Card key={label} className="p-3.5">
+                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${tint}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <p className="mt-2 text-2xl font-extrabold tracking-tight">{value}</p>
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                  </Card>
+                ))}
+              </div>
+
+              <h3 className="mt-8 text-lg font-extrabold tracking-tight">Users</h3>
+              <Card className="mt-3 divide-y overflow-hidden">
+                {(users ?? []).map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                    <Avatar email={u.email} className="h-8 w-8 text-xs" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{u.email}</span>
+                    <Badge tint={u.is_admin ? "violet" : "muted"}>{u.is_admin ? "admin" : "user"}</Badge>
+                    <span className="hidden text-xs text-muted-foreground sm:inline">
+                      {new Date(u.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </Card>
+            </>
+          )}
         </div>
       </div>
-    )
-
-  const cards: Array<[string, number]> = overview
-    ? [
-        ["Users", overview.users],
-        ["Spaces", overview.spaces],
-        ["Projects", overview.projects],
-        ["Materials", overview.materials],
-        ["Quizzes", overview.quizzes],
-        ["Quiz attempts", overview.quiz_attempts],
-        ["Evidence rows", overview.evidence_rows],
-        ["Recommendations", overview.recommendations],
-      ]
-    : []
-
-  return (
-    <div className="mx-auto max-w-3xl p-8">
-      <h2 className="text-xl font-semibold">Admin</h2>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {cards.map(([label, value]) => (
-          <div key={label} className="rounded-md border bg-card px-3 py-2">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-lg font-semibold">{value}</p>
-          </div>
-        ))}
-      </div>
-      <h3 className="mt-6 text-lg font-semibold">Users</h3>
-      <ul className="mt-2 space-y-1">
-        {(users ?? []).map((u) => (
-          <li key={u.id} className="flex justify-between rounded-md border bg-card px-3 py-2 text-sm">
-            <span>{u.email}</span>
-            <span className="text-muted-foreground">
-              {u.is_admin ? "admin" : "user"} · {new Date(u.created_at).toLocaleDateString()}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <Link to="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-        Back home
-      </Link>
-    </div>
+    </AppShell>
   )
 }

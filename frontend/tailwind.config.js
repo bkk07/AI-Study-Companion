@@ -11,6 +11,16 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
+      },
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        soft: "0 1px 2px hsl(250 30% 20% / 0.05), 0 8px 24px -12px hsl(262 83% 58% / 0.25)",
+        lift: "0 2px 4px hsl(250 30% 20% / 0.06), 0 16px 40px -16px hsl(262 83% 58% / 0.35)",
+        glow: "0 0 0 4px hsl(262 83% 58% / 0.15)",
       },
       colors: {
         background: "hsl(var(--background))",

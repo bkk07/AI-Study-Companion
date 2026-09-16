@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
+import { ArrowRight, ChevronRight, GraduationCap, Plus } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { AppShell } from "@/components/AppShell"
+import { Button, Card, EmptyState, ErrorBox, Input, LoadingState, PageHeader } from "@/components/ui"
+import { tileFor } from "@/features/spaces/SpacesPage"
 
 type Space = { id: string; name: string }
 type Project = { id: string; name: string; space_id: string; created_at: string }
@@ -51,75 +55,91 @@ export function SpaceProjectsPage() {
       const res = await apiClient.get<Project[]>(`/spaces/${spaceId}/projects`)
       setProjects(res.data)
     } catch (e: unknown) {
-      const msg = apiError(e).message ?? "Failed to create project"
-      setError(msg)
+      setError(apiError(e).message ?? "Failed to create project")
     } finally {
       setCreating(false)
     }
   }
 
+  const tile = spaceId ? tileFor(spaceId) : "from-violet-500 to-purple-600"
+
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <div className="flex items-center gap-2 text-sm">
-        <Link to="/spaces" className="text-primary hover:underline">
-          Spaces
-        </Link>
-        <span className="text-muted-foreground">/</span>
-        <span className="font-medium">{space?.name ?? spaceId?.slice(0, 8)}</span>
-        <span className="ml-auto">
-          <Link to="/" className="text-primary hover:underline">
-            Home
+    <AppShell>
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link to="/spaces" className="font-semibold text-violet-700 hover:underline">
+            Spaces
           </Link>
-        </span>
-      </div>
+          <ChevronRight className="h-4 w-4" />
+          <span className="font-medium text-foreground">{space?.name ?? "Space"}</span>
+        </nav>
 
-      <h1 className="mt-4 text-2xl font-bold">{space ? space.name : "Space"}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Projects live inside this space — hierarchy: user → space → project.</p>
+        <div className="mt-4">
+          <PageHeader
+            eyebrow="Space"
+            title={
+              <span className="inline-flex items-center gap-3">
+                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-soft ${tile}`}>
+                  <GraduationCap className="h-6 w-6" />
+                </span>
+                {space?.name ?? "Loading…"}
+              </span>
+            }
+            description="Projects are individual study goals — a chapter, an exam, a topic to master."
+          />
+        </div>
 
-      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        <Card className="mt-6 p-4 sm:p-5">
+          <form onSubmit={onCreate} className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="New project — e.g. Chapter 3: Eigenvalues"
+              aria-label="New project name"
+            />
+            <Button type="submit" disabled={creating || !name.trim()} className="shrink-0 px-5">
+              <Plus className="h-4 w-4" />
+              {creating ? "Creating…" : "New project"}
+            </Button>
+          </form>
+        </Card>
 
-      <form onSubmit={onCreate} className="mt-6 flex gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="New project name"
-          className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
-        <button
-          type="submit"
-          disabled={creating || !name.trim()}
-          className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
-        >
-          {creating ? "Creating…" : "Create project"}
-        </button>
-      </form>
-
-      <div className="mt-6 rounded-lg border bg-card">
-        {loading ? (
-          <p className="p-4 text-sm text-muted-foreground">Loading…</p>
-        ) : projects.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">No projects yet — create one above.</p>
-            <button onClick={fetchAll} className="mt-2 text-sm text-primary hover:underline">
-              Retry
-            </button>
-          </div>
-        ) : (
-          <ul className="divide-y">
-            {projects.map((p) => (
-              <li key={p.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-sm font-medium">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()}</p>
-                </div>
-                <Link to={`/spaces/${spaceId}/projects/${p.id}`} className="text-sm text-primary hover:underline">
-                  Open →
+        <div className="mt-6">
+          {loading ? (
+            <LoadingState text="Loading projects…" />
+          ) : error ? (
+            <ErrorBox message={error} onRetry={() => void fetchAll()} />
+          ) : projects.length === 0 ? (
+            <EmptyState
+              icon={<GraduationCap className="h-6 w-6" />}
+              title="No projects yet"
+              hint="Create one above — each project gets its own materials, tutor, quizzes, and mastery tracking."
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {projects.map((p, i) => (
+                <Link key={p.id} to={`/spaces/${spaceId}/projects/${p.id}`}>
+                  <Card
+                    className="animate-fade-up stagger group h-full p-5 transition-all hover:-translate-y-1 hover:shadow-lift"
+                    style={{ "--d": `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}
+                  >
+                    <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-extrabold text-white shadow-soft ${tileFor(p.id)}`}>
+                      {p.name.trim()[0]?.toUpperCase() ?? "?"}
+                    </span>
+                    <h3 className="mt-3 flex items-center gap-1.5 font-bold tracking-tight">
+                      <span className="truncate">{p.name}</span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-violet-500 transition-transform group-hover:translate-x-1" />
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created {new Date(p.created_at).toLocaleDateString()}
+                    </p>
+                  </Card>
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </AppShell>
   )
 }

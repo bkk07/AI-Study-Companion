@@ -50,8 +50,10 @@ export function QuizTaker({
   const [reveal, setReveal] = useState<Reveal | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [quizMode, setQuizMode] = useState<"practice" | "exam">("practice")
 
   async function generate(payload: QuizStartPayload) {
+    setQuizMode(payload.mode)
     setStage({ name: "busy", label: "Generating quiz…" })
     const run = async () => {
       try {
@@ -61,7 +63,7 @@ export function QuizTaker({
           subtopic_id: payload.subtopicId ?? null,
           concept_id: payload.conceptId ?? null,
           num_questions: payload.numQuestions,
-          mode: "practice",
+          mode: payload.mode,
         })
         setStage({ name: "busy", label: "Starting attempt…" })
         const start = await apiClient.post<{ attempt_id: string; questions: Question[] }>(
@@ -179,7 +181,10 @@ export function QuizTaker({
         <p className="text-sm font-semibold text-slate-900">
           Question {index + 1} <span className="font-normal text-slate-500">of {questions.length}</span>
         </p>
-        <Badge tint={difficultyTint(q.difficulty)}>{q.difficulty}</Badge>
+        <span className="flex items-center gap-1.5">
+          <Badge tint="muted">{quizMode === "exam" ? "Exam" : "Practice"}</Badge>
+          <Badge tint={difficultyTint(q.difficulty)}>{q.difficulty}</Badge>
+        </span>
       </div>
       <ProgressBar value={questions.length ? (index / questions.length) * 100 : 0} className="mt-2" barClass="bg-indigo-500" />
       <div className="mt-4 flex gap-2 rounded-xl border border-indigo-100 bg-indigo-50 p-4">

@@ -153,6 +153,13 @@ def test_dashboard_composes_mastery_mismatch_and_paths():
         assert calm["mcq"] == pytest.approx(70.0) and calm["mcq_count"] == 3
         assert calm["applied"] == pytest.approx(70 + 0.3 * 10)
         assert calm["mismatch"]["mismatch_type"] == "underconfident"  # 100% acc, conf 1.5
+        # calibration exposure for the attention cards (rated answers only)
+        assert calm["avg_confidence"] == pytest.approx(1.5)
+        assert calm["accuracy"] == pytest.approx(1.0)
+        assert calm["evaluated_count"] == 2
+        assert slope["avg_confidence"] is None
+        assert slope["accuracy"] is None
+        assert slope["evaluated_count"] == 0
     finally:
         _teardown(engine)
 

@@ -53,6 +53,9 @@ def _to_response(
                     default=None,
                 ),
                 status=status_for(display_mastery(p.scores)),
+                avg_confidence=p.avg_confidence,
+                accuracy=p.accuracy,
+                evaluated_count=p.evaluated_count,
                 mismatch=(
                     MismatchRead(mismatch_type=p.mismatch.mismatch_type, gap=p.mismatch.gap,
                                  reason=p.mismatch.reason)

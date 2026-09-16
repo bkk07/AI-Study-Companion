@@ -7,9 +7,6 @@ import { ErrorBox, LoadingState } from "@/components/ui"
 import { Dashboard, type ProjectTab } from "@/features/dashboard/Dashboard"
 import { OverviewView } from "@/features/overview/OverviewView"
 import { Flashcards } from "@/features/flashcards/Flashcards"
-import { AnalyticsView } from "@/features/analytics/AnalyticsView"
-import { GrowthView } from "@/features/analytics/GrowthView"
-import { ProgressMap } from "@/features/progress/ProgressMap"
 import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
@@ -105,19 +102,14 @@ export function ProjectDetailPage() {
                 {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
                 {tab === "structure" && projectId && <StructureView projectId={projectId} />}
                 {tab === "progress" && projectId && (
-                  <div className="space-y-10">
-                    <Dashboard
-                      projectId={projectId}
-                      onNavigate={goTab}
-                      onPracticeConcept={(id) => {
-                        setQuizFocus(id)
-                        setTab("quiz")
-                      }}
-                    />
-                    <ProgressMap projectId={projectId} />
-                    <GrowthView projectId={projectId} />
-                    <AnalyticsView projectId={projectId} />
-                  </div>
+                  <Dashboard
+                    projectId={projectId}
+                    onNavigate={goTab}
+                    onPracticeConcept={(id) => {
+                      setQuizFocus(id)
+                      setTab("quiz")
+                    }}
+                  />
                 )}
               </div>
             </div>

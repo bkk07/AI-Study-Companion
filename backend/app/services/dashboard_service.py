@@ -36,6 +36,9 @@ class ConceptProgress:
     subtopic: str
     scores: MasteryScores
     mismatch: Mismatch | None
+    avg_confidence: float | None = None
+    accuracy: float | None = None
+    evaluated_count: int = 0
 
 
 def build_dashboard(
@@ -106,8 +109,11 @@ def build_dashboard(
             subtopic=subtopic_title,
             scores=scores,
             mismatch=mismatches.get(concept.id),
+            avg_confidence=state.avg_confidence,
+            accuracy=state.accuracy,
+            evaluated_count=state.evaluated_count,
         )
-        for concept, topic_title, subtopic_title, scores, _, _ in per_concept
+        for concept, topic_title, subtopic_title, scores, state, _ in per_concept
     ]
     signals = [
         recommendation_service.ConceptSignal(

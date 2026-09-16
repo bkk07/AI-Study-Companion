@@ -26,6 +26,9 @@ class ConceptProgressRead(BaseModel):
     last_evidence_at: datetime | None
     status: str
     mismatch: MismatchRead | None
+    avg_confidence: float | None = None
+    accuracy: float | None = None
+    evaluated_count: int = 0
 
 
 class RecommendationRead(BaseModel):

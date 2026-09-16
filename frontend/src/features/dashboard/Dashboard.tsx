@@ -36,6 +36,9 @@ type ConceptProgress = {
   last_evidence_at: string | null
   status: string
   mismatch: Mismatch | null
+  avg_confidence: number | null
+  accuracy: number | null
+  evaluated_count: number
 }
 
 type Recommendation = {
@@ -92,10 +95,15 @@ function mismatchLabel(type: string): string {
   return type
 }
 
-function confidenceLabel(type: string): string {
-  if (type === "overconfident") return "high confidence"
-  if (type === "underconfident") return "low confidence"
-  return "confidence gap"
+function confidenceWord(avg: number | null, fallbackType?: string): string {
+  if (avg !== null) {
+    if (avg >= 4) return "High confidence"
+    if (avg <= 2) return "Low confidence"
+    return "Medium confidence"
+  }
+  if (fallbackType === "overconfident") return "High confidence"
+  if (fallbackType === "underconfident") return "Low confidence"
+  return "Confidence gap"
 }
 
 function avg(values: (number | null)[]): number | null {
@@ -364,7 +372,11 @@ export function Dashboard({
             Concepts That Need Attention
           </div>
           <div className="space-y-3">
-            {attention.slice(0, 10).map((c) => (
+            {attention.slice(0, 10).map((c) => {
+              const rated = c.evaluated_count > 0 && c.accuracy !== null
+              const pct = rated ? Math.round((c.accuracy ?? 0) * 100) : c.mcq === null ? null : Math.round(c.mcq)
+              const conf = confidenceWord(c.avg_confidence, c.mismatch?.mismatch_type)
+              return (
               <div key={c.concept_id} className="rounded-xl border border-amber-100 bg-white p-5">
                 <div className="flex items-start gap-4">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50">
@@ -375,16 +387,16 @@ export function Dashboard({
                       <span className="text-sm font-semibold text-slate-800">{c.title}</span>
                       <span className="text-xs text-slate-400">·</span>
                       <span className="text-xs font-medium text-red-600">
-                        {c.mcq === null ? "no recognition evidence" : `${Math.round(c.mcq)}% recognition`}
+                        {pct === null ? "no correctness evidence" : `${pct}% ${rated ? "correct" : "recognition"}`}
                       </span>
                       <span className="text-xs text-slate-400">·</span>
-                      <span className="text-xs font-medium text-amber-600">
-                        {c.mismatch ? confidenceLabel(c.mismatch.mismatch_type) : c.status}
-                      </span>
+                      <span className="text-xs font-medium text-amber-600">{conf.toLowerCase()}</span>
                     </div>
                     {c.mismatch && <p className="mb-2 text-xs text-slate-500">{c.mismatch.reason}</p>}
                     <div className="text-xs text-slate-400">
-                      {c.mcq_count + c.applied_count} evidence · {mismatchLabel(c.mismatch?.mismatch_type ?? "")}
+                      {rated
+                        ? `Last ${c.evaluated_count} attempt${c.evaluated_count === 1 ? "" : "s"} · ${conf}, ${(c.accuracy ?? 0) >= 0.7 ? "high" : "low"} correctness`
+                        : `${c.mcq_count + c.applied_count} evidence · ${c.mismatch ? mismatchLabel(c.mismatch.mismatch_type) : c.status}`}
                     </div>
                   </div>
                   <button
@@ -396,15 +408,19 @@ export function Dashboard({
                   </button>
                 </div>
               </div>
-            ))}
-            {underconfident.slice(0, 2).map((c) => (
+              )
+            })}
+            {underconfident.slice(0, 2).map((c) => {
+              const rated = c.evaluated_count > 0 && c.accuracy !== null
+              const pct = rated ? Math.round((c.accuracy ?? 0) * 100) : c.mcq === null ? null : Math.round(c.mcq)
+              return (
               <div key={c.concept_id} className="rounded-xl border border-blue-100 bg-white p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-slate-800">{c.title}</span>
                       <span className="text-xs font-medium text-green-600">
-                        {c.mcq === null ? "no recognition evidence" : `${Math.round(c.mcq)}% recognition`}
+                        {pct === null ? "no correctness evidence" : `${pct}% ${rated ? "correct" : "recognition"}`}
                       </span>
                       <span className="text-xs text-slate-400">·</span>
                       <span className="text-xs font-medium text-blue-600">Low confidence</span>
@@ -422,7 +438,8 @@ export function Dashboard({
                   </button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

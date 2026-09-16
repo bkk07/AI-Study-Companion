@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 46 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 47 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -63,7 +63,7 @@
 | 42 | Growth Analysis | ✅ Complete | 2026-09-16 | Pass (EMA replay) | `growth_service` + API + `GrowthView` + 4 tests |
 | 43 | Project Analytics | ✅ Complete | 2026-09-16 | Pass (read-model) | `analytics` API + `AnalyticsView` + 2 tests |
 | 44 | Global/Admin Analytics | ⏳ Pending | — | — | — |
-| 45 | Admin Dashboard (Read-Only) | ⏳ Pending | — | — | — |
+| 45 | Admin Dashboard (Read-Only) | ✅ Complete | 2026-09-16 | Pass (boundary) | `get_current_admin` + admin API/UI + 4 tests |
 | 46 | Activity Events & AI Usage | ⏳ Pending | — | — | — |
 | 47 | Error Handling & Edge Cases | ⏳ Pending | — | — | — |
 | 48 | Observability & Health | ⏳ Pending | — | — | — |
@@ -669,6 +669,16 @@
 **Verify:** 2 pass real PG (counts/breakdown/attempts + growth reuse + tutor None + empty zeros + isolation); `npm run build` 93 mods; `pytest -q` 196 passed (2+194); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Mastery via the one growth derivation; tutor honestly untracked.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 47 (Global/Admin Analytics).
+
+---
+
+## Phase 47 — Detail (compact)
+
+**Scope:** Minimum admin surface — privilege boundary + user list + usage overview + gated UI; no per-user drill-down.
+**Files:** `backend/app/dependencies/admin.py` + `backend/app/api/v1/admin.py` + `backend/app/schemas/admin.py` + `main.py` wire + `backend/tests/test_admin.py` (4 tests) + `frontend/src/features/admin/AdminPage.tsx` + `App.tsx` route/link, `docs/*`.
+**Verify:** 4 pass real PG (401/403/200 + key-set/no-leak + DB-equal counts + escalation fails); `npm run build` 94 mods; `pytest -q` 200 passed (4+196); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Same JWT, server-side privilege on every call.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 48 (Error Handling).
 
 ---
 

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { Login } from "@/features/auth/Login"
 import { Register } from "@/features/auth/Register"
+import { AdminPage } from "@/features/admin/AdminPage"
 import { SpacesPage } from "@/features/spaces/SpacesPage"
 import { SpaceProjectsPage } from "@/features/projects/SpaceProjectsPage"
 import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage"
@@ -50,6 +51,11 @@ function Home() {
             <Link to="/spaces" className="text-primary hover:underline">
               Spaces
             </Link>
+            {user?.is_admin && (
+              <Link to="/admin" className="text-primary hover:underline">
+                Admin
+              </Link>
+            )}
           </>
         ) : (
           <span className="text-muted-foreground">Dashboard (protected)</span>
@@ -130,6 +136,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProjectDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminPage />
           </ProtectedRoute>
         }
       />

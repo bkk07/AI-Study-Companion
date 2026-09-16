@@ -1366,4 +1366,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Guard:** Read-only; mastery has exactly one derivation path; tutor shows "not tracked yet", never a fake zero.
 **Known:** Mastery loop inherited from growth (prototype N+1); attempts are per-user; by-status dict only lists present statuses.
 
+## Phase 47 — Admin Dashboard (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 47 (separate privilege boundary, same JWT identity)
+**Contract:** `dependencies/admin.py` (`get_current_admin`: 401 upstream when anonymous, 403 when non-admin); `api/v1/admin.py`: `GET /admin/users` (id/email/is_admin/created_at ordered, never password — reuses `UserRead`) + `GET /admin/overview` (global single-count queries: users/spaces/projects/materials/quizzes/attempts/evidence/recommendations; no per-user PII beyond the user list the boundary exists for). `frontend/src/features/admin/AdminPage.tsx` + `/admin` route (ProtectedRoute + in-component `is_admin` gate → Forbidden message; backend 403 is the real enforcement) + Home nav link for admins only.
+**Files:** `backend/app/dependencies/admin.py`, `backend/app/api/v1/admin.py`, `backend/app/schemas/admin.py`, `main.py` wire, `backend/tests/test_admin.py` (401/403/200 both endpoints + register-with-`is_admin` ignored + no password leak), `frontend/src/features/admin/AdminPage.tsx`, `App.tsx` route+link
+**Guard:** Same JWT identity; privilege checked server-side on every admin call — UI gating is cosmetic.
+**Verify:** tests — anonymous 401, non-admin 403, admin 200 users+overview with exact counts, privilege-escalation attempt fails, response has no password fields; `npm run build` green; full `pytest -q` green; `compose config` 0; `alembic check` clean (no migration); no rebuild.
+
+### Phase 47 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/dependencies/admin.py` (`get_current_admin`: 401 upstream, 403 non-admin), `backend/app/api/v1/admin.py` (`GET users` reusing `UserRead` ordered + `GET overview` 8 single-count queries), `backend/app/schemas/admin.py` (`AdminOverview`), `main.py` wire, `backend/tests/test_admin.py` (4 tests, real PG), `frontend/src/features/admin/AdminPage.tsx` (cards + user list + Forbidden/loading/Retry; gate in-component, enforcement server-side), `App.tsx` `/admin` route + admin-only nav link, `docs/*`
+**Verify:** 4 pass real PG (anon 401 ×2 + non-admin 403 ×2 + admin 200; user list contains both, flags right, exact key set, no hash leak; overview keys + DB-equal users/spaces + non-negative ints; register `is_admin:true` → stored False); `npm run build` 94 mods; full `pytest -q` 200 passed (4+196); `compose config` 0; `alembic check` no new ops; no migration, no rebuild.
+**Guard:** Privilege never self-grantable (register schema has no such field; extra ignored); UI gate cosmetic.
+**Known:** User list unpaginated (fine at prototype scale); overview has no per-user drill-down (by design — no PII beyond the list).
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

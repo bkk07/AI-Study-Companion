@@ -18,6 +18,8 @@ from app.models.chunk import DocumentChunk
 from app.models.concept import OBSOLETE_STATUS, Concept
 from app.models.project import Project
 from app.models.quiz import Quiz, QuizQuestion
+from app.models.subtopic import Subtopic
+from app.models.topic import Topic
 from app.schemas.quiz import MCQOutline
 from app.services.ai import groq_client
 from app.services.mastery_levels import is_mastery_target
@@ -244,6 +246,189 @@ def generate_quiz(
                 QuizQuestion(
                     quiz_id=quiz.id,
                     concept_id=concept.id,
+                    question_text=item.question_text,
+                    options=item.options,
+                    correct_index=item.correct_index,
+                    difficulty=item.difficulty,
+                    source_chunk_id=None,
+                )
+            )
+        db.commit()
+        db.refresh(quiz)
+        return quiz
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _resolve_scope_concepts(
+    db: Session,
+    project: Project,
+    *,
+    scope: str,
+    topic_id=None,
+    subtopic_id=None,
+    concept_id=None,
+) -> tuple[list[Concept], str]:
+    """Resolve practice-target concepts for a quiz scope.
+
+    Returns (concepts, focus_label). Only CORE, non-obsolete concepts are
+    eligible (same gate as single-concept generation). Raises LookupError for
+    out-of-scope ids and QuizGenerationError when nothing is practicable.
+    """
+    if scope == "concept":
+        concept = db.get(Concept, concept_id)
+        if concept is None or concept.project_id != project.id:
+            raise LookupError("project or concept not found in scope")
+        if not is_mastery_target(concept):
+            raise QuizGenerationError(
+                f"Learning object '{concept.title}' is not a practice target "
+                f"(importance {(concept.importance or 'CORE')}). "
+                "Pick a CORE target or search supporting material."
+            )
+        return [concept], concept.title
+
+    if scope == "topic":
+        topic = db.get(Topic, topic_id)
+        if topic is None or topic.project_id != project.id:
+            raise LookupError("topic not found in this project")
+        sub_ids = [
+            s.id for s in db.query(Subtopic).filter(Subtopic.topic_id == topic.id).all()
+        ]
+        rows = (
+            db.query(Concept)
+            .filter(Concept.project_id == project.id, Concept.subtopic_id.in_(sub_ids))
+            .order_by(Concept.created_at.asc())
+            .all()
+            if sub_ids
+            else []
+        )
+        targets = [c for c in rows if is_mastery_target(c)]
+        if not targets:
+            raise QuizGenerationError(f"Topic '{topic.title}' has no practicable concepts yet")
+        return targets, f"Topic: {topic.title}"
+
+    if scope == "subtopic":
+        sub = db.get(Subtopic, subtopic_id)
+        if sub is None or sub.project_id != project.id:
+            raise LookupError("subtopic not found in this project")
+        rows = (
+            db.query(Concept)
+            .filter(Concept.project_id == project.id, Concept.subtopic_id == sub.id)
+            .order_by(Concept.created_at.asc())
+            .all()
+        )
+        targets = [c for c in rows if is_mastery_target(c)]
+        if not targets:
+            raise QuizGenerationError(f"Subtopic '{sub.title}' has no practicable concepts yet")
+        return targets, f"Subtopic: {sub.title}"
+
+    # scope == "project"
+    rows = (
+        db.query(Concept)
+        .filter(Concept.project_id == project.id)
+        .order_by(Concept.created_at.asc())
+        .all()
+    )
+    targets = [c for c in rows if is_mastery_target(c)]
+    if not targets:
+        raise QuizGenerationError("Project has no practicable concepts yet — upload material first")
+    return targets, "Entire project"
+
+
+def _scoped_source(db: Session, project_id, concepts: list[Concept]) -> str:
+    """Combined project-local source for a scoped quiz (single LLM call)."""
+    ids = [c.id for c in concepts]
+    chunks = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.project_id == project_id, DocumentChunk.concept_id.in_(ids))
+        .order_by(DocumentChunk.chunk_index.asc())
+        .all()
+    )
+    if not chunks:
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.project_id == project_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
+    texts = [c.content.strip() for c in chunks if (c.content or "").strip()]
+    if not texts:
+        raise QuizGenerationError("project has no source chunks to quiz on")
+    return "\n\n".join(texts)[:MAX_SOURCE_CHARS].strip()
+
+
+def generate_scoped_quiz(
+    db: Session,
+    *,
+    project_id,
+    scope: str = "concept",
+    topic_id=None,
+    subtopic_id=None,
+    concept_id=None,
+    num_questions: int = 5,
+    mode: str = "practice",
+    difficulty: str | None = None,
+    client: Callable[[str, str], dict] | None = None,
+) -> Quiz:
+    """Generate one quiz across a topic/subtopic/project scope.
+
+    Single LLM call over combined scope source; returned questions are
+    attributed round-robin across the scope's concepts so per-concept
+    mastery evidence keeps working. Single-concept scope behaves exactly
+    like :func:`generate_quiz`.
+    """
+    if not isinstance(num_questions, int) or not MIN_QUESTIONS <= num_questions <= MAX_QUESTIONS:
+        raise ValueError(f"num_questions must be {MIN_QUESTIONS}..{MAX_QUESTIONS}")
+    if mode not in ("practice", "exam"):
+        raise ValueError("mode must be 'practice' or 'exam'")
+    if difficulty is not None and difficulty not in ("easy", "medium", "hard"):
+        raise ValueError("difficulty must be easy, medium, or hard")
+    if scope not in ("project", "topic", "subtopic", "concept"):
+        raise ValueError("scope must be project, topic, subtopic, or concept")
+
+    project = db.get(Project, project_id)
+    if project is None:
+        raise LookupError("project not found in scope")
+
+    if scope == "concept":
+        if concept_id is None:
+            raise ValueError("concept_id is required when scope is 'concept'")
+        return generate_quiz(
+            db, project_id=project.id, concept_id=concept_id,
+            num_questions=num_questions, mode=mode, difficulty=difficulty,
+            client=client,
+        )
+
+    concepts, focus = _resolve_scope_concepts(
+        db, project, scope=scope, topic_id=topic_id,
+        subtopic_id=subtopic_id, concept_id=concept_id,
+    )
+    source = _scoped_source(db, project.id, concepts)
+
+    user_prompt = _build_user_prompt(source, num_questions, difficulty, focus, None, None)
+    call = client or groq_client.chat_json
+    last_error: Exception | None = None
+    outline: MCQOutline | None = None
+    for _ in range(2):  # initial + one retry
+        try:
+            outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
+            break
+        except (ValidationError, ValueError, KeyError, TypeError) as e:
+            last_error = e
+            continue
+    if outline is None:
+        raise QuizGenerationError(f"Invalid quiz output after retry: {last_error}")
+
+    try:
+        quiz = Quiz(project_id=project.id, mode=mode, question_count=len(outline.questions))
+        db.add(quiz)
+        db.flush()
+        for i, item in enumerate(outline.questions):
+            db.add(
+                QuizQuestion(
+                    quiz_id=quiz.id,
+                    concept_id=concepts[i % len(concepts)].id,
                     question_text=item.question_text,
                     options=item.options,
                     correct_index=item.correct_index,

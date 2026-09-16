@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class MCQQuestionOutline(BaseModel):
@@ -35,12 +35,31 @@ class MCQOutline(BaseModel):
 
 
 class QuizGenerateRequest(BaseModel):
-    """Generate a quiz for one concept — project comes from the path."""
+    """Generate a quiz scoped to project/topic/subtopic/concept — project from path.
 
-    concept_id: uuid.UUID
+    Backward compatible: legacy clients send only ``concept_id`` (scope
+    defaults to ``"concept"``). New clients send ``scope`` plus the matching
+    id (``topic_id`` / ``subtopic_id`` / ``concept_id``; nothing extra for
+    ``"project"``).
+    """
+
+    concept_id: uuid.UUID | None = None
+    scope: str = Field(default="concept", pattern="^(project|topic|subtopic|concept)$")
+    topic_id: uuid.UUID | None = None
+    subtopic_id: uuid.UUID | None = None
     num_questions: int = Field(default=5, ge=1, le=20)
     mode: str = Field(default="practice", pattern="^(practice|exam)$")
     difficulty: str | None = Field(default=None, pattern="^(easy|medium|hard)$")
+
+    @model_validator(mode="after")
+    def _check_scope_ids(self):
+        if self.scope == "concept" and self.concept_id is None:
+            raise ValueError("concept_id is required when scope is 'concept'")
+        if self.scope == "topic" and self.topic_id is None:
+            raise ValueError("topic_id is required when scope is 'topic'")
+        if self.scope == "subtopic" and self.subtopic_id is None:
+            raise ValueError("subtopic_id is required when scope is 'subtopic'")
+        return self
 
 
 class QuizGenerateResponse(BaseModel):

@@ -32,16 +32,29 @@ def generate_quiz(
     db: Session = Depends(get_db),
     _: None = Depends(require_llm_budget("quiz-generate")),
 ) -> QuizGenerateResponse:
-    """Generate a validated MCQ quiz for one concept of this project."""
+    """Generate a validated MCQ quiz for this project (concept or broader scope)."""
     try:
-        quiz = quiz_generation_service.generate_quiz(
-            db,
-            project_id=project.id,
-            concept_id=body.concept_id,
-            num_questions=body.num_questions,
-            mode=body.mode,
-            difficulty=body.difficulty,
-        )
+        if body.scope == "concept" and body.topic_id is None and body.subtopic_id is None:
+            quiz = quiz_generation_service.generate_quiz(
+                db,
+                project_id=project.id,
+                concept_id=body.concept_id,
+                num_questions=body.num_questions,
+                mode=body.mode,
+                difficulty=body.difficulty,
+            )
+        else:
+            quiz = quiz_generation_service.generate_scoped_quiz(
+                db,
+                project_id=project.id,
+                scope=body.scope,
+                topic_id=body.topic_id,
+                subtopic_id=body.subtopic_id,
+                concept_id=body.concept_id,
+                num_questions=body.num_questions,
+                mode=body.mode,
+                difficulty=body.difficulty,
+            )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except QuizGenerationError as e:

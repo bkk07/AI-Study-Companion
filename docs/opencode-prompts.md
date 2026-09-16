@@ -1544,6 +1544,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 94 affected tests green (10s); `alembic check` clean; ONE live Mercury scratch reprocess (2 topics/6 LOs/2 edges, guideline notes fired, scratch fully removed — 0 leftovers); no user documents touched.
 **Known:** shared-subtopic NULL-material obsolete ambiguity (visible/reversible); legacy case-variant ties → earliest created; same-project concurrent reprocess UQ race out of scope. Phase C/D parked.
 
+## Phase C — Quiz UX (user-approved, in progress)
+
+**Recorded:** 2026-09-16 before impl | Source: user "Implement Phase C", design §§10–13, 16
+**Scope:** `recommend_many` (CORE-only top-N, TARGETED_QUIZ scores, neutral fallback; `recommend` untouched) + ConceptSignal importance/type (defaulted) → minimal `rollup_service` (§10 rules: practiced-only mean, null-on-empty, coverage, obsolete out) → new routers `practice.py` (recommendations) + `knowledge.py` (tree/search/concept-detail) → quiz CORE-gate 422 via QuizGenerationError + priority-budgeted enriched source → frontend QuizModes (Recommended/Browse/Search) replacing dropdown + concept detail panel. Prereq reason strings stay deferred. No extraction/mastery-formula/recommend-scoring/growth changes.
+**Files:** `services/recommendation_service.py`, `services/dashboard_service.py` (signal fields), `services/rollup_service.py` (new), `services/quiz_generation_service.py`, `api/v1/practice.py` + `knowledge.py` (new), `main.py`, `schemas/practice.py` + `knowledge.py` (new), `features/quiz/QuizModes.tsx` + `ConceptDetail.tsx` (new), `features/quiz/QuizTaker.tsx`, `tests/test_practice.py` + `tests/test_knowledge.py` (new), `docs/*`.
+**Verify:** new tests + regression (quiz/mastery/dashboard/recommendation/adaptive/structure/pipeline) + `npm run build`; single commit. Phase D parked.
+
+### Phase C Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `services/recommendation_service.py` (+recommend_many/signal fields), `services/dashboard_service.py` (signal fields), `services/rollup_service.py` (new), `services/quiz_generation_service.py` (CORE-gate + enriched source), `api/v1/practice.py` + `knowledge.py` (new), `main.py`, `schemas/practice.py` + `knowledge.py` (new), `features/quiz/QuizModes.tsx` + `ConceptDetail.tsx` (new), `features/quiz/QuizTaker.tsx` (dropdown removed), `tests/test_practice.py` + `tests/test_knowledge.py` (new, 24 tests), `docs/*`
+**Verify:** 105 affected tests green (13s); `npm run build` green; no schema change; assessment targeting + EMA + recommend scoring + growth untouched.
+**Known:** tree reuses dashboard progress numbers; detail relation lists reuse hit shape; read endpoints need no LLM budget. Phase D parked.
+
 ## Phase B — Extraction v2 (user-approved, in progress)
 
 **Recorded:** 2026-09-16 before impl | Source: user Phase B instruction + design §§4–9

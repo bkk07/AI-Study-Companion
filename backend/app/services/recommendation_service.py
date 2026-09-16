@@ -69,6 +69,8 @@ class ConceptSignal:
 
     Calibration fields describe evaluated records only. `mismatch_type`
     comes from `mismatch_service` (None = no active mismatch).
+    `importance`/`lo_type` describe the learning object (None = legacy
+    caller that predates classification; treated as CORE/CONCEPT).
     """
 
     concept_id: uuid.UUID
@@ -82,6 +84,8 @@ class ConceptSignal:
     accuracy: float | None = None
     evaluated_count: int = 0
     days_since_evidence: float | None = None
+    importance: str | None = None
+    lo_type: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -203,6 +207,99 @@ def _explain(signal: ConceptSignal, action: str, score: float, times_recommended
             f"Recommended {times_recommended} time(s) recently, but it still scores highest."
         )
     return " ".join(parts)
+
+
+@dataclass(frozen=True)
+class PracticeCandidate:
+    """One ranked practice target for the Recommended tab (Phase C).
+
+    Pure derivation — nothing persisted. `fallback` marks the neutral
+    no-history suggestion ("start with a core concept"), which carries no
+    score and no evidence-based reasoning.
+    """
+
+    signal: ConceptSignal
+    score: float | None
+    reasoning: str
+    fallback: bool = False
+
+
+NEUTRAL_FALLBACK_REASON = "Start with a core concept from this topic."
+DEFAULT_PRACTICE_LIMIT = 4
+MAX_PRACTICE_LIMIT = 8
+
+
+def _is_practice_eligible(signal: ConceptSignal) -> bool:
+    """CORE-only gate for practice lists (None = legacy, reads as CORE)."""
+    return signal.importance is None or signal.importance == "CORE"
+
+
+def recommend_many(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    signals: list[ConceptSignal],
+    limit: int = DEFAULT_PRACTICE_LIMIT,
+    goal_keywords: tuple[str, ...] = (),
+    now: datetime | None = None,
+) -> tuple[list[PracticeCandidate], PracticeCandidate | None]:
+    """Rank CORE practice targets without persisting (Phase C, Recommended tab).
+
+    Scores every evidenced CORE signal for TARGETED_QUIZ with the unchanged
+    `score_action` engine; returns the top-`limit` plus an optional neutral
+    fallback when nothing has evidence yet. Pure: the `recommendations`
+    table and the single-active-row contract are untouched.
+    """
+    if any(not isinstance(s, ConceptSignal) for s in signals):
+        raise ValueError("signals must all be ConceptSignal")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise ValueError("limit must be an integer")
+    limit = max(1, min(limit, MAX_PRACTICE_LIMIT))
+    project = db.get(Project, project_id)
+    if project is None:
+        raise LookupError("project not found")
+    owned = {
+        c.id
+        for c in db.query(Concept.id).filter(Concept.project_id == project.id).all()
+    }
+    eligible = [s for s in signals if _is_practice_eligible(s)]
+    for signal in eligible:
+        if signal.concept_id not in owned:
+            raise LookupError("concept not found in this project")
+    cutoff = (now or datetime.now(timezone.utc)) - REPETITION_WINDOW
+    recent = (
+        db.query(Recommendation.concept_id, Recommendation.action_type)
+        .filter(
+            Recommendation.user_id == user_id,
+            Recommendation.project_id == project.id,
+            Recommendation.created_at >= cutoff,
+        )
+        .all()
+    )
+    counts: dict[tuple[uuid.UUID, str], int] = {}
+    for concept_id, action_type in recent:
+        counts[(concept_id, action_type)] = counts.get((concept_id, action_type), 0) + 1
+    evidenced = sum(1 for s in eligible if s.mcq_count + s.applied_count > 0)
+    ranked: list[PracticeCandidate] = []
+    for signal in sorted(eligible, key=lambda s: str(s.concept_id)):
+        if signal.mcq is None and signal.applied is None:
+            continue
+        if not is_eligible(TARGETED_QUIZ, evidenced):
+            continue
+        times = counts.get((signal.concept_id, TARGETED_QUIZ), 0)
+        score = score_action(signal, TARGETED_QUIZ, goal_keywords=goal_keywords,
+                             times_recommended=times)
+        ranked.append(PracticeCandidate(
+            signal=signal, score=score,
+            reasoning=_explain(signal, TARGETED_QUIZ, score, times)))
+    ranked.sort(key=lambda c: (-c.score, str(c.signal.concept_id)))
+    fallback = None
+    if not ranked and eligible:
+        first = sorted(eligible, key=lambda s: str(s.concept_id))[0]
+        fallback = PracticeCandidate(signal=first, score=None,
+                                     reasoning=NEUTRAL_FALLBACK_REASON, fallback=True)
+    return ranked[:limit], fallback
 
 
 def recommend(

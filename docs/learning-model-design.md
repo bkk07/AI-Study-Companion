@@ -576,3 +576,23 @@ drill-down view is additive.
 - Verified: 94 affected tests green; `alembic check` clean (no schema
   change); legacy `extract_structure`/`persist_structure` frozen and still
   passing. Phase C/D untouched.
+
+## 22. Phase C implementation notes (recorded 2026-09-16)
+
+- Built: `recommend_many` (CORE-only TARGETED_QUIZ top-N, pure, neutral
+  fallback; `recommend` + single-active contract untouched) with
+  ConceptSignal `importance`/`lo_type` (defaulted — legacy callers pass);
+  `rollup_service` (§10 verbatim: practiced-only mean, null-on-empty,
+  coverage, obsolete out); routers `practice.py` (recommendations) +
+  `knowledge.py` (tree/search/detail); quiz CORE-gate → 422 via existing
+  QuizGenerationError mapping + priority-budgeted enriched source
+  (page-range → tagged → project chunks; SUPPORTING/related context block);
+  frontend `QuizModes` (Recommended/Browse/Search, Recommended default) +
+  `ConceptDetail`, dropdown removed from `QuizTaker` (answering flow kept).
+- Deviations: tree composes gated dashboard progress (same numbers as
+  dashboard) instead of a separate rollup pass; detail reuses SearchHitRead
+  for relation lists (fully populated); no new rate-limit category (reads
+  only, no LLM). Prereq reason strings stay deferred per user decision.
+- Verified: 105 affected tests green; `npm run build` green (tsc + vite);
+  no schema change; no user documents touched. Assessment (open-ended)
+  targeting intentionally unchanged (quiz-only per §11.4). Phase D parked.

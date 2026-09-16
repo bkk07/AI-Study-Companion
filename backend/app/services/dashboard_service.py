@@ -113,6 +113,8 @@ def build_dashboard(
         recommendation_service.ConceptSignal(
             concept_id=concept.id,
             name=concept.title,
+            importance=concept.importance,
+            lo_type=concept.type,
             mcq=scores.mcq.value,
             applied=scores.applied.value,
             mcq_count=scores.mcq.count,

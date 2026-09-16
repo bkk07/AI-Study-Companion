@@ -11,7 +11,9 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.growth import router as growth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.jobs import router as jobs_router
+from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.materials import router as materials_router
+from app.api.v1.practice import router as practice_router
 from app.api.v1.projects import direct_router as projects_direct_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.spaces import router as spaces_router
@@ -57,6 +59,8 @@ app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(growth_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(practice_router, prefix="/api/v1")
+app.include_router(knowledge_router, prefix="/api/v1")
 
 
 @app.get("/")

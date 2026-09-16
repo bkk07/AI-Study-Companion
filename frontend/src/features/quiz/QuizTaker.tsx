@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react"
-import { ArrowRight, CheckCircle2, PartyPopper, RotateCcw, Wand2, XCircle } from "lucide-react"
+import { useState } from "react"
+import { ArrowRight, CheckCircle2, PartyPopper, RotateCcw, XCircle } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
-import { Badge, Button, EmptyState, ErrorBox, LoadingState, ProgressBar, Select } from "@/components/ui"
+import { Badge, Button, ErrorBox, ProgressBar } from "@/components/ui"
 import { cn } from "@/lib/utils"
+import { QuizModes } from "./QuizModes"
 
-type Concept = { id: string; title: string }
 type Question = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
 type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number }
 type Stage =
@@ -18,7 +18,7 @@ type Stage =
 function errText(status?: number, detail?: string): string {
   if (status === 429) return "Slow down — too many AI requests. Wait a moment and retry."
   if (status === 502) return "Quiz AI provider unavailable — nothing was saved. Retry when ready."
-  if (status === 422) return "Quiz generation failed validation — nothing was saved. Retry to generate again."
+  if (status === 422) return "This target can't be quizzed (supporting material has no practice mode) — pick a CORE target."
   if (status === 404) return "Quiz or project not found."
   return detail ?? "Request failed — nothing was lost except this click."
 }
@@ -32,8 +32,6 @@ function difficultyTint(d: string): "violet" | "amber" | "rose" {
 }
 
 export function QuizTaker({ projectId }: { projectId: string }) {
-  const [concepts, setConcepts] = useState<Concept[] | null>(null)
-  const [conceptId, setConceptId] = useState("")
   const [stage, setStage] = useState<Stage>({ name: "setup" })
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -44,25 +42,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    apiClient
-      .get<{ topics: { subtopics: { concepts: Concept[] }[] }[] }>(`/projects/${projectId}/structure`)
-      .then((res) => {
-        if (cancelled) return
-        const flat = res.data.topics.flatMap((t) => t.subtopics.flatMap((s) => s.concepts))
-        setConcepts(flat)
-        if (flat.length > 0) setConceptId(flat[0].id)
-      })
-      .catch(() => {
-        if (!cancelled) setConcepts([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [projectId])
-
-  async function generate() {
+  async function generate(conceptId: string) {
     if (!conceptId) return
     setStage({ name: "busy", label: "Generating quiz…" })
     const run = async () => {
@@ -128,49 +108,10 @@ export function QuizTaker({ projectId }: { projectId: string }) {
     }
   }
 
-  if (concepts === null) return <LoadingState text="Loading concepts…" />
-
   if (stage.name === "setup" || stage.name === "busy") {
     return (
       <div>
-        {concepts.length === 0 ? (
-          <EmptyState
-            icon={<Wand2 className="h-6 w-6" />}
-            title="No concepts yet"
-            hint="Upload a PDF and quizzes unlock once it's processed."
-          />
-        ) : (
-          <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-5 text-white shadow-soft sm:p-6">
-            <p className="flex items-center gap-2 font-bold">
-              <Wand2 className="h-5 w-5" /> Generate an adaptive quiz
-            </p>
-            <p className="mt-1 text-sm text-white/80">
-              Five questions tuned to the concept you pick — difficulty matched to your mastery.
-            </p>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <Select
-                value={conceptId}
-                onChange={(e) => setConceptId(e.target.value)}
-                disabled={stage.name === "busy"}
-                className="flex-1 border-white/30 bg-white/15 text-white backdrop-blur [&>option]:text-foreground"
-              >
-                {concepts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </Select>
-              <Button
-                type="button"
-                onClick={() => void generate()}
-                disabled={stage.name === "busy" || !conceptId}
-                className="bg-white text-violet-700 shadow-none hover:bg-white/90 hover:shadow-none"
-              >
-                {stage.name === "busy" ? "Working…" : "Generate quiz"}
-              </Button>
-            </div>
-          </div>
-        )}
+        <QuizModes projectId={projectId} busy={stage.name === "busy"} onPractice={(id) => void generate(id)} />
         {stage.name === "busy" && (
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-600" />

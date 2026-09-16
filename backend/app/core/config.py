@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="/data/uploads", alias="UPLOAD_DIR")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
     environment: str = Field(default="development", alias="ENVIRONMENT")
-    cors_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173", alias="CORS_ORIGINS")
+    cors_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5175,http://127.0.0.1:5175",
+        alias="CORS_ORIGINS",
+    )
 
     # AI-cost protection (Phase 49): sliding-window budgets per LLM endpoint
     # scope, enforced per user and per project. Prototype defaults are generous;

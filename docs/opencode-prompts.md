@@ -1471,6 +1471,19 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Files:** `docker-compose.yml` + `core/config.py` + `.env.example` (4 loopback origins), `tests/security/test_cors.py` (127 echo regression), `docs/*`
 **Verify:** CORS tests pass; `compose config` ok; live preflight `localhost:5173`/`127.0.0.1:5173`/`localhost:3000` all 200 with echo; probe users deleted (`user5@gmail.com` free).
 
+## CORS Port 5175 (out-of-band, user-requested)
+
+**Recorded:** 2026-09-16 before impl | Source: user runs frontend dev on :5175 (5173 taken by another app)
+**Fix:** Allow-list `localhost:5175` + `127.0.0.1:5175` in compose + config default + `.env.example`; pin `vite.config.ts` dev server to 5175 `strictPort` so the port can't drift to 5176 (which would break CORS again). No wildcard — explicit list per Phase 49 posture.
+**Files:** `docker-compose.yml`, `core/config.py`, `.env.example`, `vite.config.ts`, `docs/*`.
+**Verify:** preflight from both 5175 origins → 200; recreate api/worker (same-shell key export); single commit.
+
+### CORS 5175 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `docker-compose.yml` + `core/config.py` + `.env.example` (5175 origins), `vite.config.ts` (pinned 5175 strict), `docs/*`
+**Verify:** live preflight both 5175 origins → 200 with echo; `compose config` ok; `npm run build` green. Note: user must restart `npm run dev` once to pick up the pinned port.
+
 ### JWT + Register Post-implementation (compact)
 
 **Status:** ✅ Complete 2026-09-16

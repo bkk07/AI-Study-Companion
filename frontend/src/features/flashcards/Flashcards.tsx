@@ -259,9 +259,10 @@ export function Flashcards({ projectId }: { projectId: string }) {
   const [view, setView] = useState<SubView>("dashboard")
   const [filter, setFilter] = useState("all")
   const [search, setSearch] = useState("")
-  const [genScope, setGenScope] = useState<"project" | "topic" | "subtopic">("project")
+  const [genScope, setGenScope] = useState<"project" | "topic" | "subtopic" | "concept">("project")
   const [genTopicId, setGenTopicId] = useState<string | null>(null)
   const [genSubId, setGenSubId] = useState<string | null>(null)
+  const [genConceptId, setGenConceptId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setFailed(false)
@@ -344,10 +345,15 @@ export function Flashcards({ projectId }: { projectId: string }) {
     if (building) return
     if (genScope === "topic" && !genTopicId) return
     if (genScope === "subtopic" && !genSubId) return
+    if (genScope === "concept" && !genConceptId) return
     setBuilding(true)
     setBuildResult(null)
     try {
-      const body = genScope === "topic" ? { topic_id: genTopicId } : genScope === "subtopic" ? { subtopic_id: genSubId } : {}
+      const body =
+        genScope === "topic" ? { topic_id: genTopicId }
+        : genScope === "subtopic" ? { subtopic_id: genSubId }
+        : genScope === "concept" ? { concept_id: genConceptId }
+        : {}
       const res = await apiClient.post<{ created: number; total: number }>(`/projects/${projectId}/flashcards/decks`, body)
       setBuildResult(res.data)
       await load()
@@ -379,8 +385,20 @@ export function Flashcards({ projectId }: { projectId: string }) {
     () => (topics ?? []).flatMap((t) => t.subtopics.map((s) => ({ id: s.id, title: s.title, hint: t.title }))),
     [topics],
   )
+  const genConceptItems = useMemo(() => {
+    const out: { id: string; title: string; hint?: string }[] = []
+    for (const t of topics ?? []) {
+      for (const s of t.subtopics) {
+        for (const c of s.concepts ?? []) out.push({ id: c.id, title: c.title, hint: `${t.title} → ${s.title}` })
+      }
+    }
+    return out
+  }, [topics])
   const builtPreview = useMemo(() => {
     if (!buildResult) return []
+    if (genScope === "concept" && genConceptId) {
+      return cards.filter((c) => c.concept_id === genConceptId).slice(0, 10)
+    }
     if (genScope === "subtopic" && genSubId) {
       const allowed = new Set(
         (topics ?? []).flatMap((t) => t.subtopics).find((s) => s.id === genSubId)?.concepts.map((c) => c.id) ?? [],
@@ -393,7 +411,7 @@ export function Flashcards({ projectId }: { projectId: string }) {
       return cards.filter((c) => allowed.has(c.concept_id)).slice(0, 10)
     }
     return cards.slice(0, 10)
-  }, [buildResult, cards, genScope, genSubId, genTopicId, topics])
+  }, [buildResult, cards, genScope, genConceptId, genSubId, genTopicId, topics])
 
   if (session) {
     return (
@@ -614,7 +632,7 @@ export function Flashcards({ projectId }: { projectId: string }) {
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">Scope</label>
               <div className="flex flex-wrap gap-2">
-                {(["project", "topic", "subtopic"] as const).map((s) => (
+                {(["project", "topic", "subtopic", "concept"] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -633,11 +651,14 @@ export function Flashcards({ projectId }: { projectId: string }) {
             {genScope === "subtopic" && (
               <SearchablePicker label="Subtopic" searchPlaceholder="Search subtopics…" items={genSubItems} selectedId={genSubId} onSelect={setGenSubId} />
             )}
+            {genScope === "concept" && (
+              <SearchablePicker label="Concept" searchPlaceholder="Search concepts…" items={genConceptItems} selectedId={genConceptId} onSelect={setGenConceptId} />
+            )}
 
             <button
               type="button"
               onClick={() => void buildDeck()}
-              disabled={building || (genScope === "topic" && !genTopicId) || (genScope === "subtopic" && !genSubId)}
+              disabled={building || (genScope === "topic" && !genTopicId) || (genScope === "subtopic" && !genSubId) || (genScope === "concept" && !genConceptId)}
               className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
             >
               {building && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
@@ -655,7 +676,15 @@ export function Flashcards({ projectId }: { projectId: string }) {
             <div className="mt-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-slate-900">Preview — {builtPreview.length} cards</h2>
-                <Button type="button" size="sm" onClick={() => void start(genScope === "subtopic" ? genSubId ?? undefined : undefined)} disabled={starting !== null}>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setSession({ cards: builtPreview, total: builtPreview.length })
+                    setView("study")
+                  }}
+                  disabled={builtPreview.length === 0}
+                >
                   <Play size={14} /> Study now
                 </Button>
               </div>

@@ -5,10 +5,11 @@ from pydantic import BaseModel, Field
 
 
 class DeckBuildRequest(BaseModel):
-    """Scope for deck building — at most one of subtopic/topic; neither = project."""
+    """Scope for deck building — at most one of subtopic/topic/concept; none = project."""
 
     subtopic_id: uuid.UUID | None = None
     topic_id: uuid.UUID | None = None
+    concept_id: uuid.UUID | None = None
 
 
 class DeckBuildResponse(BaseModel):

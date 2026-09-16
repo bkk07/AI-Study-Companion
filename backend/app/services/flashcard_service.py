@@ -75,20 +75,38 @@ def _scope_subtopics(
     )
 
 
+def _create_card(db: Session, project: Project, row: Concept, existing: set) -> bool:
+    """Insert one deterministic card for a CORE target unless present."""
+    if not is_mastery_target(row):
+        return False
+    front, back = front_back_for(row.title, row.type, row.summary)
+    if not front or not back:
+        return False
+    if (row.id, front) in existing:
+        return False
+    db.add(Flashcard(project_id=project.id, concept_id=row.id,
+                     front=front, back=back, source="auto"))
+    existing.add((row.id, front))
+    return True
+
+
 def build_deck(
     db: Session,
     *,
     project_id: uuid.UUID,
     subtopic_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
+    concept_id: uuid.UUID | None = None,
 ) -> dict:
     """Create missing cards for CORE targets in scope. Idempotent.
 
-    Returns {"created": N, "total": M}. Exactly one of subtopic_id/topic_id
-    may narrow the scope; neither means the whole project.
+    Returns {"created": N, "total": M}. Exactly one of
+    subtopic_id/topic_id/concept_id may narrow the scope; none means the
+    whole project.
     """
-    if subtopic_id is not None and topic_id is not None:
-        raise ValueError("pass at most one of subtopic_id, topic_id")
+    provided = [v is not None for v in (subtopic_id, topic_id, concept_id)]
+    if sum(provided) > 1:
+        raise ValueError("pass at most one of subtopic_id, topic_id, concept_id")
     project = db.get(Project, project_id)
     if project is None:
         raise LookupError("project not found")
@@ -98,23 +116,23 @@ def build_deck(
             (c.concept_id, c.front)
             for c in db.query(Flashcard).filter(Flashcard.project_id == project.id).all()
         }
-        for sub in _scope_subtopics(db, project, subtopic_id, topic_id):
-            rows = (
-                db.query(Concept).filter(Concept.subtopic_id == sub.id)
-                .order_by(Concept.created_at.asc()).all()
-            )
-            for row in rows:
-                if not is_mastery_target(row):
-                    continue
-                front, back = front_back_for(row.title, row.type, row.summary)
-                if not front or not back:
-                    continue
-                if (row.id, front) in existing:
-                    continue
-                db.add(Flashcard(project_id=project.id, concept_id=row.id,
-                                 front=front, back=back, source="auto"))
-                existing.add((row.id, front))
+        if concept_id is not None:
+            row = db.get(Concept, concept_id)
+            if row is None or row.project_id != project.id:
+                raise LookupError("concept not found in this project")
+            if not is_mastery_target(row):
+                raise ValueError(f"Learning object '{row.title}' is not a deck target")
+            if _create_card(db, project, row, existing):
                 created += 1
+        else:
+            for sub in _scope_subtopics(db, project, subtopic_id, topic_id):
+                rows = (
+                    db.query(Concept).filter(Concept.subtopic_id == sub.id)
+                    .order_by(Concept.created_at.asc()).all()
+                )
+                for row in rows:
+                    if _create_card(db, project, row, existing):
+                        created += 1
         db.commit()
     except Exception:
         db.rollback()
@@ -129,6 +147,7 @@ def list_cards(
     project_id: uuid.UUID,
     subtopic_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
+    concept_id: uuid.UUID | None = None,
     due_only: bool = False,
     limit: int = MAX_LIST_LIMIT,
     now: datetime | None = None,
@@ -142,7 +161,12 @@ def list_cards(
         raise LookupError("project not found")
     moment = now or datetime.now(timezone.utc)
     q = db.query(Flashcard).filter(Flashcard.project_id == project.id)
-    if subtopic_id is not None or topic_id is not None:
+    if concept_id is not None:
+        concept = db.get(Concept, concept_id)
+        if concept is None or concept.project_id != project.id:
+            raise LookupError("concept not found in this project")
+        q = q.filter(Flashcard.concept_id == concept.id)
+    elif subtopic_id is not None or topic_id is not None:
         subs = _scope_subtopics(db, project, subtopic_id, topic_id)
         q = q.filter(Flashcard.concept_id.in_(
             [c.id for s in subs for c in db.query(Concept).filter(

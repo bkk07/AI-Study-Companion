@@ -1448,6 +1448,14 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Status:** ✅ Complete 2026-09-16
 **Found live:** (1) `self.retry()` re-raises the ORIGINAL error after max retries (not `MaxRetriesExceededError`), so provider outages escaped all three worker tasks and left jobs stuck `running` — fixed in `extraction.py`/`embeddings.py`/`structure.py` via explicit `request.retries >= 3` guard + regression test (5 chain tests pass). (2) Compose `environment:` overrides the app's `backend/.env`, so the containers ran the dummy key until `$env:GROQ_API_KEY` was exported in the same shell as `docker compose up -d` — key now live (56ch `gsk_`, ping `{'ok': True}`); `.env.example` header documents the export requirement.
 **Live result:** Kiran_AIProf.pdf map built (2 topics / 7 subtopics / 28 concepts, verified in DB); both materials fully chunked+embedded (28/28); Project_Requirements structure completed after 429 window reset (771 topics / 952 concepts total) — RESOLVED, tutor/quiz/map all live.
+
+## Quiz 422 Fix — concept source fallback (out-of-band bugfix)
+
+**Recorded:** 2026-09-16 before impl | Source: user screenshot — quiz 422 on new project
+**Diagnosis:** Reproduced live: `generate_quiz` → "concept has no source chunks". Project HAS 74 chunks, but ALL have `concept_id NULL` — `chunk_pages` never assigns concepts and nothing else does, so concept-scoped `_load_source` (quiz + assessment) is empty BY CONSTRUCTION in production. Same for `open_ended_assessment_service`.
+**Fix:** `_load_source` falls back to project-wide chunks when the concept has none tagged (scope stays project-local; isolation untouched) + quiz prompt names the target concept (title/summary) so questions stay focused; delimiters + never-obey lines preserved (security tests keep passing). Truly empty projects still 422 with the same message.
+**Files:** `quiz_generation_service.py`, `open_ended_assessment_service.py`, `tests/test_concept_source_fallback.py` (new), `docs/*`.
+**Verify:** new tests + affected suites + full `pytest -q` + rebuild api+worker + live quiz retry on user project; single commit.
 **Verify:** chain tests 5 pass; worker `build_structure` registered; failed jobs now carry messages instead of hanging.
 
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

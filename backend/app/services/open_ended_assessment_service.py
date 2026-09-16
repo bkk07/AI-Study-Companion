@@ -93,12 +93,24 @@ def _build_user_prompt(concept_title: str, concept_summary: str, source: str, an
 
 
 def _load_source(db: Session, project_id: uuid.UUID, concept_id: uuid.UUID) -> str:
+    """Concept-tagged chunks first; fall back to project-wide chunks.
+
+    Same production reality as quiz generation: chunking never tags concepts,
+    so concept-only lookup is always empty. Scope stays project-local.
+    """
     chunks = (
         db.query(DocumentChunk)
         .filter(DocumentChunk.project_id == project_id, DocumentChunk.concept_id == concept_id)
         .order_by(DocumentChunk.chunk_index.asc())
         .all()
     )
+    if not chunks:
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.project_id == project_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
     texts = [c.content.strip() for c in chunks if (c.content or "").strip()]
     return "\n\n".join(texts)[:MAX_SOURCE_CHARS].strip()
 

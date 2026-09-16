@@ -92,7 +92,12 @@ def _weight(difficulty: str | None, gap: timedelta | None) -> float:
 def _run_stream(points: list[EvidenceInput]) -> StreamMastery:
     if not points:
         return StreamMastery(value=None)
-    ordered = sorted(points, key=lambda p: p.at) if all(p.at is not None for p in points) else list(points)
+    ats = [p.at for p in points]
+    if any(a is None for a in ats) and any(a is not None for a in ats):
+        raise ValueError("timestamps must be all present or all absent within a stream")
+    if len({a.tzinfo is None for a in ats if a is not None}) > 1:
+        raise ValueError("timestamps must not mix naive and aware datetimes within a stream")
+    ordered = sorted(points, key=lambda p: p.at) if ats[0] is not None else list(points)
     mastery = float(ordered[0].score)
     for prev, cur in zip(ordered, ordered[1:]):
         gap = (cur.at - prev.at) if cur.at is not None and prev.at is not None else None
@@ -106,11 +111,6 @@ def compute_mastery(points: list[EvidenceInput]) -> MasteryScores:
     """Derive (mcq, applied) mastery from evidence points. Pure — no I/O."""
     if any(not isinstance(p, EvidenceInput) for p in points):
         raise ValueError("points must all be EvidenceInput")
-    ats = [p.at for p in points]
-    if any(a is None for a in ats) and any(a is not None for a in ats):
-        raise ValueError("timestamps must be all present or all absent")
-    if len({(a.tzinfo is None) for a in ats if a is not None}) > 1:
-        raise ValueError("timestamps must not mix naive and aware datetimes")
     mcq = [p for p in points if p.evidence_type == MCQ_TYPE]
     applied = [p for p in points if p.evidence_type in APPLIED_TYPES]
     return MasteryScores(mcq=_run_stream(mcq), applied=_run_stream(applied))

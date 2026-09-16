@@ -88,6 +88,14 @@ def test_confidence_cannot_reach_the_engine():
     assert compute_mastery([_pt(40), _pt(80)]) == compute_mastery([_pt(40), _pt(80)])
 
 
+def test_streams_validate_timestamps_independently():
+    mixed = [_pt(30, at=T0), _pt(90, etype="explain_back")]  # one stream timed, other not
+    scores = compute_mastery(mixed)
+    assert scores.mcq.value == pytest.approx(30.0) and scores.applied.value == pytest.approx(90.0)
+    with pytest.raises(ValueError):  # mixed presence WITHIN one stream still rejected
+        compute_mastery([_pt(30, at=T0), _pt(90, etype="mcq")])
+
+
 def test_determinism_and_timestamp_ordering():
     pts = [_pt(30, at=T0), _pt(90, at=T0 + timedelta(days=1))]
     assert compute_mastery(pts) == compute_mastery(list(reversed(pts)))  # sorted by time

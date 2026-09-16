@@ -44,19 +44,19 @@
 | — | RAG Service (detail §31) | ✅ Complete | 2026-09-16 | Pass (mocked assembly unit) | `assemble_context` + `rag.py` + 6 tests |
 | 29 | Tutor (Grounded Q&A) | ✅ Complete | 2026-09-16 | Pass (grounded+unsupported+isolation) | `tutor ask` endpoint + 6 tests |
 | 30 | Tutor Frontend | ✅ Complete | 2026-09-16 | Pass (build + live contract flow) | `TutorChat` + retrieval short-circuit |
-| 31 | Confidence Capture | ⏳ Pending | — | — | — |
+| 31 | Confidence Capture | ✅ Complete | 2026-09-16 | Covered by detail §38 | confidence via QuizAnswer + confidence_service |
 | — | Quiz Data Model (detail §34) | ✅ Complete | 2026-09-16 | Pass (models + migration) | `quizzes/questions/attempts/answers` + `4b3487d354d6` + 3 tests |
 | — | Quiz Generation (detail §35) | ✅ Complete | 2026-09-16 | Pass (validate-persist+retry) | `generate_quiz` + `quiz.py` schemas + 5 tests |
 | — | Adaptive Quiz Selection (detail §36) | ✅ Complete | 2026-09-16 | Pass (synthetic mastery unit) | `select_questions` confirmed rule + 6 tests |
 | — | Quiz Frontend + Attempt API (detail §37) | ✅ Complete | 2026-09-16 | Pass (build + live loop) | `QuizTaker` + quiz/attempt routes + 3 tests |
 | — | Confidence Engine (detail §38) | ✅ Complete | 2026-09-16 | Pass (calibration+separation) | `summarize` + 6 tests |
-| 32 | Quiz Generation | ⏳ Pending | — | — | — |
-| 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
-| 34 | Quiz Frontend | ⏳ Pending | — | — | — |
+| 32 | Quiz Generation | ✅ Complete | 2026-09-16 | Covered by detail §35 | generate_quiz validated persist + retry |
+| 33 | Quiz Attempt & Answer Flow | ✅ Complete | 2026-09-16 | Covered by detail §37 | attempt API start/answer/complete + locks |
+| 34 | Quiz Frontend | ✅ Complete | 2026-09-16 | Covered by detail §37 | QuizTaker UI + confidence control |
 | 35 | Open-Ended Assessment | ✅ Complete | 2026-09-16 | Pass (grade+verdict, mocked) | `grade_open_ended` + `POST assessment/open-ended` + 9 tests |
 | 36 | Explain-It-Back | ✅ Complete | 2026-09-16 | Pass (evidence rows, mocked) | `submit_explanation` + `mastery_evidence` + 9 tests |
 | 37 | Mastery Engine | ✅ Complete | 2026-09-16 | Pass (EMA bounds/independence) | `mastery_service` confirmed formula + 7 tests |
-| 38 | Confidence Engine | ⏳ Pending | — | — | — |
+| 38 | Confidence Engine | ✅ Complete | 2026-09-16 | Covered by detail §38 | summarize gap/extremes, mastery-independent |
 | 39 | Mismatch Detection | ✅ Complete | 2026-09-16 | Pass (threshold/gating/rank) | `mismatch_service` confirmed rule + 6 tests |
 | 40 | Decision / Recommendation Engine | ✅ Complete | 2026-09-16 | Pass (scoring/supersede) | `recommendation_service` confirmed formula + 8 tests |
 | 41 | Recommendations API + Frontend | ✅ Complete | 2026-09-16 | Pass (bridge + UI build) | `dashboard` API + `Dashboard` UI + 3 tests |

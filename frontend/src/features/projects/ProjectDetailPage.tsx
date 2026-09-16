@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
 import { Dashboard } from "@/features/dashboard/Dashboard"
+import { GrowthView } from "@/features/analytics/GrowthView"
 import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
@@ -96,6 +97,10 @@ export function ProjectDetailPage() {
           <div className="mt-6 border-t pt-4">
             <h2 className="text-lg font-semibold">Mastery & recommendations</h2>
             {projectId ? <Dashboard projectId={projectId} /> : null}
+          </div>
+          <div className="mt-6 border-t pt-4">
+            <h2 className="text-lg font-semibold">Growth</h2>
+            {projectId ? <GrowthView projectId={projectId} /> : null}
           </div>
         </div>
       ) : null}

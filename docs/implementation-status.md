@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 44 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 45 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -60,7 +60,7 @@
 | 39 | Mismatch Detection | ✅ Complete | 2026-09-16 | Pass (threshold/gating/rank) | `mismatch_service` confirmed rule + 6 tests |
 | 40 | Decision / Recommendation Engine | ✅ Complete | 2026-09-16 | Pass (scoring/supersede) | `recommendation_service` confirmed formula + 8 tests |
 | 41 | Recommendations API + Frontend | ✅ Complete | 2026-09-16 | Pass (bridge + UI build) | `dashboard` API + `Dashboard` UI + 3 tests |
-| 42 | Growth Analysis | ⏳ Pending | — | — | — |
+| 42 | Growth Analysis | ✅ Complete | 2026-09-16 | Pass (EMA replay) | `growth_service` + API + `GrowthView` + 4 tests |
 | 43 | Project Analytics | ⏳ Pending | — | — | — |
 | 44 | Global/Admin Analytics | ⏳ Pending | — | — | — |
 | 45 | Admin Dashboard (Read-Only) | ⏳ Pending | — | — | — |
@@ -649,6 +649,16 @@
 **Verify:** 3 pass real PG (composition/paths/flags + lifecycle + isolation); `npm run build` 91 mods; `pytest -q` 189 passed (3+186); `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Backend owns every number; UI renders only.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 45 (Growth Analysis).
+
+---
+
+## Phase 45 — Detail (compact)
+
+**Scope:** Time-series growth over evidence only — EMA replay + overview aggregation + UI; no counters, no new tables.
+**Files:** `backend/app/services/growth_service.py` + `backend/app/schemas/growth.py` + `backend/app/api/v1/growth.py` + `main.py` wire + `backend/tests/test_growth.py` (4 tests) + `frontend/src/features/analytics/GrowthView.tsx` + `ProjectDetailPage.tsx` section, `docs/*`.
+**Verify:** 4 pass real PG (replay/trends/honesty/scopes + overview + API); `npm run build` 92 mods; `pytest -q` 194 passed (4+190); `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Derived from evidence + confirmed engine only; sparse histories say so.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 46 (Project Analytics).
 
 ---
 

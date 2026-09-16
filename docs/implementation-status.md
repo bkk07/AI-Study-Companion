@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 48 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 49 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -67,7 +67,7 @@
 | 46 | Activity Events & AI Usage | ⏳ Pending | — | — | — |
 | 47 | Error Handling & Edge Cases | ✅ Complete | 2026-09-16 | Pass (shape+status) | Central envelope + handlers + 9 tests |
 | 48 | Observability & Health | ⏳ Pending | — | — | — |
-| 49 | Security Hardening | ⏳ Pending | — | — | — |
+| 49 | Security Hardening | ✅ Complete | 2026-09-16 | Pass (targeted) | Rate limits + `tests/security/` 14 tests |
 | 50 | Rate Limiting & CORS | ⏳ Pending | — | — | — |
 | 51 | Frontend Polish & Navigation | ⏳ Pending | — | — | — |
 | 52 | Docker Production Notes | ⏳ Pending | — | — | — |
@@ -687,6 +687,14 @@
 **Verify:** 9 pass real PG (422/details, 401+challenge, expired, 403/404/400 exact, 500 generic no-leak, 502 provider, code-table); `pytest -q` 209 passed (200+9); `npm run build` 95 mods; `compose config` 0; `alembic check` clean; no migration, no rebuild.
 **Guard:** Boundary normalization only; 5xx/non-str genericized + logged.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 49 (Security Hardening).
+
+## Phase 49 — Detail (compact)
+
+**Scope:** Close gaps without re-architecting: CORS locked+tested, upload re-tested, no byte-serving route proven, prompt boundaries codified, LLM budgets enforced, guessed-ID sweep green.
+**Files:** `core/config.py` + `.env.example` + `core/rate_limit.py` + limiter wiring (`tutor`/`quizzes`/`assessment`) + `tests/security/` (6 files) + 429 UI texts + `docs/*`.
+**Verify:** 14 pass real PG; `pytest -q` 223 passed (209+14); `npm run build` 95 mods; `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** Additive only; ownership evaluated before budget consumption.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 50 (Observability & AI Usage).
 
 ---
 

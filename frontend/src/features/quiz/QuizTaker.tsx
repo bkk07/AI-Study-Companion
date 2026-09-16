@@ -14,6 +14,7 @@ type Stage =
   | { name: "failure"; text: string; retry: () => void }
 
 function errText(status?: number, detail?: string): string {
+  if (status === 429) return "Slow down — too many AI requests. Wait a moment and retry."
   if (status === 502) return "Quiz AI provider unavailable — nothing was saved. Retry when ready."
   if (status === 422) return "Quiz generation failed validation — nothing was saved. Retry to generate again."
   if (status === 404) return "Quiz or project not found."

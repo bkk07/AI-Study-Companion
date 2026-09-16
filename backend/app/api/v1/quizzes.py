@@ -4,6 +4,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import require_llm_budget
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.dependencies.authorization import get_authorized_project
@@ -29,6 +30,7 @@ def generate_quiz(
     body: QuizGenerateRequest,
     project: Project = Depends(get_authorized_project),
     db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("quiz-generate")),
 ) -> QuizGenerateResponse:
     """Generate a validated MCQ quiz for one concept of this project."""
     try:

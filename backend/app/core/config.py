@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     cors_origins: str = Field(default="http://localhost:5173", alias="CORS_ORIGINS")
 
+    # AI-cost protection (Phase 49): sliding-window budgets per LLM endpoint
+    # scope, enforced per user and per project. Prototype defaults are generous;
+    # tighten via env in production.
+    rate_limit_llm_per_minute_user: int = Field(default=30, alias="RATE_LIMIT_LLM_PER_MINUTE_USER")
+    rate_limit_llm_per_minute_project: int = Field(default=120, alias="RATE_LIMIT_LLM_PER_MINUTE_PROJECT")
+    rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

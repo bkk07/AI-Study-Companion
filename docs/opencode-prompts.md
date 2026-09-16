@@ -1398,4 +1398,19 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Guard:** No route invents payloads — normalization at boundary; 5xx/non-str details genericized; originals logged server-side.
 **Known:** 429 mapped but producer-less until Phase 49 limiter; status-specific friendly texts in UI unchanged (codes available for future use).
 
+## Phase 49 — Security Hardening (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 49 (close gaps; reinforce, don't re-architect)
+**Survey:** CORS already settings-driven, no wildcard (compose `5173,3000`, default `5173`) — lock with tests. Upload enforcement exists (`save_pdf`: ext+content-type+`%PDF`+10MB+basename+server-controlled uuid path) — re-test + traversal at API level. No file-serving route exists (metadata only, owner-scoped) — regression-test that no bytes are servable. Prompts: all 4 LLM boundaries already delimit untrusted input (tutor `<<<DATA`, others `<<<>>>` + never-obey line) — codify with builder tests, no prompt edits. No limiter exists — new `core/rate_limit.py` sliding-window in-memory (honest: compose runs a single uvicorn api process, no `--workers`; Lock-guarded; documented). LLM endpoints = tutor ask + quiz generate + assessment ×2 (structure extraction runs in Celery, not request-scoped — excluded by design). `MaterialRead.storage_path` stays (owner-only, frontend never consumes; removing churns old tests for no threat-model gain).
+**Files:** `core/config.py` (+3 settings) + `.env.example`, `core/rate_limit.py` (new: `check_llm_budget`/`require_llm_budget(scope)`/`reset_budgets`), wire into `tutor.py`/`quizzes.py`/`assessment.py` (auth-first ordering preserved), `tests/security/` package (6 files), frontend 429 texts (TutorChat/QuizTaker), `docs/*`.
+**Verify:** new security tests + full `pytest -q` + `npm run build` + `compose config` + `alembic check` (no migration); no rebuild.
+
+### Phase 49 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `core/config.py` (+3 settings) + `.env.example`, `core/rate_limit.py` (sliding-window, Lock-guarded, single-process scope documented; `check_llm_budget`/`require_llm_budget`/`reset_budgets`), limiter wired into `tutor.py`/`quizzes.py`/`assessment.py` after ownership deps, `tests/security/` (helpers + 6 files, 14 tests), frontend 429 texts (TutorChat/QuizTaker), `docs/*`
+**Verify:** 14 pass (CORS echo/omit+no-wildcard; upload 400×3/413/traversal-contained/auth+ownership; metadata JSON-only + no byte-serving route; 429 envelope + user/project isolation + auth-first-404 + scope independence; 4 prompt boundaries delimit+instruct; 13 guessed-ID checks all 404 `not_found` + list non-leak); `pytest -q` 223 passed (209+14); `npm run build` 95 mods; `compose config` 0; `alembic check` clean; no migration, no rebuild.
+**Guard:** No auth/storage/AI re-architecture — additive limiter + tests; budgets consumed post-ownership so strangers learn nothing.
+**Known:** In-memory buckets valid only while api runs single-process (compose default; document before scaling); structure extraction (Celery) intentionally unscoped — queued work, not request LLM spend; `storage_path` stays owner-visible (no consumer beyond owner, no download route).
+
 **Deferred (needs a decision, NOT silently fixed):** (1) Evidence producers: only `explain_back` rows ever reach `mastery_evidence` — quiz completion appends no `mcq` rows and open-ended grading persists nothing, so mcq/applied streams are thin in real use; wiring producers (per-question vs aggregate rows, difficulty carriage) is product-impacting → propose as its own phase. (2) Dashboard N+1 (2 queries × concepts) — prototype-acceptable, Phase 57 territory. (3) No `applied_high_mcq_low` type (blueprint-intended); sync-only grading (no Celery `evaluate_assessment`); no exam timer (all previously logged).

@@ -2,6 +2,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import require_llm_budget
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.dependencies.authorization import get_authorized_project
@@ -24,6 +25,7 @@ def grade_open_ended(
     body: OpenEndedGradeRequest,
     project: Project = Depends(get_authorized_project),
     db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("assessment")),
 ) -> OpenEndedGradeResponse:
     """Grade a free-text answer against one concept — evidence source, never mutates mastery."""
     try:
@@ -57,6 +59,7 @@ def submit_explanation(
     project: Project = Depends(get_authorized_project),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("explain-back")),
 ) -> ExplainBackResponse:
     """Grade an explanation and append it as `explain_back` evidence."""
     try:

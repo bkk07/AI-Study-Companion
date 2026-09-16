@@ -22,6 +22,7 @@ type Message =
   | { kind: "failure"; text: string; question: string }
 
 function failureText(status?: number, detail?: string): string {
+  if (status === 429) return "Slow down — too many tutor requests. Wait a moment and retry."
   if (status === 502) return "Tutor AI provider unavailable — no answer was generated. Retry when ready."
   if (status === 404) return "Project not found for this tutor session."
   return detail ?? "Failed to reach the tutor — no answer was generated."

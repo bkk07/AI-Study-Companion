@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.quiz import Quiz, QuizQuestion
@@ -90,7 +91,12 @@ def submit_answer(
         confidence=confidence,
     )
     db.add(answer)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        # Lost a concurrent-submits race against uq_quiz_answers_attempt_question.
+        db.rollback()
+        raise ValueError("question already answered in this attempt") from e
     db.refresh(answer)
     return answer, question.correct_index
 

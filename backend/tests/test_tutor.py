@@ -195,6 +195,27 @@ def test_isolation_and_auth_hold():
         _teardown(engine)
 
 
+def test_malformed_groq_payload_is_502_not_400():
+    client, engine, pid, ha, _ = _users()
+    try:
+        chunks = [_chunk("Slope content.", 0.05)]
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+        ):
+            rag.assemble_context.return_value = RagContext(
+                query="Q?", scope_project_id=uuid.uuid4(),
+                chunks=chunks, total_chars=14, truncated=False)
+            groq.chat_json.return_value = {"unexpected": "shape"}
+            resp = client.post(f"/api/v1/projects/{pid}/tutor/ask", json={"question": "Q?"}, headers=ha)
+            assert resp.status_code == 502, resp.text
+            groq.chat_json.side_effect = ValueError("not valid JSON")
+            resp = client.post(f"/api/v1/projects/{pid}/tutor/ask", json={"question": "Q?"}, headers=ha)
+            assert resp.status_code == 502, resp.text
+    finally:
+        _teardown(engine)
+
+
 def test_empty_question_rejected_and_groq_failure_is_502():
     client, engine, pid, ha, _ = _users()
     try:

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +37,7 @@ class QuizAnswer(Base, UUIDTimestampMixin):
     __tablename__ = "quiz_answers"
     __table_args__ = (
         CheckConstraint("confidence IS NULL OR (confidence BETWEEN 1 AND 5)", name="ck_quiz_answers_confidence"),
+        UniqueConstraint("attempt_id", "question_id", name="uq_quiz_answers_attempt_question"),
     )
 
     attempt_id: Mapped[uuid.UUID] = mapped_column(

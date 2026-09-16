@@ -1196,3 +1196,11 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 6 pass (gap 75−50=25 + extremes 2/1; unrated accuracy-only; empty/all-unrated Nones; cross-concept rollup; accuracy 0.75 frozen across 1↔5/None swings while gap moves; 0/6 rejected); full `pytest -q` 143 passed (6+137); `compose config` 0; no migration, no rebuild.
 **Guard:** Zero mastery dependency — no import, no parameter; calibration consumes only correctness+confidence.
 **Known:** Storage/capture pre-existed (Phases 34/37); no read endpoint yet — analytics/decision consumers (Phases 42–46) call `summarize` later.
+
+## Audit 2026-09-16 — Phases 1–39 correctness (deep on recent 10)
+
+**Scope:** re-read recent-10 implementations vs contracts + spot-check 1–28 high-risk logic (auth, upload, extraction, jobs).
+**Found + fixed:** (1) Tutor Groq-side failures (`chat_json` shape/JSON ValueError, empty answer) mapped to 400 — now `TutorProviderError` → 502 (`tutor_service.py`, `api/v1/tutor.py`, +1 test asserting 502 for both shapes). (2) `quiz_answers` allowed duplicate (attempt, question) rows under concurrent submits — now `uq_quiz_answers_attempt_question` + migration `d323053b3a54` + service IntegrityError→ValueError + constraint test.
+**Checked clean:** embeddings idempotency/retry/failed-states; retrieval SQL-side scope + short-circuit; RAG bounds/truncation flags; quiz generation retry-then-reject + scope guards; attempt scoring/locks/isolation; adaptive determinism; confidence separation; authorization 404-hiding joins; upload magic/size/traversal/orphan-cleanup; extraction idempotency/retry/backoff.
+**Verify:** `upgrade`→`d323053b3a54` + `alembic check` clean; `pytest -q` 145 passed; `compose config` 0.
+**Deferred (prototype-acceptable):** worker-crash mid-processing leaves material `processing` (no heartbeat — needs design, later phase); upload reads file into memory (10MB cap); `start_attempt` allows repeat attempts (by design — UI offers retake).

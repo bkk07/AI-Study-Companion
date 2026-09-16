@@ -99,6 +99,34 @@ def test_round_trip_quiz_to_answers():
         db.close()
 
 
+def test_duplicate_answer_rejected_by_unique_constraint():
+    db = _session()
+    try:
+        user, project, concept = _seed_hierarchy(db, uuid.uuid4().hex[:8])
+        quiz = Quiz(project_id=project.id, mode="practice", question_count=1)
+        db.add(quiz)
+        db.commit()
+        q = QuizQuestion(quiz_id=quiz.id, concept_id=concept.id, question_text="Q?",
+                         options=["a", "b"], correct_index=0, difficulty="easy")
+        db.add(q)
+        db.commit()
+        attempt = QuizAttempt(quiz_id=quiz.id, user_id=user.id)
+        db.add(attempt)
+        db.commit()
+        db.add(QuizAnswer(attempt_id=attempt.id, question_id=q.id, selected_index=0,
+                          is_correct=True, confidence=3))
+        db.commit()
+        with pytest.raises(IntegrityError):
+            db.add(QuizAnswer(attempt_id=attempt.id, question_id=q.id, selected_index=1,
+                              is_correct=False, confidence=1))
+            db.commit()
+        db.rollback()
+        db.delete(user)
+        db.commit()
+    finally:
+        db.close()
+
+
 def test_cascade_quiz_deletes_questions_attempts_answers():
     db = _session()
     try:

@@ -7,6 +7,7 @@ from app.dependencies.authorization import get_authorized_project
 from app.models.project import Project
 from app.schemas.tutor import TutorAskRequest, TutorAskResponse
 from app.services import tutor_service
+from app.services.tutor_service import TutorProviderError
 
 router = APIRouter(prefix="/projects/{project_id}/tutor", tags=["tutor"])
 
@@ -27,6 +28,8 @@ def ask_tutor(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except TutorProviderError as e:
+        raise HTTPException(status_code=502, detail="Tutor AI provider returned an unusable response") from e
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail="Tutor AI provider unavailable") from e
     except RuntimeError as e:

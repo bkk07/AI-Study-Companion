@@ -35,6 +35,7 @@ from app.models.concept import Concept
 from app.models.project import Project
 from app.models.recommendation import Recommendation
 from app.models.mismatch import MISMATCH_TYPES
+from app.services.mastery_levels import MASTERED_FROM
 from app.services.mismatch_service import OVERCONFIDENT_ACCURACY, OVERCONFIDENT_CONF
 
 ASK_TUTOR = "ask_tutor"
@@ -285,6 +286,9 @@ def recommend_many(
     for signal in sorted(eligible, key=lambda s: str(s.concept_id)):
         if signal.mcq is None and signal.applied is None:
             continue
+        known = [m for m in (signal.mcq, signal.applied) if m is not None]
+        if known and min(float(m) for m in known) >= MASTERED_FROM:
+            continue  # mastered: more quizzes add nothing — never top-rank one
         if not is_eligible(TARGETED_QUIZ, evidenced):
             continue
         times = counts.get((signal.concept_id, TARGETED_QUIZ), 0)
@@ -296,10 +300,47 @@ def recommend_many(
     ranked.sort(key=lambda c: (-c.score, str(c.signal.concept_id)))
     fallback = None
     if not ranked and eligible:
-        first = sorted(eligible, key=lambda s: str(s.concept_id))[0]
-        fallback = PracticeCandidate(signal=first, score=None,
-                                     reasoning=NEUTRAL_FALLBACK_REASON, fallback=True)
+        fresh = sorted(
+            (s for s in eligible if s.mcq is None and s.applied is None),
+            key=lambda s: str(s.concept_id),
+        )
+        if fresh:
+            fallback = PracticeCandidate(signal=fresh[0], score=None,
+                                         reasoning=NEUTRAL_FALLBACK_REASON, fallback=True)
+        else:
+            fallback = _review_fallback(eligible)
     return ranked[:limit], fallback
+
+
+def _review_fallback(eligible: list[ConceptSignal]) -> PracticeCandidate | None:
+    """Stalest-mastered review suggestion when every evidenced CORE target is mastered.
+
+    Reason is built from real stored data (mastery value + days since
+    evidence) — never invented. Signals without recency sort last; a caller
+    with no eligible signals at all gets None (existing 404 path).
+    """
+    if not eligible:
+        return None
+
+    def staleness(signal: ConceptSignal) -> float:
+        return signal.days_since_evidence if signal.days_since_evidence is not None else -1.0
+
+    mastered = [
+        s for s in eligible
+        if s.mcq is not None or s.applied is not None
+    ]
+    if not mastered:
+        return None
+    stalest = sorted(mastered, key=lambda s: (-staleness(s), str(s.concept_id)))[0]
+    known = [float(m) for m in (stalest.mcq, stalest.applied) if m is not None]
+    level = min(known) if known else 0.0
+    days = stalest.days_since_evidence
+    if days is not None:
+        reason = (f"Mastered at {level:.0f}% — {days:.0f} days since practice; "
+                  "a quick review keeps it fresh.")
+    else:
+        reason = f"Mastered at {level:.0f}% — take a review quiz to keep it fresh."
+    return PracticeCandidate(signal=stalest, score=None, reasoning=reason, fallback=True)
 
 
 def recommend(

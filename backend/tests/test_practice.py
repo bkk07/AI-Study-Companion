@@ -99,6 +99,56 @@ def test_ranking_weakest_first_with_limit():
         db.close()
 
 
+def test_mastered_concepts_never_top_ranked():
+    db = _session()
+    try:
+        user, project, sub = _scaffold(db, uuid.uuid4().hex[:8])
+        mastered = _concept(db, project, sub, "Mastered")
+        learning = _concept(db, project, sub, "Learning")
+        db.commit()
+        signals = [_sig(mastered, mcq=100.0, mcq_count=5),
+                   _sig(learning, mcq=50.0, mcq_count=2)]
+        ranked, fallback = recommend_many(db, user_id=user.id, project_id=project.id,
+                                          signals=signals)
+        assert [c.signal.name for c in ranked] == ["Learning"]
+        assert fallback is None
+        # mastered alone ranks nothing (boundary: 85 excluded, 84.9 kept)
+        edge = _sig(learning, mcq=84.9, mcq_count=2)
+        ranked, _ = recommend_many(db, user_id=user.id, project_id=project.id, signals=[edge])
+        assert [c.signal.name for c in ranked] == ["Learning"]
+    finally:
+        db.close()
+
+
+def test_fallback_prefers_fresh_then_stalest_mastered_review():
+    db = _session()
+    try:
+        user, project, sub = _scaffold(db, uuid.uuid4().hex[:8])
+        old_mastered = _concept(db, project, sub, "OldMastered")
+        new_mastered = _concept(db, project, sub, "NewMastered")
+        fresh = _concept(db, project, sub, "Fresh")
+        db.commit()
+        old = ConceptSignal(concept_id=old_mastered.id, name="OldMastered", mcq=95.0,
+                            mcq_count=4, importance="CORE", days_since_evidence=12.0)
+        new = ConceptSignal(concept_id=new_mastered.id, name="NewMastered", mcq=100.0,
+                            mcq_count=4, importance="CORE", days_since_evidence=1.0)
+        # fresh target present → neutral fallback wins over any review
+        ranked, fallback = recommend_many(
+            db, user_id=user.id, project_id=project.id,
+            signals=[old, new, _sig(fresh)])
+        assert ranked == []
+        assert fallback is not None and fallback.signal.name == "Fresh"
+        assert fallback.reasoning == NEUTRAL_FALLBACK_REASON
+        # all mastered → stalest gets an honest review suggestion
+        ranked, fallback = recommend_many(db, user_id=user.id, project_id=project.id,
+                                          signals=[old, new])
+        assert ranked == []
+        assert fallback is not None and fallback.signal.name == "OldMastered"
+        assert "keeps it fresh" in fallback.reasoning and "12 days" in fallback.reasoning
+    finally:
+        db.close()
+
+
 def test_non_core_never_ranked_and_legacy_none_included():
     db = _session()
     try:

@@ -1587,6 +1587,22 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 30 tests green; backfilled 33 attempts → 80 mcq rows (incl. kiran's 4 attempts → 20 rows; one attempt initially skipped by the script's own time-window dedupe colliding with backfill timestamps — caught by audit, backfilled directly, verified 20/20 joinable); api rebuilt, writer confirmed live in container; kiran mastery now Supervised Learning 100, Divisibility 44.7, Task 34.3 (EMA order-correct).
 **Known:** open-ended assessment evidence is the same bug class — flagged, not fixed (strict scope); difficulty weighting dormant (no difficulty column on the table — pre-existing).
 
+## Mastered-concept recommendation fix (user-reported, fixing)
+
+**Recorded:** 2026-09-16 before impl | Source: screenshot — Supervised Learning Mastered/100% still top-recommended
+**Diagnosis:** `recommend_many` skips only zero-evidence signals, so a 100%-mastered concept wins unopposed (0 weakness + 15 quiz base). Engine rules technically followed, UX wrong.
+**Fix:** skip signals with min-known-mastery >= MASTERED_FROM (85, imported — no new threshold) in `recommend_many` ranking only; `recommend()`/dashboard untouched. Fallback order: (1) fresh CORE, no evidence → neutral reason (existing); (2) all evidenced-CORE mastered → stalest mastered with honest review reason from real recency data ("Mastered at X% — Y days since practice; a quick review keeps it fresh"); (3) no CORE at all → ([], None) → existing 404. Tuple shape unchanged.
+**Files:** `services/recommendation_service.py`, `tests/test_practice.py`, `docs/*`.
+**Verify:** 26 tests green (practice/recommendation/dashboard/mastery); api rebuilt; live check on kiran's 4 projects — Task (34.3) and Divisibility (44.7) now rank on evidence, both ML projects yield honest neutral fallbacks (Dataset, Imputation), Supervised Learning 100 excluded everywhere; single commit.
+
+### Mastered-recommendation Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `services/recommendation_service.py` (+mastered skip via MASTERED_FROM, `_review_fallback`), `tests/test_practice.py` (+2 tests), `docs/*`
+**Verify:** 26 tests green; api rebuilt with fix live; kiran live: previously-stuck loop broken (weakest-evidenced rank), mastered excluded, fresh-neutral fallbacks honest.
+**Known:** `recommend()`/dashboard single-recommendation keeps old behavior (may still surface mastered — flagged follow-up); review-fallback path untriggered in live data (no all-mastered project yet) but test-covered.
+**Verify:** new tests (mastered skipped, fresh-preferred fallback, stale-mastered review fallback) + practice/mastery/dashboard/recommendation suites + rebuild api + live check on kiran's data; single commit.
+
 ## Phase B — Extraction v2 (user-approved, in progress)
 
 **Recorded:** 2026-09-16 before impl | Source: user Phase B instruction + design §§4–9

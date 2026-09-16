@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 39 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 40 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -54,7 +54,7 @@
 | 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
 | 34 | Quiz Frontend | ⏳ Pending | — | — | — |
 | 35 | Open-Ended Assessment | ✅ Complete | 2026-09-16 | Pass (grade+verdict, mocked) | `grade_open_ended` + `POST assessment/open-ended` + 9 tests |
-| 36 | Explain-It-Back | ⏳ Pending | — | — | — |
+| 36 | Explain-It-Back | ✅ Complete | 2026-09-16 | Pass (evidence rows, mocked) | `submit_explanation` + `mastery_evidence` + 9 tests |
 | 37 | Mastery Engine | ⏳ Pending | — | — | — |
 | 38 | Confidence Engine | ⏳ Pending | — | — | — |
 | 39 | Mismatch Detection | ⏳ Pending | — | — | — |
@@ -599,6 +599,16 @@
 **Verify:** 9 pass real PG (pass/partial/fail + boundaries + retry discipline + guards + chunkless-from-summary + zero-writes + API shape/map/isolation); `pytest -q` 156 passed (9+147); `compose config` 0; `alembic check` no new ops head `a8948d1582d1`; no migration, no rebuild.
 **Guard:** Grading is evidence source only — zero writes; durable `mastery_evidence` arrives Phase 40/41.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 40 (Explain-It-Back).
+
+---
+
+## Phase 40 — Detail (compact)
+
+**Scope:** Applied-understanding evidence — grade + append-only persist; no mastery recompute, no new UI.
+**Files:** `backend/app/models/mastery_evidence.py` (user/project/concept FK + type/score CHECKs + feedback; no weight/resulting), migration `f3a1c9e2b4d5`, `backend/app/services/explain_it_back_service.py` (shared Phase 39 grading → single-commit insert), `backend/app/schemas/assessment.py` (+2 shapes), `backend/app/api/v1/assessment.py` (`POST explain-back` 201), `models/__init__.py` + `alembic/env.py`, `backend/tests/test_explain_back.py` (9 tests), `docs/*`.
+**Verify:** 9 pass real PG (persist/append-only/retry/reject/guards/CHECK/attribution + API shape/map/isolation); `alembic upgrade` → `f3a1c9e2b4d5` + `check` clean; `pytest -q` 165 passed (9+156); `compose config` 0; no rebuild.
+**Guard:** Evidence feed only — no mastery import; nothing updates/deletes evidence rows.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 41 (Mastery Engine).
 
 ---
 

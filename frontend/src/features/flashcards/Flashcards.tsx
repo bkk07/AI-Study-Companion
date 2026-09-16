@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
-import { Layers, Play, RotateCcw } from "lucide-react"
+import { CreditCard, Layers, Play, RotateCcw } from "lucide-react"
 import apiClient from "@/lib/axios"
-import { Badge, Button, EmptyState, ErrorBox, LoadingState, ProgressBar } from "@/components/ui"
+import { Button, EmptyState, ErrorBox, LoadingState, SectionHeader, StatCard } from "@/components/ui"
 import { cn } from "@/lib/utils"
 
 type Card = {
@@ -23,10 +23,10 @@ type SubtopicNode = { id: string; title: string; core_count: number }
 type TopicNode = { id: string; title: string; subtopics: SubtopicNode[] }
 
 const GRADES = [
-  { id: "again", label: "Again", hint: "Forgot it" },
-  { id: "hard", label: "Hard", hint: "Recalled with effort" },
-  { id: "good", label: "Good", hint: "Recalled confidently" },
-  { id: "easy", label: "Easy", hint: "Trivial" },
+  { id: "again", label: "Again", hint: "+1d" },
+  { id: "hard", label: "Hard", hint: "+3d" },
+  { id: "good", label: "Good", hint: "+4d" },
+  { id: "easy", label: "Easy", hint: "+7d" },
 ] as const
 
 function StudySession({
@@ -66,64 +66,78 @@ function StudySession({
 
   if (!card) {
     return (
-      <div className="rounded-2xl border bg-card p-6 text-center shadow-soft">
-        <p className="text-2xl font-extrabold tracking-tight text-gradient">Session complete</p>
-        <p className="mt-1 text-sm text-muted-foreground">
+      <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <p className="text-xl font-semibold text-slate-900">Session complete</p>
+        <p className="mt-1 text-sm text-slate-500">
           Reviewed {done} of {total} cards — scheduling updated.
         </p>
-        <Button type="button" variant="outline" onClick={onDone} className="mt-4">
-          <RotateCcw className="h-4 w-4" /> Back to decks
+        <Button type="button" variant="secondary" onClick={onDone} className="mt-4">
+          <RotateCcw size={14} /> Back to decks
         </Button>
       </div>
     )
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-3">
-        <ProgressBar value={total ? (done / total) * 100 : 0} className="flex-1" />
-        <span className="text-sm font-bold text-muted-foreground">
-          {done + 1}/{total}
-        </span>
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="text-sm font-medium text-slate-600">Card {done + 1}/{total}</span>
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />
+        </div>
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
-          End session
+          Exit
         </Button>
       </div>
-      <button
-        type="button"
-        onClick={() => setFlipped((f) => !f)}
-        className="mt-3 block min-h-48 w-full rounded-2xl border bg-card p-6 text-center shadow-soft transition-all hover:border-violet-300"
-      >
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">
-          {flipped ? "Answer — tap to hide" : "Tap to reveal"}
-        </p>
-        <p className={cn("mt-3 font-extrabold tracking-tight", flipped ? "text-lg" : "text-2xl")}>
-          {flipped ? card.back : card.front}
-        </p>
-        {flipped && card.total_reviews > 0 && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Reviewed {card.total_reviews}× · {card.correct_reviews} recalled · every {card.interval_days}d
-          </p>
-        )}
-      </button>
+      <div className="card-flip-container" style={{ height: 280 }}>
+        <div className={cn("card-inner", flipped && "flipped")}>
+          <button
+            type="button"
+            onClick={() => setFlipped((f) => !f)}
+            className="card-face flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-8 text-center"
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Question</p>
+            <p className="mt-3 text-xl font-semibold text-slate-900">{card.front}</p>
+            <p className="mt-4 text-xs text-slate-400">Click to flip</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFlipped((f) => !f)}
+            className="card-face card-back-face flex-col items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 p-8 text-center"
+            style={{ display: "flex" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">Answer</p>
+            <p className="mt-3 text-lg font-medium text-slate-900">{card.back}</p>
+            {card.total_reviews > 0 && (
+              <p className="mt-3 text-xs text-slate-500">
+                Reviewed {card.total_reviews}× · {card.correct_reviews} recalled · every {card.interval_days}d
+              </p>
+            )}
+          </button>
+        </div>
+      </div>
       {flipped ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {GRADES.map((g) => (
-            <Button
+            <button
               key={g.id}
               type="button"
-              variant={g.id === "good" ? "primary" : "outline"}
               onClick={() => void grade(g.id)}
               disabled={grading}
-              className="flex-col !gap-0.5 py-3"
+              className={cn(
+                "rounded-xl border px-3 py-3 text-center transition-colors disabled:opacity-50",
+                g.id === "good"
+                  ? "border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              )}
             >
-              <span className="font-bold">{g.label}</span>
-              <span className="text-[11px] font-medium opacity-70">{g.hint}</span>
-            </Button>
+              <span className="block text-sm font-semibold">{g.label}</span>
+              <span className="block text-xs opacity-70">{g.hint}</span>
+            </button>
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-center text-sm text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-slate-500">
           Recall the answer, then flip and grade yourself honestly.
         </p>
       )}
@@ -207,59 +221,83 @@ export function Flashcards({ projectId }: { projectId: string }) {
   if (!topics) return <LoadingState text="Loading decks…" />
   if (topics.length === 0)
     return (
-      <EmptyState
-        icon={<Layers className="h-6 w-6" />}
-        title="No flashcards yet"
-        hint="Upload a PDF and decks build themselves from your learning targets."
-      />
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <EmptyState
+          icon={<Layers size={24} />}
+          title="No flashcards yet"
+          hint="Upload a PDF and decks build themselves from your learning targets."
+        />
+      </div>
     )
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          <strong className="text-foreground">{dueCount}</strong> due for review
-        </p>
-        <Button
-          type="button"
-          onClick={() => void start()}
-          disabled={starting !== null || dueCount === 0}
-        >
-          <Play className="h-4 w-4" /> {starting === "all" ? "Loading…" : "Review all due"}
-        </Button>
+    <div className="mx-auto max-w-5xl">
+      <SectionHeader
+        title="Flashcards"
+        subtitle="Spaced repetition grounded in your concepts"
+        action={
+          <Button type="button" variant="secondary" size="sm" onClick={() => void load()}>
+            Library
+          </Button>
+        }
+      />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <StatCard label="Due" value={dueCount} accent="indigo" icon={<CreditCard size={18} />} />
+        <StatCard label="Topics" value={topics.length} accent="slate" icon={<Layers size={18} />} />
+        <StatCard label="Decks" value={topics.reduce((n, t) => n + t.subtopics.length, 0)} accent="slate" icon={<Layers size={18} />} />
       </div>
-      <div className="mt-3 space-y-4">
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+        <div className="flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Play size={18} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-base font-semibold text-slate-900">Continue Review</h3>
+            <p className="text-sm text-slate-500">{dueCount} cards due based on spaced repetition</p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => void start()}
+            disabled={starting !== null || dueCount === 0}
+          >
+            <Play size={14} /> {starting === "all" ? "Loading…" : "Start"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-4">
         {topics.map((t) => (
           <div key={t.id}>
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
               {t.title}
             </p>
-            <ul className="mt-1.5 space-y-2">
+            <div className="space-y-2">
               {t.subtopics.map((s) => (
-                <li
+                <div
                   key={s.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-soft"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
                 >
                   <div>
-                    <p className="font-bold">{s.title}</p>
-                    <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                    <p className="text-sm font-semibold text-slate-900">{s.title}</p>
+                    <p className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
                       <span>{s.core_count} learning targets</span>
-                      <Badge tint="violet">auto deck</Badge>
+                      <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600">auto deck</span>
                     </p>
                   </div>
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => void start(s.id)}
                     disabled={starting !== null}
                   >
-                    <Play className="h-3.5 w-3.5" />{" "}
+                    <Play size={14} />{" "}
                     {starting === s.id ? "Loading…" : "Study"}
                   </Button>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         ))}
       </div>

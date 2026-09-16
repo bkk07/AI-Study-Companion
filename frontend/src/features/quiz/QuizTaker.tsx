@@ -1,10 +1,10 @@
 import { useState } from "react"
-import { ArrowRight, CheckCircle2, PartyPopper, RotateCcw, XCircle } from "lucide-react"
+import { ArrowRight, CheckCircle2, Info, PartyPopper, RotateCcw, XCircle } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { Badge, Button, ErrorBox, ProgressBar } from "@/components/ui"
 import { cn } from "@/lib/utils"
-import { QuizModes } from "./QuizModes"
+import { QuizSetup, type QuizStartPayload } from "./QuizSetup"
 
 type Question = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
 type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number }
@@ -18,7 +18,7 @@ type Stage =
 function errText(status?: number, detail?: string): string {
   if (status === 429) return "Slow down — too many AI requests. Wait a moment and retry."
   if (status === 502) return "Quiz AI provider unavailable — nothing was saved. Retry when ready."
-  if (status === 422) return "This target can't be quizzed (supporting material has no practice mode) — pick a CORE target."
+  if (status === 422) return detail ?? "This target can't be quizzed (supporting material has no practice mode) — pick a CORE target."
   if (status === 404) return "Quiz or project not found."
   return detail ?? "Request failed — nothing was lost except this click."
 }
@@ -37,19 +37,22 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   const [questions, setQuestions] = useState<Question[]>([])
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
-  const [confidence, setConfidence] = useState(3)
+  const [confidence, setConfidence] = useState<"low" | "medium" | "high">("medium")
+  const [confidenceValue, setConfidenceValue] = useState(3)
   const [reveal, setReveal] = useState<Reveal | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  async function generate(conceptId: string) {
-    if (!conceptId) return
+  async function generate(payload: QuizStartPayload) {
     setStage({ name: "busy", label: "Generating quiz…" })
     const run = async () => {
       try {
         const gen = await apiClient.post<{ quiz_id: string }>(`/projects/${projectId}/quizzes/generate`, {
-          concept_id: conceptId,
-          num_questions: 5,
+          scope: payload.scope,
+          topic_id: payload.topicId ?? null,
+          subtopic_id: payload.subtopicId ?? null,
+          concept_id: payload.conceptId ?? null,
+          num_questions: payload.numQuestions,
           mode: "practice",
         })
         setStage({ name: "busy", label: "Starting attempt…" })
@@ -77,12 +80,12 @@ export function QuizTaker({ projectId }: { projectId: string }) {
     try {
       const res = await apiClient.post<Reveal>(
         `/projects/${projectId}/quizzes/attempts/${attemptId}/answers`,
-        { question_id: questions[index].id, selected_index: selected, confidence },
+        { question_id: questions[index].id, selected_index: selected, confidence: confidenceValue },
       )
       setReveal(res.data)
     } catch (e: unknown) {
       const { status, message: detail } = apiError(e)
-      setSubmitError(errText(status, detail)) // attempt + selection preserved; retry re-submits
+      setSubmitError(errText(status, detail))
     } finally {
       setSubmitting(false)
     }
@@ -111,10 +114,10 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   if (stage.name === "setup" || stage.name === "busy") {
     return (
       <div>
-        <QuizModes projectId={projectId} busy={stage.name === "busy"} onPractice={(id) => void generate(id)} />
+        <QuizSetup projectId={projectId} busy={stage.name === "busy"} onStart={(p) => void generate(p)} />
         {stage.name === "busy" && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300 border-t-violet-600" />
+          <p className="mx-auto mt-3 flex max-w-lg items-center gap-2 px-8 text-sm text-slate-500">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
             {stage.label}
           </p>
         )}
@@ -129,18 +132,18 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   if (stage.name === "done") {
     const pct = stage.score ?? 0
     return (
-      <div className="flex flex-col items-center rounded-2xl border bg-gradient-to-b from-violet-50 to-card px-6 py-10 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-lift">
-          <PartyPopper className="h-8 w-8" />
+      <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+          <PartyPopper size={22} />
         </span>
-        <p className="mt-4 text-5xl font-extrabold tracking-tight text-gradient">{pct}%</p>
-        <p className="mt-1 font-bold">Quiz complete</p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className={cn("font-mono-data mt-4 text-5xl font-bold", pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-600" : "text-red-600")}>{pct}%</p>
+        <p className="mt-1 text-base font-semibold text-slate-900">Quiz complete</p>
+        <p className="mt-1 text-sm text-slate-500">
           {stage.correct} of {stage.total} correct — mastery updated.
         </p>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           className="mt-5"
           onClick={() => {
             setAttemptId(null)
@@ -148,7 +151,7 @@ export function QuizTaker({ projectId }: { projectId: string }) {
             setStage({ name: "setup" })
           }}
         >
-          <RotateCcw className="h-4 w-4" /> Take another quiz
+          <RotateCcw size={14} /> Take another quiz
         </Button>
       </div>
     )
@@ -157,15 +160,24 @@ export function QuizTaker({ projectId }: { projectId: string }) {
   const q = questions[index]
   if (!q) return null
   return (
-    <div>
+    <div className="mx-auto max-w-2xl">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-bold">
-          Question {index + 1} <span className="font-medium text-muted-foreground">of {questions.length}</span>
+        <p className="text-sm font-semibold text-slate-900">
+          Question {index + 1} <span className="font-normal text-slate-500">of {questions.length}</span>
         </p>
         <Badge tint={difficultyTint(q.difficulty)}>{q.difficulty}</Badge>
       </div>
-      <ProgressBar value={questions.length ? (index / questions.length) * 100 : 0} className="mt-2" />
-      <p className="mt-4 text-lg font-bold leading-snug tracking-tight">{q.question_text}</p>
+      <ProgressBar value={questions.length ? (index / questions.length) * 100 : 0} className="mt-2" barClass="bg-indigo-500" />
+      <div className="mt-4 flex gap-2 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+        <Info size={15} className="mt-0.5 shrink-0 text-indigo-600" />
+        <p className="text-xs leading-relaxed text-slate-600">
+          <span className="font-semibold text-slate-800">Why this question? </span>
+          Tuned to your weakest concept based on recognition vs. applied mastery.
+        </p>
+      </div>
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-7">
+        <p className="text-base font-semibold leading-snug text-slate-900">{q.question_text}</p>
+      </div>
       <div className="mt-4 space-y-2">
         {q.options.map((opt, i) => {
           const isCorrect = reveal && i === reveal.correct_index
@@ -177,63 +189,69 @@ export function QuizTaker({ projectId }: { projectId: string }) {
               disabled={reveal != null || submitting}
               onClick={() => setSelected(i)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left text-sm font-medium transition-all",
+                "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all",
                 isCorrect
-                  ? "border-emerald-400 bg-emerald-50 shadow-soft"
+                  ? "border-green-300 bg-green-50"
                   : isWrongPick
-                    ? "border-rose-300 bg-rose-50"
+                    ? "border-red-200 bg-red-50"
                     : selected === i
-                      ? "border-violet-500 bg-violet-50 shadow-glow"
-                      : "border-border bg-card hover:border-violet-300 hover:bg-violet-50/50",
+                      ? "border-indigo-300 bg-indigo-50"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                 reveal != null && "cursor-default",
               )}
             >
               <span
                 className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-extrabold",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
                   isCorrect
-                    ? "bg-emerald-500 text-white"
+                    ? "bg-green-500 text-white"
                     : isWrongPick
-                      ? "bg-rose-500 text-white"
+                      ? "bg-red-500 text-white"
                       : selected === i
-                        ? "bg-violet-600 text-white"
-                        : "bg-muted text-muted-foreground",
+                        ? "bg-indigo-600 text-white"
+                        : "bg-slate-100 text-slate-500",
                 )}
               >
-                {isCorrect ? <CheckCircle2 className="h-4 w-4" /> : isWrongPick ? <XCircle className="h-4 w-4" /> : LETTERS[i]}
+                {isCorrect ? <CheckCircle2 size={14} /> : isWrongPick ? <XCircle size={14} /> : LETTERS[i]}
               </span>
-              {opt}
+              <span className="text-slate-800">{opt}</span>
             </button>
           )
         })}
       </div>
       {reveal == null ? (
         <>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Confidence</span>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setConfidence(n)}
-                    disabled={submitting}
-                    aria-label={`Confidence ${n}`}
-                    className={cn(
-                      "h-8 w-8 rounded-lg text-sm font-bold transition-all",
-                      confidence >= n
-                        ? "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-soft"
-                        : "bg-muted text-muted-foreground hover:bg-amber-100",
-                    )}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Confidence</p>
+            <div className="mt-2 flex gap-2">
+              {(["low", "medium", "high"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => {
+                    setConfidence(c)
+                    setConfidenceValue(c === "low" ? 1 : c === "medium" ? 3 : 5)
+                  }}
+                  disabled={submitting}
+                  className={cn(
+                    "flex-1 rounded-lg border px-3 py-2 text-sm font-medium capitalize transition-colors",
+                    confidence === c
+                      ? c === "low"
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : c === "medium"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-green-200 bg-green-50 text-green-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
-            <Button type="button" onClick={() => void submit()} disabled={selected == null || submitting} className="ml-auto">
-              {submitting ? "Checking…" : <>Submit answer <ArrowRight className="h-4 w-4" /></>}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button type="button" onClick={() => void submit()} disabled={selected == null || submitting}>
+              {submitting ? "Checking…" : <>Submit answer <ArrowRight size={14} /></>}
             </Button>
           </div>
           {submitError && (
@@ -243,20 +261,20 @@ export function QuizTaker({ projectId }: { projectId: string }) {
           )}
         </>
       ) : (
-        <div className={cn("mt-4 rounded-2xl border p-4", reveal.is_correct ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
-          <p className={cn("flex items-center gap-1.5 font-bold", reveal.is_correct ? "text-emerald-700" : "text-amber-800")}>
-            {reveal.is_correct ? <><CheckCircle2 className="h-5 w-5" /> Correct — nice!</> : "Not quite"}
+        <div className={cn("mt-4 rounded-xl border p-4", reveal.is_correct ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50")}>
+          <p className={cn("flex items-center gap-1.5 text-sm font-semibold", reveal.is_correct ? "text-green-700" : "text-amber-800")}>
+            {reveal.is_correct ? <><CheckCircle2 size={16} /> Correct — nice!</> : "Not quite"}
           </p>
           {!reveal.is_correct && (
-            <p className="mt-1 text-sm">
+            <p className="mt-1 text-sm text-slate-700">
               Correct answer: <strong>{q.options[reveal.correct_index]}</strong>
             </p>
           )}
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-slate-500">
             Running score: {reveal.correct_count}/{reveal.answered_count}
           </p>
           <Button type="button" onClick={() => void next()} className="mt-3">
-            {index + 1 < questions.length ? <>Next question <ArrowRight className="h-4 w-4" /></> : "Finish quiz"}
+            {index + 1 < questions.length ? <>Next question <ArrowRight size={14} /></> : "Finish quiz"}
           </Button>
         </div>
       )}

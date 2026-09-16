@@ -1,30 +1,26 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { ArrowRight, FileUp, MessagesSquare, Wand2 } from "lucide-react"
+import { BookOpen, Loader2 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { authErrorMessage } from "@/lib/api-error"
-import { Logo } from "@/components/ui"
-
-const STEPS = [
-  { icon: FileUp, title: "Upload", text: "Drop in your PDFs" },
-  { icon: MessagesSquare, title: "Chat & quiz", text: "Study with your AI tutor" },
-  { icon: Wand2, title: "Master", text: "Track mastery per concept" },
-]
 
 export function Register() {
   const { register } = useAuth()
   const nav = useNavigate()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (form.password !== form.confirm) {
+      setError("Passwords do not match.")
+      return
+    }
     setLoading(true)
     try {
-      await register(email, password)
+      await register(form.email, form.password)
       nav("/")
     } catch (err: unknown) {
       setError(authErrorMessage(err, "Registration failed — please try again."))
@@ -35,86 +31,83 @@ export function Register() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Brand panel */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-700 p-10 text-white lg:flex">
-        <div className="bg-dots absolute inset-0 opacity-20 [mask-image:radial-gradient(70%_60%_at_70%_25%,black,transparent)]" />
-        <Link to="/" className="relative inline-flex w-fit items-center gap-2.5 rounded-2xl bg-white/10 px-3 py-2 backdrop-blur">
-          <Logo compact />
-          <span className="text-lg font-extrabold tracking-tight">StudyCompanion</span>
-        </Link>
-        <div className="relative">
-          <h2 className="max-w-md text-4xl font-extrabold leading-tight tracking-tight">
-            Turn your notes into <span className="text-amber-300">A&apos;s</span>.
-          </h2>
-          <div className="mt-8 space-y-4">
-            {STEPS.map((s, i) => (
-              <div key={s.title} className="flex items-center gap-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 font-extrabold backdrop-blur">
-                  {i + 1}
-                </span>
-                <div>
-                  <p className="flex items-center gap-1.5 text-sm font-bold">
-                    <s.icon className="h-4 w-4 text-amber-300" /> {s.title}
-                  </p>
-                  <p className="text-sm text-white/70">{s.text}</p>
-                </div>
-              </div>
-            ))}
+      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-indigo-950 p-12 text-white lg:flex">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-slate-900" />
+        <div className="relative z-10 flex h-full flex-col">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500">
+              <BookOpen size={18} />
+            </div>
+            <span className="text-lg font-semibold">Study Companion</span>
+          </div>
+          <div className="mx-auto flex max-w-xs flex-1 flex-col justify-center">
+            <h1 className="font-display mb-4 text-3xl font-semibold leading-snug">
+              A personal AI learning operating system.
+            </h1>
+            <ul className="space-y-3 text-sm text-indigo-300">
+              {[
+                "Upload your own study material",
+                "AI-generated knowledge maps from your notes",
+                "Evidence-based mastery tracking",
+                "Detects confidence vs. correctness mismatches",
+                "Personalized study recommendations",
+              ].map((s, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                  {s}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-        <p className="relative text-xs text-white/60">Free to start · No credit card · Your data stays yours</p>
       </div>
 
-      {/* Form panel */}
-      <div className="bg-mesh flex flex-1 items-center justify-center px-4 py-12 sm:px-8">
-        <div className="animate-fade-up w-full max-w-md">
-          <Link to="/" className="lg:hidden">
-            <Logo />
-          </Link>
-          <h1 className="mt-4 text-3xl font-extrabold tracking-tight">Create your account</h1>
-          <p className="mt-1.5 text-muted-foreground">One identity for all your study spaces.</p>
-          <form onSubmit={onSubmit} className="mt-7 space-y-4 rounded-2xl border bg-card p-6 shadow-soft sm:p-7">
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold" htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm shadow-sm transition-all placeholder:text-muted-foreground/70 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/15"
-                placeholder="you@example.com"
-              />
+      <div className="flex flex-1 items-center justify-center bg-white p-8">
+        <div className="w-full max-w-sm">
+          <div className="mb-8">
+            <h2 className="mb-1 text-2xl font-semibold text-slate-900">Create your account</h2>
+            <p className="text-sm text-slate-500">Start building your personal learning system</p>
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold" htmlFor="password">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm shadow-sm transition-all placeholder:text-muted-foreground/70 focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-500/15"
-                placeholder="At least 8 characters"
-              />
-            </div>
-            {error && <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm font-medium text-rose-700">{error}</p>}
+          )}
+
+          <form onSubmit={onSubmit} className="space-y-4">
+            {[
+              { label: "Full name", key: "name", type: "text", placeholder: "Ada Lovelace" },
+              { label: "Email address", key: "email", type: "email", placeholder: "you@university.edu" },
+              { label: "Password", key: "password", type: "password", placeholder: "••••••••" },
+              { label: "Confirm password", key: "confirm", type: "password", placeholder: "••••••••" },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}</label>
+                <input
+                  type={field.type}
+                  required={field.key !== "name"}
+                  minLength={field.key.includes("password") ? 8 : undefined}
+                  placeholder={field.placeholder}
+                  value={(form as Record<string, string>)[field.key]}
+                  onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+            ))}
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-sm font-bold text-white shadow-soft transition-all hover:shadow-lift hover:brightness-110 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
             >
-              {loading ? "Creating…" : <>Start studying free <ArrowRight className="h-4 w-4" /></>}
+              {loading && <Loader2 size={16} className="animate-spin" />}
+              {loading ? "Creating account…" : "Create account"}
             </button>
           </form>
-          <p className="mt-5 text-center text-sm text-muted-foreground">
+
+          <p className="mt-6 text-center text-sm text-slate-500">
             Already have an account?{" "}
-            <Link to="/login" className="font-bold text-violet-700 hover:underline">
+            <Link to="/login" className="font-medium text-indigo-600 hover:underline">
               Sign in
             </Link>
           </p>

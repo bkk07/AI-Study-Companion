@@ -52,3 +52,6 @@ docker-compose.override.yml
 *.key
 # Local agent config may contain API keys — never commit
 opencode.json
+
+# Figma-generated design reference — do not commit
+frontend-figmadesigned/

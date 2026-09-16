@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { BookOpen, Play, X } from "lucide-react"
 import apiClient from "@/lib/axios"
-import { Badge, Button, LoadingState, ProgressBar } from "@/components/ui"
+import { Badge, Button, LoadingState, ProgressBar, Tag } from "@/components/ui"
 import { cn } from "@/lib/utils"
 
 export type RelatedHit = {
@@ -46,18 +46,18 @@ function HitList({ label, hits, onOpen }: { label: string; hits: RelatedHit[]; o
   if (hits.length === 0) return null
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
       <ul className="mt-1.5 space-y-1">
         {hits.map((h) => (
           <li key={h.id}>
             <button
               type="button"
               onClick={() => onOpen(h.id)}
-              className="text-sm font-medium text-violet-700 hover:underline"
+              className="text-sm font-medium text-indigo-600 hover:underline"
             >
               {h.title}
             </button>
-            <span className="ml-2 text-xs text-muted-foreground">
+            <span className="ml-2 text-xs text-slate-400">
               {h.lo_type} · {h.topic} → {h.subtopic}
             </span>
           </li>
@@ -101,39 +101,39 @@ export function ConceptDetail({
   }, [projectId, conceptId])
 
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-soft">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-violet-600">
-          <BookOpen className="h-4 w-4" /> Learning target
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <BookOpen size={14} /> Learning target
         </p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
         >
-          <X className="h-4 w-4" />
+          <X size={16} />
         </button>
       </div>
-      {failed && <p className="mt-3 text-sm text-rose-600">Could not load details.</p>}
+      {failed && <p className="mt-3 text-sm text-red-600">Could not load details.</p>}
       {!failed && !detail && <LoadingState text="Loading details…" />}
       {detail && (
         <div className="mt-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-extrabold tracking-tight">{detail.title}</h3>
-            <Badge tint="violet">{detail.lo_type}</Badge>
+            <h3 className="text-lg font-semibold text-slate-900">{detail.title}</h3>
+            <Tag color="indigo">{detail.lo_type}</Tag>
             <Badge tint={statusTint(detail.status)}>{detail.status}</Badge>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">{detail.summary}</p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">{detail.summary}</p>
           <div className="mt-4">
             <div className="flex items-baseline justify-between">
-              <p className="text-sm font-bold">Mastery</p>
-              <p className="text-sm font-extrabold text-gradient">
+              <p className="text-sm font-semibold text-slate-800">Mastery</p>
+              <p className="font-mono-data text-sm font-semibold text-slate-800">
                 {detail.mastery === null ? "Not started" : `${Math.round(detail.mastery)}%`}
               </p>
             </div>
-            <ProgressBar value={detail.mastery} className="mt-1.5" />
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
+            <ProgressBar value={detail.mastery} className="mt-1.5" barClass="bg-indigo-500" />
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-4">
               <span>Recognition: {detail.mcq.value === null ? "—" : `${Math.round(detail.mcq.value)}%`}</span>
               <span>Applied: {detail.applied.value === null ? "—" : `${Math.round(detail.applied.value)}%`}</span>
               <span>
@@ -153,7 +153,7 @@ export function ConceptDetail({
             <HitList label="Supporting knowledge" hits={detail.supporting} onOpen={onOpen} />
           </div>
           {(detail.source_material || detail.page_start !== null) && (
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="mt-4 text-xs text-slate-400">
               Source: {detail.source_material ?? "material"}
               {detail.page_start !== null &&
                 ` · pages ${detail.page_start}${
@@ -164,7 +164,7 @@ export function ConceptDetail({
             </p>
           )}
           <Button type="button" onClick={() => onPractice(detail.id)} className={cn("mt-4")}>
-            <Play className="h-4 w-4" /> Practice
+            <Play size={14} /> Practice
           </Button>
         </div>
       )}

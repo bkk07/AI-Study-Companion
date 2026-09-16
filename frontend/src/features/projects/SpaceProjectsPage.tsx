@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowRight, ChevronRight, GraduationCap, Plus } from "lucide-react"
+import { Brain, ChevronRight, Clock, GraduationCap, Plus } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { AppShell } from "@/components/AppShell"
-import { Button, Card, EmptyState, ErrorBox, Input, LoadingState, PageHeader } from "@/components/ui"
-import { tileFor } from "@/features/spaces/SpacesPage"
+import { Button, EmptyState, ErrorBox, Input, LoadingState } from "@/components/ui"
+import { colorFor } from "@/features/spaces/SpacesPage"
 
 type Space = { id: string; name: string }
 type Project = { id: string; name: string; space_id: string; created_at: string }
@@ -61,35 +61,18 @@ export function SpaceProjectsPage() {
     }
   }
 
-  const tile = spaceId ? tileFor(spaceId) : "from-violet-500 to-purple-600"
-
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Link to="/spaces" className="font-semibold text-violet-700 hover:underline">
-            Spaces
-          </Link>
-          <ChevronRight className="h-4 w-4" />
-          <span className="font-medium text-foreground">{space?.name ?? "Space"}</span>
-        </nav>
-
-        <div className="mt-4">
-          <PageHeader
-            eyebrow="Space"
-            title={
-              <span className="inline-flex items-center gap-3">
-                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-soft ${tile}`}>
-                  <GraduationCap className="h-6 w-6" />
-                </span>
-                {space?.name ?? "Loading…"}
-              </span>
-            }
-            description="Projects are individual study goals — a chapter, an exam, a topic to master."
-          />
+      <div className="mx-auto max-w-5xl bg-slate-50 px-8 py-10">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-slate-400">{space?.name ?? "Space"}</div>
+            <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
+            <p className="mt-0.5 text-sm text-slate-500">Each project is a focused learning workspace for a subject</p>
+          </div>
         </div>
 
-        <Card className="mt-6 p-4 sm:p-5">
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
           <form onSubmit={onCreate} className="flex flex-col gap-2 sm:flex-row">
             <Input
               value={name}
@@ -97,43 +80,50 @@ export function SpaceProjectsPage() {
               placeholder="New project — e.g. Chapter 3: Eigenvalues"
               aria-label="New project name"
             />
-            <Button type="submit" disabled={creating || !name.trim()} className="shrink-0 px-5">
-              <Plus className="h-4 w-4" />
-              {creating ? "Creating…" : "New project"}
+            <Button type="submit" disabled={creating || !name.trim()} className="shrink-0">
+              <Plus size={15} />
+              {creating ? "Creating…" : "New Project"}
             </Button>
           </form>
-        </Card>
+        </div>
 
-        <div className="mt-6">
+        <div>
           {loading ? (
             <LoadingState text="Loading projects…" />
           ) : error ? (
             <ErrorBox message={error} onRetry={() => void fetchAll()} />
           ) : projects.length === 0 ? (
             <EmptyState
-              icon={<GraduationCap className="h-6 w-6" />}
+              icon={<Brain size={24} />}
               title="No projects yet"
-              hint="Create one above — each project gets its own materials, tutor, quizzes, and mastery tracking."
+              hint="Create a project to start uploading your study material and building your knowledge map."
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((p, i) => (
-                <Link key={p.id} to={`/spaces/${spaceId}/projects/${p.id}`}>
-                  <Card
-                    className="animate-fade-up stagger group h-full p-5 transition-all hover:-translate-y-1 hover:shadow-lift"
-                    style={{ "--d": `${Math.min(i, 8) * 60}ms` } as React.CSSProperties}
-                  >
-                    <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-extrabold text-white shadow-soft ${tileFor(p.id)}`}>
-                      {p.name.trim()[0]?.toUpperCase() ?? "?"}
-                    </span>
-                    <h3 className="mt-3 flex items-center gap-1.5 font-bold tracking-tight">
-                      <span className="truncate">{p.name}</span>
-                      <ArrowRight className="h-4 w-4 shrink-0 text-violet-500 transition-transform group-hover:translate-x-1" />
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Created {new Date(p.created_at).toLocaleDateString()}
-                    </p>
-                  </Card>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {projects.map((p) => (
+                <Link
+                  key={p.id}
+                  to={`/spaces/${spaceId}/projects/${p.id}?tab=overview`}
+                  className="group cursor-pointer rounded-xl border border-slate-200 bg-white p-6 transition-all hover:border-slate-300 hover:shadow-sm"
+                >
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white"
+                        style={{ backgroundColor: colorFor(p.id) }}
+                      >
+                        {p.name.trim()[0]?.toUpperCase() ?? <GraduationCap size={18} />}
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-900 transition-colors group-hover:text-indigo-700">
+                        {p.name}
+                      </h3>
+                    </div>
+                    <ChevronRight size={16} className="mt-0.5 shrink-0 text-slate-300 transition-colors group-hover:text-indigo-400" />
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 border-t border-slate-100 pt-4 text-xs text-slate-400">
+                    <Clock size={11} />
+                    Created {new Date(p.created_at).toLocaleDateString()}
+                  </div>
                 </Link>
               ))}
             </div>

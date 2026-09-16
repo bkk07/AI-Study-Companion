@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { ChartColumn, FolderTree } from "lucide-react"
+import { ChartColumn } from "lucide-react"
 import apiClient from "@/lib/axios"
-import { Badge, Card, EmptyState, LoadingState, ProgressBar } from "@/components/ui"
+import { Badge, EmptyState, LoadingState, ProgressBar, SectionHeader, Tag } from "@/components/ui"
 import { statusTint } from "@/features/quiz/ConceptDetail"
 
 type Coverage = { mastery: number | null; practiced: number; total: number }
@@ -37,17 +37,6 @@ function masteryLabel(mastery: number | null): string {
   return mastery === null ? "Not started" : `${Math.round(mastery)}%`
 }
 
-function CoverageLine({ coverage }: { coverage: Coverage }) {
-  return (
-    <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-      <span>Mastery: {masteryLabel(coverage.mastery)}</span>
-      <span>
-        Coverage: {coverage.practiced}/{coverage.total} practiced
-      </span>
-    </span>
-  )
-}
-
 export function ProgressMap({ projectId }: { projectId: string }) {
   const [tree, setTree] = useState<Tree | null>(null)
   const [failed, setFailed] = useState(false)
@@ -71,11 +60,13 @@ export function ProgressMap({ projectId }: { projectId: string }) {
 
   if (failed || (tree && tree.overall.total === 0))
     return (
-      <EmptyState
-        icon={<ChartColumn className="h-6 w-6" />}
-        title="No progress yet"
-        hint="Practice a quiz or explain a concept and your knowledge map fills in here."
-      />
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <EmptyState
+          icon={<ChartColumn size={24} />}
+          title="No progress yet"
+          hint="Practice a quiz or explain a concept and your knowledge map fills in here."
+        />
+      </div>
     )
   if (!tree) return <LoadingState text="Loading progress…" />
 
@@ -84,64 +75,67 @@ export function ProgressMap({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-5 text-white shadow-soft sm:p-6">
-        <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-white/80">
-          <FolderTree className="h-4 w-4" /> Overall mastery
-        </p>
-        <p className="mt-1 text-3xl font-extrabold tracking-tight">
+      <SectionHeader title="Progress Map" subtitle="Topic → Subtopic → Concept coverage" />
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Overall mastery</div>
+        <p className="font-mono-data text-3xl font-bold text-slate-900">
           {masteryLabel(tree.overall.mastery)}
         </p>
-        <ProgressBar value={tree.overall.mastery} className="mt-2 bg-white/25" />
-        <p className="mt-1.5 text-xs text-white/85">
+        <ProgressBar value={tree.overall.mastery} className="mt-2" barClass="bg-indigo-500" />
+        <p className="mt-1.5 text-xs text-slate-500">
           {tree.overall.practiced} of {tree.overall.total} core learning targets practiced
         </p>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-6">
         {!topic && (
-          <ul className="space-y-2">
+          <div className="space-y-3">
             {tree.topics.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTopicId(t.id)
-                    setSubId(null)
-                  }}
-                  className="w-full rounded-2xl border bg-card p-4 text-left shadow-soft transition-all hover:border-violet-300"
-                >
-                  <span className="font-bold">{t.title}</span>
-                  <CoverageLine coverage={t.coverage} />
-                  <ProgressBar value={t.coverage.mastery} className="mt-2" />
-                </button>
-              </li>
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setTopicId(t.id)
+                  setSubId(null)
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-sm"
+              >
+                <span className="text-sm font-semibold text-slate-900">{t.title}</span>
+                <span className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                  <span>Mastery: {masteryLabel(t.coverage.mastery)}</span>
+                  <span>Coverage: {t.coverage.practiced}/{t.coverage.total} practiced</span>
+                </span>
+                <ProgressBar value={t.coverage.mastery} className="mt-2" barClass="bg-indigo-500" />
+              </button>
             ))}
-          </ul>
+          </div>
         )}
         {topic && !sub && (
           <div>
             <button
               type="button"
               onClick={() => setTopicId(null)}
-              className="text-sm font-semibold text-violet-700 hover:underline"
+              className="text-sm font-medium text-indigo-600 hover:underline"
             >
               ← {topic.title}
             </button>
-            <ul className="mt-2 space-y-2">
+            <div className="mt-2 space-y-2">
               {topic.subtopics.map((s) => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSubId(s.id)}
-                    className="w-full rounded-2xl border bg-card p-4 text-left shadow-soft transition-all hover:border-violet-300"
-                  >
-                    <span className="font-bold">{s.title}</span>
-                    <CoverageLine coverage={s.coverage} />
-                    <ProgressBar value={s.coverage.mastery} className="mt-2" />
-                  </button>
-                </li>
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSubId(s.id)}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300"
+                >
+                  <span className="text-sm font-semibold text-slate-900">{s.title}</span>
+                  <span className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                    <span>Mastery: {masteryLabel(s.coverage.mastery)}</span>
+                    <span>Coverage: {s.coverage.practiced}/{s.coverage.total}</span>
+                  </span>
+                  <ProgressBar value={s.coverage.mastery} className="mt-2" barClass="bg-indigo-500" />
+                </button>
               ))}
-            </ul>
+            </div>
           </div>
         )}
         {topic && sub && (
@@ -149,30 +143,27 @@ export function ProgressMap({ projectId }: { projectId: string }) {
             <button
               type="button"
               onClick={() => setSubId(null)}
-              className="text-sm font-semibold text-violet-700 hover:underline"
+              className="text-sm font-medium text-indigo-600 hover:underline"
             >
               ← {sub.title}
             </button>
-            <p className="mt-2">
-              <CoverageLine coverage={sub.coverage} />
-            </p>
-            <ul className="mt-2 space-y-2">
+            <div className="mt-2 space-y-2">
               {sub.concepts.map((c) => (
-                <li key={c.id} className="rounded-2xl border bg-card p-4 shadow-soft">
+                <div key={c.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold">{c.title}</span>
-                    <Badge tint="violet">{c.lo_type}</Badge>
+                    <span className="text-sm font-semibold text-slate-900">{c.title}</span>
+                    <Tag color="indigo">{c.lo_type}</Tag>
                     <Badge tint={statusTint(c.status)}>{c.status}</Badge>
                   </div>
                   <div className="mt-2 flex items-center gap-3">
-                    <ProgressBar value={c.mastery} className="flex-1" />
-                    <span className="text-sm font-extrabold text-gradient">
+                    <ProgressBar value={c.mastery} className="flex-1" barClass="bg-indigo-500" />
+                    <span className="font-mono-data text-sm font-semibold text-slate-800">
                       {masteryLabel(c.mastery)}
                     </span>
                   </div>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
@@ -181,12 +172,5 @@ export function ProgressMap({ projectId }: { projectId: string }) {
 }
 
 export function ProgressMapCard({ projectId }: { projectId: string }) {
-  return (
-    <Card className="p-5 sm:p-6">
-      <h3 className="font-bold">Knowledge map</h3>
-      <div className="mt-3">
-        <ProgressMap projectId={projectId} />
-      </div>
-    </Card>
-  )
+  return <ProgressMap projectId={projectId} />
 }

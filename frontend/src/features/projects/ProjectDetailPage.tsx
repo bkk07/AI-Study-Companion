@@ -1,59 +1,45 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
-import {
-  ArrowLeft,
-  FileUp,
-  Layers,
-  LayoutDashboard,
-  LineChart,
-  MessagesSquare,
-  Network,
-  Wand2,
-} from "lucide-react"
+import { Link, useParams, useSearchParams } from "react-router-dom"
+import { ChevronLeft } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { AppShell } from "@/components/AppShell"
-import { Card, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
+import { ErrorBox, LoadingState } from "@/components/ui"
 import { Dashboard } from "@/features/dashboard/Dashboard"
 import { Flashcards } from "@/features/flashcards/Flashcards"
 import { AnalyticsView } from "@/features/analytics/AnalyticsView"
 import { GrowthView } from "@/features/analytics/GrowthView"
-import { ProgressMapCard } from "@/features/progress/ProgressMap"
+import { ProgressMap } from "@/features/progress/ProgressMap"
 import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
 import { MaterialsPanel } from "@/features/projects/MaterialsPanel"
-import { tileFor } from "@/features/spaces/SpacesPage"
+import { colorFor } from "@/features/spaces/SpacesPage"
 import { cn } from "@/lib/utils"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
 type Space = { id: string; name: string }
 
-const TABS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "tutor", label: "Tutor", icon: MessagesSquare },
-  { id: "quiz", label: "Quiz", icon: Wand2 },
-  { id: "flashcards", label: "Flashcards", icon: Layers },
-  { id: "materials", label: "Materials", icon: FileUp },
-  { id: "structure", label: "Map", icon: Network },
-  { id: "progress", label: "Progress", icon: LineChart },
-] as const
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress"
 
-type TabId = (typeof TABS)[number]["id"]
+const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress"]
 
 export function ProjectDetailPage() {
   const { spaceId, projectId } = useParams<{ spaceId: string; projectId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get("tab") as TabId | null
+  const tab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : "overview"
+  const setTab = (t: TabId) => setSearchParams({ tab: t }, { replace: false })
+
   const [project, setProject] = useState<Project | null>(null)
   const [space, setSpace] = useState<Space | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<TabId>("overview")
 
   useEffect(() => {
     if (!projectId) return
     setLoading(true)
     setError(null)
-    // Fetch via direct and nested for verification; both should succeed if owned
     Promise.all([
       apiClient.get<Project>(`/projects/${projectId}`),
       spaceId ? apiClient.get<Space>(`/spaces/${spaceId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
@@ -72,105 +58,74 @@ export function ProjectDetailPage() {
 
   return (
     <AppShell wide>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <Link
-          to={spaceId ? `/spaces/${spaceId}` : "/spaces"}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-violet-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {space?.name ?? "Back to space"}
-        </Link>
+      <div className="min-h-full bg-slate-50">
+        <div className="mx-auto max-w-5xl px-8 py-10">
+          <Link
+            to={spaceId ? `/spaces/${spaceId}` : "/spaces"}
+            className="inline-flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-slate-600"
+          >
+            <ChevronLeft size={12} />
+            {space?.name ?? "Back to space"}
+          </Link>
 
-        {loading ? (
-          <LoadingState text="Opening project…" />
-        ) : error ? (
-          <div className="mt-4 max-w-2xl">
-            <ErrorBox message={error} />
-          </div>
-        ) : project ? (
-          <div className="animate-fade-up">
-            <div className="mt-3">
-              <PageHeader
-                eyebrow={space?.name ?? "Project"}
-                title={
-                  <span className="inline-flex items-center gap-3">
-                    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-lg font-extrabold text-white shadow-soft ${tileFor(project.id)}`}>
-                      {project.name.trim()[0]?.toUpperCase() ?? "?"}
-                    </span>
-                    {project.name}
-                  </span>
-                }
-                description={`Studying since ${new Date(project.created_at).toLocaleDateString()} · everything here is scoped to this project.`}
-              />
+          {loading ? (
+            <LoadingState text="Opening project…" />
+          ) : error ? (
+            <div className="mt-4 max-w-2xl">
+              <ErrorBox message={error} />
             </div>
+          ) : project ? (
+            <div>
+              <div className="mt-2">
+                <div className="text-xs uppercase tracking-wider text-slate-400">{space?.name ?? "Project"}</div>
+                <h1 className="font-display mt-1 flex items-center gap-3 text-2xl font-semibold text-slate-900">
+                  <span
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white"
+                    style={{ backgroundColor: colorFor(project.id) }}
+                  >
+                    {project.name.trim()[0]?.toUpperCase() ?? "?"}
+                  </span>
+                  {project.name}
+                </h1>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Studying since {new Date(project.created_at).toLocaleDateString()} · everything here is scoped to this project.
+                </p>
+              </div>
 
-            {/* Tab bar */}
-            <div className="sticky top-16 z-30 -mx-4 mt-6 border-y border-white/50 bg-background/85 px-4 py-2.5 backdrop-blur-xl sm:-mx-6 sm:px-6">
-              <div className="flex gap-1 overflow-x-auto">
-                {TABS.map((t) => (
+              <div className="mt-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 lg:hidden">
+                {VALID_TABS.map((t) => (
                   <button
-                    key={t.id}
+                    key={t}
                     type="button"
-                    onClick={() => setTab(t.id)}
+                    onClick={() => setTab(t)}
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all",
-                      tab === t.id
-                        ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-soft"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+                      tab === t ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100",
                     )}
                   >
-                    <t.icon className="h-4 w-4" />
-                    {t.label}
+                    {t === "materials" ? "Documents" : t === "structure" ? "Structure" : t}
                   </button>
                 ))}
               </div>
-            </div>
 
-            <div key={tab} className="animate-fade-up mt-5">
-              {tab === "overview" && projectId && (
-                <Card className="p-5 sm:p-6">
-                  <Dashboard projectId={projectId} />
-                </Card>
-              )}
-              {tab === "tutor" && projectId && (
-                <Card className="p-5 sm:p-6">
-                  <TutorChat projectId={projectId} />
-                </Card>
-              )}
-              {tab === "quiz" && projectId && (
-                <Card className="p-5 sm:p-6">
-                  <QuizTaker projectId={projectId} />
-                </Card>
-              )}
-              {tab === "flashcards" && projectId && (
-                <Card className="p-5 sm:p-6">
-                  <Flashcards projectId={projectId} />
-                </Card>
-              )}
-              {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
-              {tab === "structure" && projectId && (
-                <Card className="p-5 sm:p-6">
-                  <StructureView projectId={projectId} />
-                </Card>
-              )}
-              {tab === "progress" && projectId && (
-                <div className="space-y-4">
-                  <ProgressMapCard projectId={projectId} />
-                  <div className="grid gap-4 lg:grid-cols-2">
-                  <Card className="p-5 sm:p-6">
-                    <h3 className="font-bold">Growth</h3>
+              <div key={tab} className="mt-6">
+                {tab === "overview" && projectId && <Dashboard projectId={projectId} overviewMode />}
+                {tab === "tutor" && projectId && <TutorChat projectId={projectId} />}
+                {tab === "quiz" && projectId && <QuizTaker projectId={projectId} />}
+                {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
+                {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
+                {tab === "structure" && projectId && <StructureView projectId={projectId} />}
+                {tab === "progress" && projectId && (
+                  <div className="space-y-8">
+                    <ProgressMap projectId={projectId} />
                     <GrowthView projectId={projectId} />
-                  </Card>
-                  <Card className="p-5 sm:p-6">
-                    <h3 className="font-bold">Analytics</h3>
                     <AnalyticsView projectId={projectId} />
-                  </Card>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </AppShell>
   )

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Compass, FolderTree, Play, Search as SearchIcon, Sparkles, Wand2 } from "lucide-react"
 import apiClient from "@/lib/axios"
-import { Badge, Button, Card, EmptyState, Input, LoadingState, ProgressBar } from "@/components/ui"
+import { Badge, Button, EmptyState, Input, LoadingState, ProgressBar, Tag } from "@/components/ui"
 import { cn } from "@/lib/utils"
 import { ConceptDetail, statusTint } from "./ConceptDetail"
 
@@ -66,7 +66,7 @@ function masteryLabel(mastery: number | null): string {
 function PracticeButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
     <Button type="button" size="sm" onClick={onClick} disabled={disabled}>
-      <Play className="h-3.5 w-3.5" /> Practice
+      <Play size={14} /> Practice
     </Button>
   )
 }
@@ -84,57 +84,64 @@ function CandidateCard({
   onPractice: (id: string) => void
   onOpen: (id: string) => void
 }) {
-  return (
-    <div className={cn(hero && "rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-5 text-white shadow-soft sm:p-6")}>
-      {hero && (
-        <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-white/80">
-          <Sparkles className="h-4 w-4" /> Recommended for you
+  if (hero) {
+    return (
+      <div className="rounded-xl bg-indigo-600 p-5 text-white sm:p-6">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-indigo-200">
+          <Sparkles size={14} /> Recommended for you
         </p>
-      )}
-      <div className={cn("flex flex-wrap items-center gap-2", hero ? "mt-2" : "mt-0")}>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpen(candidate.concept_id)}
+            className="text-left text-xl font-semibold text-white hover:underline"
+          >
+            {candidate.name}
+          </button>
+          {candidate.lo_type && (
+            <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white">{candidate.lo_type}</span>
+          )}
+        </div>
+        <p className="mt-2 text-sm text-indigo-100">{candidate.reasoning}</p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => onPractice(candidate.concept_id)}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+          >
+            <Play size={14} /> Start Practice
+          </button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => onOpen(candidate.concept_id)}
-          className={cn(
-            "text-left font-extrabold tracking-tight hover:underline",
-            hero ? "text-xl text-white" : "text-base",
-          )}
+          className="text-left text-base font-semibold text-slate-900 hover:underline"
         >
           {candidate.name}
         </button>
-        {candidate.lo_type && (
-          <Badge tint={hero ? "muted" : "violet"} className={hero ? "bg-white/20 text-white ring-white/30" : undefined}>
-            {candidate.lo_type}
-          </Badge>
-        )}
+        {candidate.lo_type && <Tag color="indigo">{candidate.lo_type}</Tag>}
         <Badge tint={candidate.fallback ? "muted" : statusTint(candidate.status)}>
           {candidate.fallback ? "Get started" : candidate.status}
         </Badge>
       </div>
       {!candidate.fallback && (
-        <div className={cn("mt-2 flex items-center gap-3", hero ? "text-white" : "")}>
-          <ProgressBar value={candidate.mastery} className={cn("flex-1", hero && "bg-white/25")} />
-          <span className={cn("text-sm font-extrabold", hero ? "text-white" : "text-gradient")}>
+        <div className="mt-2 flex items-center gap-3">
+          <ProgressBar value={candidate.mastery} className="flex-1" barClass="bg-indigo-500" />
+          <span className="font-mono-data text-sm font-semibold text-slate-800">
             {masteryLabel(candidate.mastery)}
           </span>
         </div>
       )}
-      <p className={cn("mt-2 text-sm", hero ? "text-white/85" : "text-muted-foreground")}>
-        {candidate.reasoning}
-      </p>
+      <p className="mt-2 text-sm text-slate-500">{candidate.reasoning}</p>
       <div className="mt-3">
-        {hero ? (
-          <Button
-            type="button"
-            onClick={() => onPractice(candidate.concept_id)}
-            disabled={busy}
-            className="bg-white text-violet-700 shadow-none hover:bg-white/90 hover:shadow-none"
-          >
-            <Play className="h-4 w-4" /> Start Practice
-          </Button>
-        ) : (
-          <PracticeButton onClick={() => onPractice(candidate.concept_id)} disabled={busy} />
-        )}
+        <PracticeButton onClick={() => onPractice(candidate.concept_id)} disabled={busy} />
       </div>
     </div>
   )
@@ -172,7 +179,7 @@ function Recommended({
   if (failed)
     return (
       <EmptyState
-        icon={<Wand2 className="h-6 w-6" />}
+        icon={<Wand2 size={24} />}
         title="No practice targets yet"
         hint="Upload a PDF and recommendations unlock once it's processed."
       />
@@ -181,7 +188,7 @@ function Recommended({
   if (data.items.length === 0 && !data.fallback)
     return (
       <EmptyState
-        icon={<Wand2 className="h-6 w-6" />}
+        icon={<Wand2 size={24} />}
         title="No practice targets yet"
         hint="Upload a PDF and recommendations unlock once it's processed."
       />
@@ -191,18 +198,16 @@ function Recommended({
     <div className="space-y-3">
       {hero && <CandidateCard candidate={hero} hero busy={busy} onPractice={onPractice} onOpen={onOpen} />}
       {data.fallback && (
-        <CandidateCard candidate={data.fallback} hero busy={busy} onPractice={onPractice} onOpen={onOpen} />
+        <CandidateCard candidate={data.fallback} busy={busy} onPractice={onPractice} onOpen={onOpen} />
       )}
       {rest.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Other recommendations
           </p>
           <div className="space-y-2">
             {rest.map((c) => (
-              <Card key={c.concept_id} className="p-4">
-                <CandidateCard candidate={c} busy={busy} onPractice={onPractice} onOpen={onOpen} />
-              </Card>
+              <CandidateCard key={c.concept_id} candidate={c} busy={busy} onPractice={onPractice} onOpen={onOpen} />
             ))}
           </div>
         </div>
@@ -245,7 +250,7 @@ function Browse({
   if (failed)
     return (
       <EmptyState
-        icon={<FolderTree className="h-6 w-6" />}
+        icon={<FolderTree size={24} />}
         title="No topics yet"
         hint="Upload a PDF and browse unlocks once it's processed."
       />
@@ -254,7 +259,7 @@ function Browse({
   if (tree.length === 0)
     return (
       <EmptyState
-        icon={<FolderTree className="h-6 w-6" />}
+        icon={<FolderTree size={24} />}
         title="No topics yet"
         hint="Upload a PDF and browse unlocks once it's processed."
       />
@@ -274,17 +279,17 @@ function Browse({
                 setTopicId(t.id)
                 setSubId(null)
               }}
-              className="w-full rounded-2xl border bg-card p-4 text-left shadow-soft transition-all hover:border-violet-300"
+              className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-sm"
             >
-              <span className="font-bold">{t.title}</span>
-              <span className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="text-sm font-semibold text-slate-900">{t.title}</span>
+              <span className="mt-1 flex items-center gap-3 text-xs text-slate-500">
                 <span>{t.core_count} core learning targets</span>
                 <span>Mastery: {masteryLabel(t.coverage.mastery)}</span>
                 <span>
                   Coverage: {t.coverage.practiced}/{t.coverage.total}
                 </span>
               </span>
-              <ProgressBar value={t.coverage.mastery} className="mt-2" />
+              <ProgressBar value={t.coverage.mastery} className="mt-2" barClass="bg-indigo-500" />
             </button>
           </li>
         ))}
@@ -298,7 +303,7 @@ function Browse({
         <button
           type="button"
           onClick={() => setTopicId(null)}
-          className="text-sm font-semibold text-violet-700 hover:underline"
+          className="text-sm font-medium text-indigo-600 hover:underline"
         >
           ← {topic.title}
         </button>
@@ -308,17 +313,17 @@ function Browse({
               <button
                 type="button"
                 onClick={() => setSubId(s.id)}
-                className="w-full rounded-2xl border bg-card p-4 text-left shadow-soft transition-all hover:border-violet-300"
+                className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-sm"
               >
-                <span className="font-bold">{s.title}</span>
-                <span className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="text-sm font-semibold text-slate-900">{s.title}</span>
+                <span className="mt-1 flex items-center gap-3 text-xs text-slate-500">
                   <span>{s.core_count} core learning targets</span>
                   <span>Mastery: {masteryLabel(s.coverage.mastery)}</span>
                   <span>
                     Coverage: {s.coverage.practiced}/{s.coverage.total}
                   </span>
                 </span>
-                <ProgressBar value={s.coverage.mastery} className="mt-2" />
+                <ProgressBar value={s.coverage.mastery} className="mt-2" barClass="bg-indigo-500" />
               </button>
             </li>
           ))}
@@ -332,27 +337,27 @@ function Browse({
       <button
         type="button"
         onClick={() => setSubId(null)}
-        className="text-sm font-semibold text-violet-700 hover:underline"
+        className="text-sm font-medium text-indigo-600 hover:underline"
       >
         ← {sub.title}
       </button>
       <ul className="mt-2 space-y-2">
         {sub.concepts.map((c) => (
-          <li key={c.id} className="rounded-2xl border bg-card p-4 shadow-soft">
+          <li key={c.id} className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => onOpen(c.id)}
-                className="font-bold hover:underline"
+                className="text-sm font-semibold text-slate-900 hover:underline"
               >
                 {c.title}
               </button>
-              <Badge tint="violet">{c.lo_type}</Badge>
+              <Tag color="indigo">{c.lo_type}</Tag>
               <Badge tint={statusTint(c.status)}>{c.status}</Badge>
             </div>
             <div className="mt-2 flex items-center gap-3">
-              <ProgressBar value={c.mastery} className="flex-1" />
-              <span className="text-sm font-extrabold text-gradient">{masteryLabel(c.mastery)}</span>
+              <ProgressBar value={c.mastery} className="flex-1" barClass="bg-indigo-500" />
+              <span className="font-mono-data text-sm font-semibold text-slate-800">{masteryLabel(c.mastery)}</span>
               <PracticeButton onClick={() => onPractice(c.id)} disabled={busy} />
             </div>
           </li>
@@ -409,25 +414,25 @@ function Search({
           aria-label="Search learning objects"
         />
         <Button type="submit" disabled={searching || query.trim().length < 2}>
-          <SearchIcon className="h-4 w-4" /> Search
+          <SearchIcon size={15} /> Search
         </Button>
       </form>
       {searching && <LoadingState text="Searching…" />}
       {hits !== null && !searching && hits.length === 0 && (
-        <p className="mt-3 text-sm text-muted-foreground">No matches — try a different term.</p>
+        <p className="mt-3 text-sm text-slate-500">No matches — try a different term.</p>
       )}
       {hits !== null && hits.length > 0 && (
         <ul className="mt-3 space-y-2">
           {hits.map((hit) => (
-            <li key={hit.id} className="rounded-2xl border bg-card p-4 shadow-soft">
+            <li key={hit.id} className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => onOpen(hit.id)} className="font-bold hover:underline">
+                <button type="button" onClick={() => onOpen(hit.id)} className="text-sm font-semibold text-slate-900 hover:underline">
                   {hit.title}
                 </button>
-                <Badge tint="violet">{hit.lo_type}</Badge>
+                <Tag color="indigo">{hit.lo_type}</Tag>
                 {hit.importance !== "CORE" && <Badge tint="muted">{hit.importance}</Badge>}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-slate-500">
                 {hit.topic} → {hit.subtopic}
                 {hit.page_start !== null && ` · page ${hit.page_start}`}
                 {hit.mastery !== null && ` · mastery ${Math.round(hit.mastery)}%`}
@@ -446,9 +451,9 @@ function Search({
 }
 
 const MODES: { id: Mode; label: string; icon: React.ReactNode }[] = [
-  { id: "recommended", label: "Recommended", icon: <Compass className="h-4 w-4" /> },
-  { id: "browse", label: "Browse by Topic", icon: <FolderTree className="h-4 w-4" /> },
-  { id: "search", label: "Search", icon: <SearchIcon className="h-4 w-4" /> },
+  { id: "recommended", label: "Recommended", icon: <Compass size={16} /> },
+  { id: "browse", label: "Browse by Topic", icon: <FolderTree size={16} /> },
+  { id: "search", label: "Search", icon: <SearchIcon size={16} /> },
 ]
 
 export function QuizModes({
@@ -465,7 +470,7 @@ export function QuizModes({
 
   return (
     <div>
-      <div role="tablist" aria-label="Quiz modes" className="flex gap-1 rounded-2xl border bg-card p-1 shadow-soft">
+      <div role="tablist" aria-label="Quiz modes" className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -474,10 +479,10 @@ export function QuizModes({
             type="button"
             onClick={() => setMode(m.id)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-all",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
               mode === m.id
-                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-soft"
-                : "text-muted-foreground hover:bg-muted",
+                ? "bg-indigo-600 text-white"
+                : "text-slate-500 hover:bg-slate-50",
             )}
           >
             {m.icon}

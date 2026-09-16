@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { BookOpenText, BrainCircuit, ListTree, MessagesSquare, Target, Trophy } from "lucide-react"
+import { BookOpenText, BrainCircuit, CreditCard, HelpCircle, Layers, MessageCircle } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
-import { ErrorBox, LoadingState } from "@/components/ui"
+import { ErrorBox, LoadingState, SectionHeader, StatCard } from "@/components/ui"
 
 type Analytics = {
   materials_total: number
@@ -49,36 +49,33 @@ export function AnalyticsView({ projectId }: { projectId: string }) {
   if (error) return <ErrorBox message={error} onRetry={() => void load()} />
   if (!data) return null
 
-  const cards = [
-    { icon: BookOpenText, tint: "bg-rose-100 text-rose-600", label: "Materials", value: `${data.materials_total}` },
-    { icon: ListTree, tint: "bg-indigo-100 text-indigo-600", label: "Topics / concepts", value: `${data.topics_count} / ${data.concepts_count}` },
-    { icon: Trophy, tint: "bg-amber-100 text-amber-600", label: "Quizzes done", value: `${data.quiz_attempts_completed}/${data.quiz_attempts}` },
-    { icon: Target, tint: "bg-violet-100 text-violet-600", label: "Avg recognition", value: fmt(data.avg_mcq) },
-    { icon: BrainCircuit, tint: "bg-fuchsia-100 text-fuchsia-600", label: "Avg applied", value: fmt(data.avg_applied) },
-    { icon: MessagesSquare, tint: "bg-sky-100 text-sky-600", label: "Tutor chats", value: "soon" },
-  ]
-
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        {cards.map((c) => (
-          <div key={c.label} className="rounded-2xl border bg-card p-3.5 shadow-soft">
-            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${c.tint}`}>
-              <c.icon className="h-4 w-4" />
-            </span>
-            <p className="mt-2 text-xl font-extrabold tracking-tight">{c.value}</p>
-            <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
-          </div>
-        ))}
+      <SectionHeader title="Analytics" subtitle="MCQ vs. applied by topic and activity" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Documents" value={data.materials_total} icon={<BookOpenText size={18} />} accent="slate" />
+        <StatCard label="Topics" value={data.topics_count} icon={<Layers size={18} />} accent="slate" />
+        <StatCard label="Concepts" value={data.concepts_count} icon={<BrainCircuit size={18} />} accent="indigo" />
+        <StatCard label="Quiz Attempts" value={data.quiz_attempts_completed} sub={`of ${data.quiz_attempts}`} icon={<HelpCircle size={18} />} accent="slate" />
+        <StatCard label="Avg MCQ" value={fmt(data.avg_mcq)} icon={<BrainCircuit size={18} />} accent="green" />
+        <StatCard label="Avg Applied" value={fmt(data.avg_applied)} icon={<CreditCard size={18} />} accent="amber" />
       </div>
-      {Object.keys(data.materials_by_status).length > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Materials:{" "}
-          {Object.entries(data.materials_by_status)
-            .map(([status, count]) => `${status} ${count}`)
-            .join(" · ")}
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <MessageCircle size={15} className="text-slate-400" /> Activity
+        </div>
+        <p className="mt-1 text-sm text-slate-500">
+          {data.evidenced_concepts} evidenced concepts · tutor chats coming soon
         </p>
-      )}
+        {Object.keys(data.materials_by_status).length > 0 && (
+          <p className="mt-2 text-xs text-slate-400">
+            Materials:{" "}
+            {Object.entries(data.materials_by_status)
+              .map(([status, count]) => `${status} ${count}`)
+              .join(" · ")}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

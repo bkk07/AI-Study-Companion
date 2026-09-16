@@ -15,7 +15,9 @@ export default {
         "2xl": "calc(var(--radius) + 8px)",
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['"Inter"', '"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Fraunces"', "Georgia", "serif"],
+        "mono-data": ['"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       boxShadow: {
         soft: "0 1px 2px hsl(250 30% 20% / 0.05), 0 8px 24px -12px hsl(262 83% 58% / 0.25)",

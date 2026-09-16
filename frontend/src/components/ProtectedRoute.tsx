@@ -6,8 +6,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth()
   if (loading) {
     return (
-      <div className="bg-mesh flex min-h-screen items-center justify-center gap-2.5 text-sm text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin text-violet-500" />
+      <div className="flex min-h-screen items-center justify-center gap-2.5 bg-slate-50 text-sm text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
         Loading your study space…
       </div>
     )

@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api-error"
 import { AppShell } from "@/components/AppShell"
 import { ErrorBox, LoadingState } from "@/components/ui"
 import { Dashboard, type ProjectTab } from "@/features/dashboard/Dashboard"
+import { OverviewView } from "@/features/overview/OverviewView"
 import { Flashcards } from "@/features/flashcards/Flashcards"
 import { AnalyticsView } from "@/features/analytics/AnalyticsView"
 import { GrowthView } from "@/features/analytics/GrowthView"
@@ -83,9 +84,8 @@ export function ProjectDetailPage() {
 
               <div key={tab} className="mt-6">
                 {tab === "overview" && projectId && (
-                  <Dashboard
+                  <OverviewView
                     projectId={projectId}
-                    overviewMode
                     onNavigate={goTab}
                     onPracticeConcept={(id) => {
                       setQuizFocus(id)
@@ -100,6 +100,24 @@ export function ProjectDetailPage() {
                     focusConceptId={quizFocus}
                     onFocusConsumed={() => setQuizFocus(null)}
                   />
+                )}
+                {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
+                {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
+                {tab === "structure" && projectId && <StructureView projectId={projectId} />}
+                {tab === "progress" && projectId && (
+                  <div className="space-y-10">
+                    <Dashboard
+                      projectId={projectId}
+                      onNavigate={goTab}
+                      onPracticeConcept={(id) => {
+                        setQuizFocus(id)
+                        setTab("quiz")
+                      }}
+                    />
+                    <ProgressMap projectId={projectId} />
+                    <GrowthView projectId={projectId} />
+                    <AnalyticsView projectId={projectId} />
+                  </div>
                 )}
                 {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
                 {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}

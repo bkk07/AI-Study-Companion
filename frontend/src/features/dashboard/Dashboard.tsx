@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
-  BarChart2,
   Brain,
-  CreditCard,
   Flame,
-  HelpCircle,
   Info,
-  MessageCircle,
-  Play,
   TrendingUp,
 } from "lucide-react"
 import apiClient from "@/lib/axios"
@@ -16,7 +11,6 @@ import { apiError } from "@/lib/api-error"
 import {
   ErrorBox,
   LoadingState,
-  MasteryBadge,
   MasteryBar,
   SectionHeader,
   StatCard,
@@ -59,13 +53,13 @@ type DashboardData = {
   recommendation: Recommendation | null
 }
 
-type PracticeCandidate = {
-  concept_id: string
-  name: string
-  reasoning: string
-}
+type FlashCard = { id: string; concept_id: string }
 
-type PracticeRecs = { items: PracticeCandidate[]; fallback: PracticeCandidate | null }
+type TopicNode = {
+  id: string
+  title: string
+  subtopics: { id: string; title: string; concepts: { id: string; title: string }[] }[]
+}
 
 export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview"
 
@@ -95,6 +89,12 @@ function mismatchLabel(type: string): string {
   return type
 }
 
+function confidenceLabel(type: string): string {
+  if (type === "overconfident") return "high confidence"
+  if (type === "underconfident") return "low confidence"
+  return "confidence gap"
+}
+
 function avg(values: (number | null)[]): number | null {
   const xs = values.filter((v): v is number => v !== null)
   if (xs.length === 0) return null
@@ -103,12 +103,10 @@ function avg(values: (number | null)[]): number | null {
 
 export function Dashboard({
   projectId,
-  overviewMode = false,
   onNavigate,
   onPracticeConcept,
 }: {
   projectId: string
-  overviewMode?: boolean
   onNavigate?: (tab: ProjectTab) => void
   onPracticeConcept?: (conceptId: string) => void
 }) {
@@ -117,7 +115,9 @@ export function Dashboard({
   const [error, setError] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
   const [streak, setStreak] = useState<number | null>(null)
-  const [recs, setRecs] = useState<PracticeCandidate[]>([])
+  const [dueCards, setDueCards] = useState<FlashCard[]>([])
+  const [dueTotal, setDueTotal] = useState(0)
+  const [conceptMeta, setConceptMeta] = useState<Map<string, { title: string; topic: string }>>(new Map())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -149,15 +149,32 @@ export function Dashboard({
         if (!cancelled) setStreak(null)
       })
     apiClient
-      .get<PracticeRecs>(`/projects/${projectId}/practice/recommendations?limit=4`)
+      .get<{ cards: FlashCard[]; due_count: number }>(`/projects/${projectId}/flashcards?due_only=true&limit=100`)
       .then((res) => {
         if (cancelled) return
-        const list = [...res.data.items]
-        if (res.data.fallback) list.push(res.data.fallback)
-        setRecs(list.slice(0, 3))
+        setDueCards(res.data.cards)
+        setDueTotal(res.data.due_count)
       })
       .catch(() => {
-        if (!cancelled) setRecs([])
+        if (!cancelled) {
+          setDueCards([])
+          setDueTotal(0)
+        }
+      })
+    apiClient
+      .get<{ topics: TopicNode[] }>(`/projects/${projectId}/knowledge/tree`)
+      .then((res) => {
+        if (cancelled) return
+        const map = new Map<string, { title: string; topic: string }>()
+        for (const t of res.data.topics) {
+          for (const s of t.subtopics) {
+            for (const c of s.concepts) map.set(c.id, { title: c.title, topic: t.title })
+          }
+        }
+        setConceptMeta(map)
+      })
+      .catch(() => {
+        if (!cancelled) setConceptMeta(new Map())
       })
     return () => {
       cancelled = true
@@ -181,6 +198,21 @@ export function Dashboard({
     }
   }
 
+  const dueByConcept = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const c of dueCards) counts.set(c.concept_id, (counts.get(c.concept_id) ?? 0) + 1)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  }, [dueCards])
+
+  const dueTopics = useMemo(() => {
+    const topics = new Map<string, number>()
+    for (const c of dueCards) {
+      const topic = conceptMeta.get(c.concept_id)?.topic ?? "Other"
+      topics.set(topic, (topics.get(topic) ?? 0) + 1)
+    }
+    return [...topics.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t)
+  }, [dueCards, conceptMeta])
+
   if (loading) return <LoadingState text="Loading progress…" />
   if (error) return <ErrorBox message={error} onRetry={() => void load()} />
   if (!data) return null
@@ -193,9 +225,13 @@ export function Dashboard({
   const underconfident = flagged.filter((c) => c.mismatch?.mismatch_type === "underconfident")
   const attention = flagged.filter((c) => c.mismatch?.mismatch_type !== "underconfident")
 
-  const continueFrom = [...data.concepts]
-    .filter((c) => c.last_evidence_at)
-    .sort((a, b) => (b.last_evidence_at ?? "").localeCompare(a.last_evidence_at ?? ""))[0]
+  const evidenced = data.concepts.filter((c) => c.applied !== null || c.mcq !== null)
+  const lowestApplied = [...evidenced]
+    .filter((c) => c.applied !== null)
+    .sort((a, b) => (a.applied ?? 0) - (b.applied ?? 0))[0]
+  const unassessed = data.concepts.find((c) => c.mcq === null && c.applied === null)
+  const [topDueConceptId, topDueCount] = dueByConcept[0] ?? [null, 0]
+  const topDueTitle = topDueConceptId ? (conceptMeta.get(topDueConceptId)?.title ?? "Flashcards") : null
 
   const byTopic = new Map<string, ConceptProgress[]>()
   for (const c of data.concepts) {
@@ -235,47 +271,6 @@ export function Dashboard({
         </div>
       </div>
 
-      {continueFrom && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
-          <div className="mb-5 flex items-start justify-between">
-            <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Continue Learning</div>
-              <h2 className="text-xl font-semibold text-slate-900">{continueFrom.title}</h2>
-              <div className="mt-2 flex items-center gap-3">
-                <MasteryBadge level={toMasteryLevel(continueFrom.status, continueFrom.mcq)} />
-                {continueFrom.last_evidence_at && (
-                  <span className="text-xs text-slate-400">
-                    Last practiced {new Date(continueFrom.last_evidence_at).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="hidden flex-col gap-1 text-right text-xs sm:flex">
-              <span className="font-mono-data text-green-600">
-                MCQ {continueFrom.mcq === null ? "—" : `${Math.round(continueFrom.mcq)}%`}
-              </span>
-              <span className="font-mono-data text-amber-600">
-                Applied {continueFrom.applied === null ? "—" : `${Math.round(continueFrom.applied)}%`}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => go("tutor")} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-              <Play size={14} /> Continue
-            </button>
-            <button type="button" onClick={() => go("tutor")} className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <MessageCircle size={14} /> Ask Tutor
-            </button>
-            <button type="button" onClick={() => practice(continueFrom.concept_id)} className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <HelpCircle size={14} /> Practice
-            </button>
-            <button type="button" onClick={() => go("flashcards")} className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <CreditCard size={14} /> Flashcards
-            </button>
-          </div>
-        </div>
-      )}
-
       {topicRows.length > 0 && (
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-6">
@@ -283,7 +278,7 @@ export function Dashboard({
             <div className="space-y-3.5">
               {topicRows.map((t) =>
                 t.mcq === null ? null : (
-                  <MasteryBar key={t.topic} value={Math.round(t.mcq)} level={masteryLevelFor(t.mcq)} label={t.topic} />
+                  <MasteryBar key={t.topic} value={Math.round(t.mcq)} level={toMasteryLevel("", t.mcq)} label={t.topic} />
                 ),
               )}
             </div>
@@ -293,7 +288,7 @@ export function Dashboard({
             <div className="space-y-3.5">
               {topicRows.map((t) =>
                 t.applied === null ? null : (
-                  <MasteryBar key={t.topic} value={Math.round(t.applied)} level={masteryLevelFor(t.applied)} label={t.topic} />
+                  <MasteryBar key={t.topic} value={Math.round(t.applied)} level={toMasteryLevel("", t.applied)} label={t.topic} />
                 ),
               )}
             </div>
@@ -307,7 +302,7 @@ export function Dashboard({
             Concepts That Need Attention
           </div>
           <div className="space-y-3">
-            {attention.slice(0, overviewMode ? 4 : 10).map((c) => (
+            {attention.slice(0, 10).map((c) => (
               <div key={c.concept_id} className="rounded-xl border border-amber-100 bg-white p-5">
                 <div className="flex items-start gap-4">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50">
@@ -322,12 +317,12 @@ export function Dashboard({
                       </span>
                       <span className="text-xs text-slate-400">·</span>
                       <span className="text-xs font-medium text-amber-600">
-                        {c.mismatch ? mismatchLabel(c.mismatch.mismatch_type) : c.status}
+                        {c.mismatch ? confidenceLabel(c.mismatch.mismatch_type) : c.status}
                       </span>
                     </div>
-                    {c.mismatch && <p className="text-xs text-slate-500">{c.mismatch.reason}</p>}
-                    <div className="mt-1 text-xs text-slate-400">
-                      {c.topic} → {c.subtopic}
+                    {c.mismatch && <p className="mb-2 text-xs text-slate-500">{c.mismatch.reason}</p>}
+                    <div className="text-xs text-slate-400">
+                      {c.mcq_count + c.applied_count} evidence · {mismatchLabel(c.mismatch?.mismatch_type ?? "")}
                     </div>
                   </div>
                   <button
@@ -347,7 +342,7 @@ export function Dashboard({
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-slate-800">{c.title}</span>
                       <span className="text-xs font-medium text-green-600">
-                        {c.mcq === null ? "no recognition evidence" : `${Math.round(c.mcq)}% correct`}
+                        {c.mcq === null ? "no recognition evidence" : `${Math.round(c.mcq)}% recognition`}
                       </span>
                       <span className="text-xs text-slate-400">·</span>
                       <span className="text-xs font-medium text-blue-600">Low confidence</span>
@@ -372,7 +367,22 @@ export function Dashboard({
 
       <div>
         <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Recommended Next</div>
-        {rec ? (
+        {lowestApplied ? (
+          <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
+            <h3 className="mb-1 text-lg font-semibold">Practice {lowestApplied.title}</h3>
+            <p className="mb-4 text-sm text-indigo-200">
+              Your applied mastery ({Math.round(lowestApplied.applied ?? 0)}%) is the lowest among recently practiced topics.
+            </p>
+            <button
+              type="button"
+              onClick={() => practice(lowestApplied.concept_id)}
+              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+            >
+              Study this
+            </button>
+          </div>
+        ) : rec ? (
           <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
             <h3 className="mb-1 text-lg font-semibold">
@@ -427,30 +437,52 @@ export function Dashboard({
               type="button"
               onClick={() => void postAction("refresh")}
               disabled={acting}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
             >
-              <BarChart2 size={14} /> {acting ? "Working…" : "Generate recommendation"}
+              {acting ? "Working…" : "Generate recommendation"}
             </button>
           </div>
         )}
-        {recs.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {recs.map((r) => (
-              <div key={r.concept_id} className="rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300">
-                <div className="mb-0.5 text-xs text-slate-500">Practice</div>
-                <div className="mb-2 text-sm font-semibold text-slate-800">{r.name}</div>
-                <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{r.reasoning}</p>
-                <button
-                  type="button"
-                  onClick={() => practice(r.concept_id)}
-                  className="text-xs font-medium text-indigo-600 hover:underline"
-                >
-                  Go →
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="grid gap-3 sm:grid-cols-3">
+          {topDueConceptId && topDueTitle && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+              <div className="mb-0.5 text-xs text-slate-500">Review flashcards</div>
+              <div className="mb-2 text-sm font-semibold text-slate-800">{topDueTitle}</div>
+              <p className="mb-3 text-xs leading-relaxed text-slate-400">
+                {topDueCount} flashcard{topDueCount === 1 ? " is" : "s are"} overdue based on spaced repetition schedule.
+              </p>
+              <button type="button" onClick={() => go("flashcards")} className="text-xs font-medium text-indigo-600 hover:underline">
+                Go →
+              </button>
+            </div>
+          )}
+          {unassessed && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+              <div className="mb-0.5 text-xs text-slate-500">Practice</div>
+              <div className="mb-2 text-sm font-semibold text-slate-800">{unassessed.title}</div>
+              <p className="mb-3 text-xs leading-relaxed text-slate-400">
+                Not yet assessed. Understanding this concept requires applying it — not just recognizing it.
+              </p>
+              <button type="button" onClick={() => practice(unassessed.concept_id)} className="text-xs font-medium text-indigo-600 hover:underline">
+                Go →
+              </button>
+            </div>
+          )}
+          {dueTotal > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+              <div className="mb-0.5 text-xs text-slate-500">Review</div>
+              <div className="mb-2 text-sm font-semibold text-slate-800">{dueTotal} due flashcards</div>
+              <p className="mb-3 text-xs leading-relaxed text-slate-400">
+                {dueTopics.length > 0
+                  ? `Cards are due across ${dueTopics.slice(0, 2).join(" and ")} topics.`
+                  : "Cards are due for review based on spaced repetition."}
+              </p>
+              <button type="button" onClick={() => go("flashcards")} className="text-xs font-medium text-indigo-600 hover:underline">
+                Go →
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

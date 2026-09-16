@@ -16,10 +16,15 @@ from app.schemas.structure import (
 )
 from app.services.ai import groq_client
 
-MAX_INPUT_CHARS = 12_000
-# Pass-2 per-topic source cap: topic ranges are small in practice; the cap is
-# a sanity bound only (Mercury's context is far larger).
-MAX_TOPIC_SOURCE_CHARS = 20_000
+# Full-document budgets (Mercury mercury-2.5: 260K context, $0.04/1M input —
+# a 150k-char / ~100-page document costs ~$0.002, so truncation is off).
+# 200k chars ≈ 55k tokens, leaving wide headroom for output within context.
+# Documents beyond this still truncate the tail (TOC-aware chunking is the
+# future path for 500+ page books).
+MAX_INPUT_CHARS = 200_000
+MAX_TOPIC_SOURCE_CHARS = 200_000
+MAX_MAP_TOPICS = 20
+MAX_MAP_SUBTOPICS = 12
 
 TYPE_DEFINITIONS = (
     "CONCEPT: an idea, model, or principle to understand. "
@@ -93,7 +98,7 @@ PASS1_SYSTEM_PROMPT = (
     "Return ONLY a JSON object with this exact shape: "
     '{"topics": [{"title": string, "page_start": int, "page_end": int, '
     '"subtopics": [{"title": string, "page_start": int, "page_end": int}]}]}. '
-    "Rules: 1-10 topics, 1-10 subtopics per topic. Titles 1-200 chars. "
+    "Rules: 1-20 topics, 1-12 subtopics per topic. Titles 1-200 chars. "
     "Pages are 1-based; every span needs page_start >= 1 and page_start <= page_end. "
     "Cover the document's pages with topic spans; subtopic spans must sit "
     "inside their topic span. No markdown, no commentary, JSON only."

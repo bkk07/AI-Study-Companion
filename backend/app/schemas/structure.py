@@ -89,15 +89,15 @@ class TopicSpanOutline(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     page_start: int = Field(ge=1)
     page_end: int = Field(ge=1)
-    subtopics: list[SubtopicSpanOutline] = Field(min_length=1, max_length=10)
+    subtopics: list[SubtopicSpanOutline] = Field(min_length=1, max_length=12)
 
     _t = field_validator("title", mode="before")(_stripped)
 
 
 class TopicMapOutline(BaseModel):
-    """Pass-1 output: topics/subtopics + page spans (no learning objects yet)."""
+    """Pass-1 output: topics/subtopics with page spans (no learning objects yet)."""
 
-    topics: list[TopicSpanOutline] = Field(min_length=1, max_length=10)
+    topics: list[TopicSpanOutline] = Field(min_length=1, max_length=20)
 
 
 class RelationshipProposal(BaseModel):
@@ -140,4 +140,4 @@ class LearningObjectOutline(BaseModel):
 class TopicLearningObjects(BaseModel):
     """Pass-2 output for one topic: its learning objects (may be empty)."""
 
-    objects: list[LearningObjectOutline] = Field(default_factory=list, max_length=40)
+    objects: list[LearningObjectOutline] = Field(default_factory=list, max_length=60)

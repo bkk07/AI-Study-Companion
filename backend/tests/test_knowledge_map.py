@@ -108,6 +108,31 @@ def test_slice_topic_source_selects_range():
     assert "[p2]" in out and "[p3]" in out and "[p1]" not in out and "[p4]" not in out
 
 
+def test_full_document_reaches_pass1_untruncated():
+    seen = {}
+
+    def fake(system, user):
+        seen["user"] = user
+        return MAP1
+
+    big = "[p%d]\n" % 1 + "x" * 150_000  # ~100-page scale
+    pages = [{"page_number": 1, "text": big}]
+    extract_topic_map(pages, 100, client=fake)
+    assert "x" * 1000 in seen["user"]  # body present, not cut to a head sample
+    assert len(seen["user"]) > 100_000
+
+
+def test_raised_output_caps_accepted():
+    many_subs = [{"title": f"S{i}", "page_start": 1, "page_end": 100} for i in range(12)]
+    m = TopicMapOutline.model_validate(
+        {"topics": [{"title": f"T{i}", "page_start": 1, "page_end": 100,
+                     "subtopics": many_subs} for i in range(20)]})
+    assert len(m.topics) == 20 and len(m.topics[0].subtopics) == 12
+    los = TopicLearningObjects.model_validate(
+        {"objects": [dict(LO1, name=f"O{i}") for i in range(60)]})
+    assert len(los.objects) == 60
+
+
 # --- pass 1 ----------------------------------------------------------------
 
 

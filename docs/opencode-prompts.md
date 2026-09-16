@@ -1601,6 +1601,14 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Files:** `services/recommendation_service.py` (+mastered skip via MASTERED_FROM, `_review_fallback`), `tests/test_practice.py` (+2 tests), `docs/*`
 **Verify:** 26 tests green; api rebuilt with fix live; kiran live: previously-stuck loop broken (weakest-evidenced rank), mastered excluded, fresh-neutral fallbacks honest.
 **Known:** `recommend()`/dashboard single-recommendation keeps old behavior (may still surface mastered — flagged follow-up); review-fallback path untriggered in live data (no all-mastered project yet) but test-covered.
+
+## Full-document extraction on Mercury (user-approved)
+
+**Recorded:** 2026-09-16 before impl | Source: "100-page PDF, don't care about tokens, extract all"
+**Diagnosis:** Groq-era caps blind Pass 1 past ~12k chars (~8-10 pages) and Pass 2 past 20k/topic; 10-topic output cap drops chapters. Mercury 260K context + $0.04/1M input makes full-doc calls trivial (~$0.002 per 150k-char doc).
+**Change:** MAX_INPUT_CHARS 12k→200k (~150+ pages; hard ceiling guard against context overflow), MAX_TOPIC_SOURCE_CHARS 20k→200k (effectively untruncated within the doc cap), output caps topics 10→20 / subtopics 10→12 / LOs-per-topic 40→60, Pass-1 prompt text updated. Quiz 6k context budget untouched (prompt quality, not coverage). Remainder ceiling + TOC-aware chunking documented as future work.
+**Files:** `services/structure_extraction_service.py`, `schemas/structure.py`, `tests/test_knowledge_map.py`, `docs/*`.
+**Verify:** affected suites + rebuild worker+api (extraction serves from worker, schemas shared) + costs noted; single commit.
 **Verify:** new tests (mastered skipped, fresh-preferred fallback, stale-mastered review fallback) + practice/mastery/dashboard/recommendation suites + rebuild api + live check on kiran's data; single commit.
 
 ## Phase B — Extraction v2 (user-approved, in progress)

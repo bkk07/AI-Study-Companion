@@ -16,6 +16,7 @@ import { Card, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
 import { Dashboard } from "@/features/dashboard/Dashboard"
 import { AnalyticsView } from "@/features/analytics/AnalyticsView"
 import { GrowthView } from "@/features/analytics/GrowthView"
+import { ProgressMapCard } from "@/features/progress/ProgressMap"
 import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
@@ -145,7 +146,9 @@ export function ProjectDetailPage() {
                 </Card>
               )}
               {tab === "progress" && projectId && (
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="space-y-4">
+                  <ProgressMapCard projectId={projectId} />
+                  <div className="grid gap-4 lg:grid-cols-2">
                   <Card className="p-5 sm:p-6">
                     <h3 className="font-bold">Growth</h3>
                     <GrowthView projectId={projectId} />
@@ -154,6 +157,7 @@ export function ProjectDetailPage() {
                     <h3 className="font-bold">Analytics</h3>
                     <AnalyticsView projectId={projectId} />
                   </Card>
+                  </div>
                 </div>
               )}
             </div>

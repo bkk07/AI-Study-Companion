@@ -28,7 +28,12 @@ from app.schemas.knowledge import (
 from app.services import dashboard_service, relationship_service
 from app.services.mastery_levels import is_mastery_target, status_for
 from app.services.mastery_service import mastery_for_concept
-from app.services.rollup_service import display_mastery, rollup_for_subtopic, rollup_for_topic
+from app.services.rollup_service import (
+    display_mastery,
+    rollup_for_project,
+    rollup_for_subtopic,
+    rollup_for_topic,
+)
 
 router = APIRouter(prefix="/projects/{project_id}/knowledge", tags=["knowledge"])
 
@@ -125,7 +130,12 @@ def get_tree(
                                   total=troll.total),
             subtopics=sub_reads,
         ))
-    return KnowledgeTreeRead(topics=out)
+    overall = rollup_for_project(db, user_id=user.id, project_id=project.id)
+    return KnowledgeTreeRead(
+        topics=out,
+        overall=CoverageRead(mastery=overall.mastery, practiced=overall.practiced,
+                             total=overall.total),
+    )
 
 
 @router.get("/search", response_model=SearchResultsRead)

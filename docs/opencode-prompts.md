@@ -1558,6 +1558,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** 105 affected tests green (13s); `npm run build` green; no schema change; assessment targeting + EMA + recommend scoring + growth untouched.
 **Known:** tree reuses dashboard progress numbers; detail relation lists reuse hit shape; read endpoints need no LLM budget. Phase D parked.
 
+## Phase D — Progress + rollups (user-approved, in progress)
+
+**Recorded:** 2026-09-16 before impl | Source: user "Implement Phase D", design §14 + §19
+**Scope:** additive only — `overall: CoverageRead` on KnowledgeTreeRead (rollup_for_project) → new `ProgressMap.tsx` drill-down (overall → topics → subtopics → leaves, mastery+coverage+status) wired into progress tab above Growth/Analytics (both untouched) → `status` on ConceptProgressRead (status_for(display), single source) + Badge in Dashboard cards. No growth/analytics/mastery/recommend changes; no schema change.
+**Files:** `schemas/knowledge.py`, `api/v1/knowledge.py`, `schemas/dashboard.py`, `api/v1/dashboard.py`, `features/progress/ProgressMap.tsx` (new), `features/projects/ProjectDetailPage.tsx`, `features/dashboard/Dashboard.tsx`, `tests/test_knowledge.py`, `docs/*`.
+**Verify:** overall/coverage/status tests + regression + `npm run build`; single commit.
+
+### Phase D Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `schemas/knowledge.py` (+overall), `api/v1/knowledge.py`, `schemas/dashboard.py` (+status), `api/v1/dashboard.py`, `features/progress/ProgressMap.tsx` (new), `features/projects/ProjectDetailPage.tsx`, `features/dashboard/Dashboard.tsx` (+Badge), `tests/test_knowledge.py` (+2 tests), `docs/*`
+**Verify:** 101 affected tests green; `npm run build` green; no schema change; growth/analytics/mastery/recommendation untouched.
+**Known:** no frontend test infra (contracts backend-tested); trigram/bbox/bulk-reprocess still reserved per §18. Learning-model track A→D complete.
+
 ## Phase B — Extraction v2 (user-approved, in progress)
 
 **Recorded:** 2026-09-16 before impl | Source: user Phase B instruction + design §§4–9

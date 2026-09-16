@@ -24,6 +24,7 @@ class ConceptProgressRead(BaseModel):
     mcq_count: int
     applied_count: int
     last_evidence_at: datetime | None
+    status: str
     mismatch: MismatchRead | None
 
 

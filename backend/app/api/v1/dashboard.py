@@ -17,6 +17,8 @@ from app.schemas.dashboard import (
     RecommendationRead,
 )
 from app.services import dashboard_service, recommendation_service
+from app.services.mastery_levels import status_for
+from app.services.rollup_service import display_mastery
 
 router = APIRouter(prefix="/projects/{project_id}/dashboard", tags=["dashboard"])
 
@@ -50,6 +52,7 @@ def _to_response(
                     [s.last_at for s in (p.scores.mcq, p.scores.applied) if s.last_at is not None],
                     default=None,
                 ),
+                status=status_for(display_mastery(p.scores)),
                 mismatch=(
                     MismatchRead(mismatch_type=p.mismatch.mismatch_type, gap=p.mismatch.gap,
                                  reason=p.mismatch.reason)

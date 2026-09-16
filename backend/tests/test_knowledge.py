@@ -199,6 +199,8 @@ def test_tree_lists_core_only_with_mastery_coverage():
         assert len(leaves) == 1  # SUPPORTING + obsolete excluded
         assert leaves[0]["title"] == f"Slope-{tag}"
         assert leaves[0]["mastery"] == pytest.approx(40.0)
+        overall = resp.json()["overall"]
+        assert overall == {"mastery": pytest.approx(40.0), "practiced": 1, "total": 1}
         assert leaves[0]["status"] == "Developing" and leaves[0]["practiced"] is True
         assert leaves[0]["lo_type"] == "CONCEPT"
     finally:
@@ -273,6 +275,51 @@ def test_concept_detail_aggregate_and_404():
         assert body["page_start"] == 2 and body["page_end"] == 3
         resp = client.get(f"/api/v1/projects/{pid}/knowledge/concepts/{uuid.uuid4()}", headers=h)
         assert resp.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def test_tree_overall_empty_project_shows_not_started():
+    client, engine = _client()
+    try:
+        _, h, pid = _auth_project(client)
+        resp = client.get(f"/api/v1/projects/{pid}/knowledge/tree", headers=h)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["overall"] == {"mastery": None, "practiced": 0, "total": 0}
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def test_dashboard_concept_status_single_sourced():
+    client, engine = _client()
+    try:
+        _, h, pid = _auth_project(client)
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        project = db.query(Project).filter(Project.id == uuid.UUID(pid)).one()
+        user = db.query(User).join(Space, Space.user_id == User.id).filter(
+            Space.id == project.space_id).one()
+        topic = Topic(project_id=project.id, title="T")
+        db.add(topic)
+        db.flush()
+        sub = Subtopic(project_id=project.id, topic_id=topic.id, title="ST")
+        db.add(sub)
+        db.flush()
+        weak = Concept(project_id=project.id, subtopic_id=sub.id, title="Weak", summary="w.")
+        fresh = Concept(project_id=project.id, subtopic_id=sub.id, title="Fresh", summary="f.")
+        db.add_all([weak, fresh])
+        db.flush()
+        db.add(MasteryEvidence(user_id=user.id, project_id=project.id, concept_id=weak.id,
+                               evidence_type="mcq", raw_score=20))
+        db.commit()
+        db.close()
+        resp = client.get(f"/api/v1/projects/{pid}/dashboard", headers=h)
+        assert resp.status_code == 200, resp.text
+        by_title = {c["title"]: c for c in resp.json()["concepts"]}
+        assert by_title["Weak"]["status"] == "Needs Practice"
+        assert by_title["Fresh"]["status"] == "Not Started"
     finally:
         app.dependency_overrides.clear()
         engine.dispose()

@@ -596,3 +596,17 @@ drill-down view is additive.
 - Verified: 105 affected tests green; `npm run build` green (tsc + vite);
   no schema change; no user documents touched. Assessment (open-ended)
   targeting intentionally unchanged (quiz-only per §11.4). Phase D parked.
+
+## 23. Phase D implementation notes (recorded 2026-09-16)
+
+- Built (additive only): `overall: CoverageRead` on KnowledgeTreeRead
+  (rollup_for_project — fresh projects render "Not started", never 0%);
+  `ProgressMap.tsx` drill-down (overall hero → topics → subtopics → leaves,
+  mastery + coverage + status at every level) wired into the progress tab
+  above the untouched Growth/Analytics grid; `status` on
+  ConceptProgressRead via status_for(display_mastery) + Badge on dashboard
+  cards (thresholds stay single-sourced backend-side).
+- No growth/analytics/mastery/recommendation/extraction changes; no schema
+  change; Dashboard/GrowthView/AnalyticsView otherwise untouched.
+- Verified: 101 affected tests green (49 + 52); `npm run build` green.
+  All four learning-model phases complete.

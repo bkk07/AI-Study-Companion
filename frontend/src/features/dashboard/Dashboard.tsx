@@ -3,6 +3,7 @@ import { AlertTriangle, Compass, Sparkles } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { Badge, Button, EmptyState, ErrorBox, LoadingState, ProgressBar } from "@/components/ui"
+import { statusTint } from "@/features/quiz/ConceptDetail"
 
 type Mismatch = {
   mismatch_type: string
@@ -20,6 +21,7 @@ type ConceptProgress = {
   mcq_count: number
   applied_count: number
   last_evidence_at: string | null
+  status: string
   mismatch: Mismatch | null
 }
 
@@ -175,8 +177,9 @@ export function Dashboard({ projectId }: { projectId: string }) {
         <ul className="grid gap-3 md:grid-cols-2">
           {data.concepts.map((c) => (
             <li key={c.concept_id} className="rounded-2xl border bg-card p-4 shadow-soft">
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-sm font-bold">{c.title}</p>
+                <Badge tint={statusTint(c.status)}>{c.status}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
                 {c.topic} › {c.subtopic}

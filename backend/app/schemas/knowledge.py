@@ -43,6 +43,7 @@ class KnowledgeTreeRead(BaseModel):
     """Browse hierarchy — CORE mastery targets only, never the full keyword set."""
 
     topics: list[BrowseTopicRead] = Field(default_factory=list)
+    overall: CoverageRead = Field(default_factory=CoverageRead)
 
 
 class SearchHitRead(BaseModel):

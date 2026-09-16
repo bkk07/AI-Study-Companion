@@ -1,6 +1,6 @@
 # Implementation Status — AI Study Companion
 
-**Last updated:** 2026-09-16 — Phase 37 complete, awaiting `CONTINUE`
+**Last updated:** 2026-09-16 — Phase 38 complete, awaiting `CONTINUE`
 **Roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases)
 **Blueprint:** `ai-study-companion-blueprint.md` v2
 **Protocol:** One phase at a time, runnable after every phase, no silent next-phase start.
@@ -49,6 +49,7 @@
 | — | Quiz Generation (detail §35) | ✅ Complete | 2026-09-16 | Pass (validate-persist+retry) | `generate_quiz` + `quiz.py` schemas + 5 tests |
 | — | Adaptive Quiz Selection (detail §36) | ✅ Complete | 2026-09-16 | Pass (synthetic mastery unit) | `select_questions` confirmed rule + 6 tests |
 | — | Quiz Frontend + Attempt API (detail §37) | ✅ Complete | 2026-09-16 | Pass (build + live loop) | `QuizTaker` + quiz/attempt routes + 3 tests |
+| — | Confidence Engine (detail §38) | ✅ Complete | 2026-09-16 | Pass (calibration+separation) | `summarize` + 6 tests |
 | 32 | Quiz Generation | ⏳ Pending | — | — | — |
 | 33 | Quiz Attempt & Answer Flow | ⏳ Pending | — | — | — |
 | 34 | Quiz Frontend | ⏳ Pending | — | — | — |
@@ -578,6 +579,16 @@
 **Verify:** `npm run build` 90 mods; rebuilt `api` + live loop (no-leak start, True/False reveals, 50.0 complete); `pytest -q` 137 passed (3+134); `compose config` 0; no migration.
 **Guard:** Backend is correctness truth; `correct_index` hidden until answered.
 **Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 38 (Confidence Engine).
+
+---
+
+## Phase 38 — Detail (compact)
+
+**Scope:** Calibration math only — storage/capture pre-existed, no endpoints.
+**Files:** `backend/app/services/confidence_service.py` (`AnswerRecord`/`ConceptCalibration`/`ConfidenceSummary` + `summarize` per-concept+overall), `backend/tests/test_confidence.py` (6 tests), `docs/*`.
+**Verify:** gap/extremes/unrated/empty/rollup/separation/rejection suites; `pytest -q` 143 passed (6+137); `compose config` 0; no migration, no rebuild.
+**Guard:** Mastery separation structural — the module cannot see mastery state.
+**Result:** ✅ Pass | **Next:** Await `CONTINUE` before Phase 39 (Open-Ended Assessment).
 
 ---
 

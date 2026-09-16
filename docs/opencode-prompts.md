@@ -1179,3 +1179,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Verify:** `npm run build` 90 mods; live container loop — start 201 no-leak + correct→`True/1/1/1` + wrong→`False/1/2/1` + complete `50.0`; `pytest -q` 137 passed (3+134); `compose config` 0; no migration.
 **Guard:** Correctness only from backend; failures keep attempt state client-side.
 **Known:** Generate path needs live Groq (unit-mocked; manual flow seeded); exam `time_limit_seconds` not enforced yet (no timer in UI/service — later phase); mastery-weighted selection not wired to endpoints (Phase 41 feed).
+
+## Phase 38 — Confidence Engine (compact)
+
+**Recorded:** 2026-09-16 before impl | Source: roadmap Phase 38 (confidence as independent signal; mastery boundary)
+**Objective:** Calibration summaries from stored confidence — mastery never an input.
+**Contract:** `confidence_service.summarize(records) -> ConfidenceSummary`: pure over `AnswerRecord(concept_id, is_correct, confidence?)`; per-concept `{answered, correct, accuracy, rated, avg_confidence(1–5), calibration_gap((avg-1)*25 − accuracy_pct), confidently_wrong (wrong+conf≥4), unsure_right (right+conf≤2)}` + overall rollup; unrated answers count for accuracy, never confidence; empty → zero summary. Storage already exists (Phase 34 col + Phase 37 capture) — no migration, no endpoints.
+**Files:** `backend/app/services/confidence_service.py` (tests flat `tests/test_confidence.py` per repo convention, not `tests/unit/`)
+**Guard:** No mastery import/input — separation is structural, not a comment.
+**Verify:** unit tests — gap math; confidently-wrong/unsure-right counts; unrated excluded from confidence; empty zeros; mastery-proxy (correctness-only accuracy) constant while confidence varies 1↔5; full `pytest -q` green; `compose config` 0.
+
+### Phase 38 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `backend/app/services/confidence_service.py` (`AnswerRecord` + `summarize` → per-concept/overall `ConceptCalibration`: accuracy + rated/avg + gap `(avg−1)*25 − pct` + confidently-wrong/unsure-right; unrated counts for accuracy only; bad scale → ValueError), `backend/tests/test_confidence.py` (6 tests, no DB), `docs/*`
+**Verify:** 6 pass (gap 75−50=25 + extremes 2/1; unrated accuracy-only; empty/all-unrated Nones; cross-concept rollup; accuracy 0.75 frozen across 1↔5/None swings while gap moves; 0/6 rejected); full `pytest -q` 143 passed (6+137); `compose config` 0; no migration, no rebuild.
+**Guard:** Zero mastery dependency — no import, no parameter; calibration consumes only correctness+confidence.
+**Known:** Storage/capture pre-existed (Phases 34/37); no read endpoint yet — analytics/decision consumers (Phases 42–46) call `summarize` later.

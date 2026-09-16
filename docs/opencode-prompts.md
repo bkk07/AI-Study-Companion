@@ -1457,6 +1457,20 @@ Fixed stack: React/Vite/TypeScript/Tailwind/shadcn/ui/React Router/Axios; Python
 **Files:** `core/config.py`, `docker-compose.yml`, `.env.example`, `features/auth/Register.tsx`, `features/auth/Login.tsx`, `docs/*`.
 **Verify:** auth tests + `npm run build` + recreate api/worker + live register probe; single commit.
 
+## CORS 127.0.0.1 Fix (out-of-band bugfix)
+
+**Recorded:** 2026-09-16 before impl | Source: user screenshot — honest "Can't reach the server" on register
+**Diagnosis:** It was right: browser preflight never got a response body. API log showed `OPTIONS /auth/register → 400`; reproduced: Origin `http://127.0.0.1:5173` → 400 "Disallowed CORS origin" while `localhost:5173` → 200. User browses via 127.0.0.1, which wasn't allow-listed; failed preflight = axios network error = no response. Endpoint itself proven fine (probe 201s).
+**Fix:** Allow-list `http://127.0.0.1:5173` (+`:3000` for parity) in compose + config default + `.env.example`; extend `test_cors.py` (127 preflight → 200 echo); delete probe users afterwards (`user5@gmail.com` must stay free).
+**Files:** `docker-compose.yml`, `core/config.py`, `.env.example`, `tests/security/test_cors.py`, `docs/*`.
+**Verify:** preflight matrix 200s + CORS tests + `compose config` + recreate api/worker (same-shell key export) + register probe + cleanup; single commit.
+
+### CORS 127 Post-implementation (compact)
+
+**Status:** ✅ Complete 2026-09-16
+**Files:** `docker-compose.yml` + `core/config.py` + `.env.example` (4 loopback origins), `tests/security/test_cors.py` (127 echo regression), `docs/*`
+**Verify:** CORS tests pass; `compose config` ok; live preflight `localhost:5173`/`127.0.0.1:5173`/`localhost:3000` all 200 with echo; probe users deleted (`user5@gmail.com` free).
+
 ### JWT + Register Post-implementation (compact)
 
 **Status:** ✅ Complete 2026-09-16

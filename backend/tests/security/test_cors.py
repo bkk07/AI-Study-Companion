@@ -26,6 +26,15 @@ def test_allowed_origin_echoed_disallowed_omitted():
         resp = client.options("/api/v1/spaces", headers=preflight)
         assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
+        # Loopback twin: browsers treat 127.0.0.1 as a different origin than
+        # localhost, so it must be allow-listed explicitly (regression: real
+        # browsers got 400 "Disallowed CORS origin" here).
+        resp = client.options(
+            "/api/v1/spaces",
+            headers={"Origin": "http://127.0.0.1:5173", "Access-Control-Request-Method": "GET"},
+        )
+        assert resp.headers.get("access-control-allow-origin") == "http://127.0.0.1:5173"
+
         resp = client.options(
             "/api/v1/spaces",
             headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"},

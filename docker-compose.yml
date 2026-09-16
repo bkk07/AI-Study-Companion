@@ -53,7 +53,7 @@ services:
       EMBEDDING_MODEL: text-embedding-3-small
       UPLOAD_DIR: /data/uploads
       API_V1_PREFIX: /api/v1
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000
       ENVIRONMENT: development
     volumes:
       - uploads:/data/uploads

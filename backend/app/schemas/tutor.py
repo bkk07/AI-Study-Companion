@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TutorAskRequest(BaseModel):
@@ -86,3 +86,27 @@ class ChatSendResponse(BaseModel):
     supported: bool
     citations: list[TutorCitation] = Field(default_factory=list)
     follow_ups: list[str] = Field(default_factory=list)
+
+
+class QuizPlanRequest(BaseModel):
+    """Recent prompts to map onto quiz concepts — project comes from the path."""
+
+    questions: list[str] = Field(min_length=1, max_length=5)
+
+    @field_validator("questions")
+    @classmethod
+    def _strip_questions(cls, v: list[str]) -> list[str]:
+        cleaned = [q.strip() for q in v if isinstance(q, str) and q.strip()]
+        if not cleaned:
+            raise ValueError("questions must contain at least one non-empty question")
+        for q in cleaned:
+            if len(q) > 2000:
+                raise ValueError("each question must be at most 2000 characters")
+        return cleaned
+
+
+class QuizPlanResponse(BaseModel):
+    """Concept mapping behind the quiz confirm UI (empty = no match)."""
+
+    label: str = ""
+    concept_ids: list[uuid.UUID] = Field(default_factory=list)

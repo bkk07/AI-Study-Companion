@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,11 @@ class TutorMessage(Base, UUIDTimestampMixin):
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Insertion order: created_at ties inside one transaction (statement
+    # timestamp), and UUID pks are random — seq is the display order.
+    seq: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("nextval('tutor_messages_seq')"), index=True
+    )
     supported: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     citations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     follow_ups: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)

@@ -53,7 +53,7 @@ def build_deck(
         result = flashcard_service.build_deck(
             db, project_id=project.id,
             subtopic_id=body.subtopic_id, topic_id=body.topic_id,
-            concept_id=body.concept_id,
+            concept_id=body.concept_id, concept_ids=body.concept_ids,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -70,6 +70,7 @@ def list_cards(
     subtopic_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
     concept_id: uuid.UUID | None = None,
+    concept_ids: list[uuid.UUID] | None = Query(default=None),
     due_only: bool = False,
     limit: int = Query(default=100, ge=1, le=100),
 ) -> FlashcardListRead:
@@ -79,7 +80,7 @@ def list_cards(
     try:
         cards = flashcard_service.list_cards(
             db, project_id=project.id, subtopic_id=subtopic_id,
-            topic_id=topic_id, concept_id=concept_id,
+            topic_id=topic_id, concept_id=concept_id, concept_ids=concept_ids,
             due_only=due_only, limit=limit, now=now,
         )
         due_count = flashcard_service.count_due(db, project_id=project.id, now=now)

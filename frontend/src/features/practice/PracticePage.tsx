@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Dumbbell, Loader2 } from "lucide-react"
 import apiClient from "@/lib/axios"
@@ -30,12 +30,18 @@ const LEVELS: { id: PracticeLevel; label: string; hint: string }[] = [
 const MAX_MCQS = 20
 const MAX_OE = 10
 
+export type PracticePlan = { conceptIds: string[]; mcqCount: number; oeCount: number }
+
 export function PracticePage({
   projectId,
   onNavigate,
+  initialPlan,
+  onPlanConsumed,
 }: {
   projectId: string
   onNavigate?: (tab: ProjectTab) => void
+  initialPlan?: PracticePlan | null
+  onPlanConsumed?: () => void
 }) {
   const [topics, setTopics] = useState<TreeTopic[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -51,6 +57,7 @@ export function PracticePage({
   const [mcq, setMcq] = useState<McqItem[]>([])
   const [oe, setOe] = useState<OeItem[]>([])
   const [results, setResults] = useState<{ mcq: McqResult[]; oe: OeResult[]; score: number | null } | null>(null)
+  const planStarted = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -67,8 +74,7 @@ export function PracticePage({
     }
   }, [projectId])
 
-  const meta: ConceptMeta = useMemo(() => {
-    const m: ConceptMeta = new Map()
+  const meta: ConceptMeta = useMemo(() => {    const m: ConceptMeta = new Map()
     for (const t of topics ?? []) {
       for (const s of t.subtopics) {
         for (const c of s.concepts) m.set(c.id, { topic: t.title, subtopic: s.title, concept: c.title })
@@ -88,23 +94,46 @@ export function PracticePage({
     setResults(null)
   }
 
-  async function start() {
-    if (!topics || checked.size === 0) return
-    if (mcqCount + oeCount < 1) return
-    const cover = minimalCover(topics, checked)
+  // Direct entry from the tutor plan flow: prefill + auto-start once knowledge loads.
+  useEffect(() => {
+    if (!initialPlan || !topics || planStarted.current) return
+    planStarted.current = true
+    setChecked(new Set(initialPlan.conceptIds))
+    setMcqCount(Math.max(0, Math.min(20, initialPlan.mcqCount)))
+    setOeCount(Math.max(0, Math.min(10, initialPlan.oeCount)))
+    onPlanConsumed?.()
+    // start() routes to session on success, or configure (prefilled) on error.
+    void start({
+      conceptIds: initialPlan.conceptIds,
+      mcqCount: initialPlan.mcqCount,
+      oeCount: initialPlan.oeCount,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPlan, topics])
+
+  async function start(overrides?: { conceptIds?: string[]; mcqCount?: number; oeCount?: number }) {
+    const effMcq = overrides?.mcqCount ?? mcqCount
+    const effOe = overrides?.oeCount ?? oeCount
+    const effCover = overrides?.conceptIds
+      ? { topicIds: [] as string[], subtopicIds: [] as string[], conceptIds: overrides.conceptIds }
+      : topics
+        ? minimalCover(topics, checked)
+        : null
+    if (!effCover || (overrides == null && checked.size === 0)) return
+    if (effMcq + effOe < 1) return
     setStage("generating")
     setGenError(null)
     try {
       let aid: string | null = null
       let questions: McqItem[] = []
-      if (mcqCount > 0) {
-        setGenLabel(`Writing ${mcqCount} multiple-choice questions…`)
+      if (effMcq > 0) {
+        setGenLabel(`Writing ${effMcq} multiple-choice questions…`)
         const gen = await apiClient.post<{ quiz_id: string }>(`/projects/${projectId}/quizzes/generate`, {
           scope: "practice",
-          topic_ids: cover.topicIds,
-          subtopic_ids: cover.subtopicIds,
-          concept_ids: cover.conceptIds,
-          num_questions: mcqCount,
+          topic_ids: effCover.topicIds,
+          subtopic_ids: effCover.subtopicIds,
+          concept_ids: effCover.conceptIds,
+          num_questions: effMcq,
           mode: "practice",
           difficulty: level === "adaptive" ? null : level,
         })
@@ -116,13 +145,13 @@ export function PracticePage({
         questions = startRes.data.questions
       }
       const oeItems: OeItem[] = []
-      for (let i = 0; i < oeCount; i++) {
-        setGenLabel(`Writing open-ended question ${i + 1} of ${oeCount}…`)
+      for (let i = 0; i < effOe; i++) {
+        setGenLabel(`Writing open-ended question ${i + 1} of ${effOe}…`)
         const res = await apiClient.post<OeItem>(`/projects/${projectId}/assessment/open-ended/generate`, {
           scope: "practice",
-          topic_ids: cover.topicIds,
-          subtopic_ids: cover.subtopicIds,
-          concept_ids: cover.conceptIds,
+          topic_ids: effCover.topicIds,
+          subtopic_ids: effCover.subtopicIds,
+          concept_ids: effCover.conceptIds,
         })
         oeItems.push(res.data)
       }

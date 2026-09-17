@@ -254,3 +254,48 @@ def test_api_build_list_review_scoped():
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+# --- explicit concept-list scope -------------------------------------------------
+
+
+def test_build_deck_concept_ids_list_scope():
+    db = _session()
+    try:
+        _, project, _, sub = _scaffold(db, uuid.uuid4().hex[:8])
+        a = _concept(db, project, sub, "Alpha")
+        b = _concept(db, project, sub, "Beta")
+        _concept(db, project, sub, "Gamma", importance="SUPPORTING")
+        db.commit()
+        first = svc.build_deck(db, project_id=project.id, concept_ids=[a.id, b.id, a.id])
+        assert first == {"created": 2, "total": 2}  # deduped, non-target skipped
+        fronts = {c.front for c in db.query(Flashcard).all() if c.project_id == project.id}
+        assert fronts == {"What is Alpha?", "What is Beta?"}
+        again = svc.build_deck(db, project_id=project.id, concept_ids=[a.id])
+        assert again == {"created": 0, "total": 2}  # idempotent
+        with pytest.raises(ValueError):
+            svc.build_deck(db, project_id=project.id, topic_id=sub.topic_id, concept_ids=[a.id])
+        with pytest.raises(LookupError):
+            svc.build_deck(db, project_id=project.id, concept_ids=[uuid.uuid4()])
+        with pytest.raises(ValueError):
+            svc.build_deck(db, project_id=project.id, concept_id=a.id, concept_ids=[a.id])
+    finally:
+        db.close()
+
+
+def test_list_cards_concept_ids_filter():
+    db = _session()
+    try:
+        _, project, _, sub = _scaffold(db, uuid.uuid4().hex[:8])
+        a = _concept(db, project, sub, "Alpha")
+        b = _concept(db, project, sub, "Beta")
+        db.commit()
+        svc.build_deck(db, project_id=project.id, concept_ids=[a.id, b.id])
+        got = svc.list_cards(db, project_id=project.id, concept_ids=[b.id])
+        assert [c.concept_id for c in got] == [b.id]
+        with pytest.raises(LookupError):
+            svc.list_cards(db, project_id=project.id, concept_ids=[uuid.uuid4()])
+        with pytest.raises(ValueError):
+            svc.list_cards(db, project_id=project.id, concept_id=a.id, concept_ids=[a.id])
+    finally:
+        db.close()

@@ -97,16 +97,18 @@ def build_deck(
     subtopic_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
     concept_id: uuid.UUID | None = None,
+    concept_ids: list[uuid.UUID] | None = None,
 ) -> dict:
     """Create missing cards for CORE targets in scope. Idempotent.
 
-    Returns {"created": N, "total": M}. Exactly one of
-    subtopic_id/topic_id/concept_id may narrow the scope; none means the
-    whole project.
+    Returns {"created": N, "total": M}. Exactly one scope may narrow the
+    build: subtopic_id/topic_id/concept_id, or an explicit concept_ids list
+    (tutor quiz-me style multi-select); none means the whole project.
+    Non-target concepts in an explicit list are skipped.
     """
     provided = [v is not None for v in (subtopic_id, topic_id, concept_id)]
-    if sum(provided) > 1:
-        raise ValueError("pass at most one of subtopic_id, topic_id, concept_id")
+    if sum(provided) > 1 or (any(provided) and concept_ids):
+        raise ValueError("pass at most one scope: subtopic_id, topic_id, concept_id, or concept_ids")
     project = db.get(Project, project_id)
     if project is None:
         raise LookupError("project not found")
@@ -116,7 +118,18 @@ def build_deck(
             (c.concept_id, c.front)
             for c in db.query(Flashcard).filter(Flashcard.project_id == project.id).all()
         }
-        if concept_id is not None:
+        if concept_ids is not None:
+            seen: set[uuid.UUID] = set()
+            for cid in concept_ids:
+                if cid in seen:
+                    continue
+                seen.add(cid)
+                row = db.get(Concept, cid)
+                if row is None or row.project_id != project.id:
+                    raise LookupError("concept not found in this project")
+                if _create_card(db, project, row, existing):
+                    created += 1
+        elif concept_id is not None:
             row = db.get(Concept, concept_id)
             if row is None or row.project_id != project.id:
                 raise LookupError("concept not found in this project")
@@ -148,6 +161,7 @@ def list_cards(
     subtopic_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
     concept_id: uuid.UUID | None = None,
+    concept_ids: list[uuid.UUID] | None = None,
     due_only: bool = False,
     limit: int = MAX_LIST_LIMIT,
     now: datetime | None = None,
@@ -156,12 +170,20 @@ def list_cards(
     if isinstance(limit, bool) or not isinstance(limit, int):
         raise ValueError("limit must be an integer")
     limit = max(1, min(limit, MAX_LIST_LIMIT))
+    if concept_id is not None and concept_ids is not None:
+        raise ValueError("pass at most one of concept_id, concept_ids")
     project = db.get(Project, project_id)
     if project is None:
         raise LookupError("project not found")
     moment = now or datetime.now(timezone.utc)
     q = db.query(Flashcard).filter(Flashcard.project_id == project.id)
-    if concept_id is not None:
+    if concept_ids is not None:
+        for cid in concept_ids:
+            row = db.get(Concept, cid)
+            if row is None or row.project_id != project.id:
+                raise LookupError("concept not found in this project")
+        q = q.filter(Flashcard.concept_id.in_(list(dict.fromkeys(concept_ids))))
+    elif concept_id is not None:
         concept = db.get(Concept, concept_id)
         if concept is None or concept.project_id != project.id:
             raise LookupError("concept not found in this project")

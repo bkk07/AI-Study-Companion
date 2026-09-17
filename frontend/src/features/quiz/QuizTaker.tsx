@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowRight, CheckCircle2, Info, PartyPopper, RotateCcw, XCircle } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
@@ -6,7 +6,8 @@ import { Badge, Button, ErrorBox, ProgressBar } from "@/components/ui"
 import { cn } from "@/lib/utils"
 import { QuizSetup, type QuizStartPayload } from "./QuizSetup"
 
-type Question = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
+export type AttemptQuestion = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
+export type DirectSession = { attemptId: string; questions: AttemptQuestion[] }
 type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number }
 type Stage =
   | { name: "setup" }
@@ -35,14 +36,18 @@ export function QuizTaker({
   projectId,
   focusConceptId,
   onFocusConsumed,
+  initialSession,
+  onSessionConsumed,
 }: {
   projectId: string
   focusConceptId?: string | null
   onFocusConsumed?: () => void
+  initialSession?: DirectSession | null
+  onSessionConsumed?: () => void
 }) {
   const [stage, setStage] = useState<Stage>({ name: "setup" })
   const [attemptId, setAttemptId] = useState<string | null>(null)
-  const [questions, setQuestions] = useState<Question[]>([])
+  const [questions, setQuestions] = useState<AttemptQuestion[]>([])
   const [index, setIndex] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
   const [confidence, setConfidence] = useState<"low" | "medium" | "high">("medium")
@@ -50,6 +55,20 @@ export function QuizTaker({
   const [reveal, setReveal] = useState<Reveal | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // Direct entry from the tutor quiz-me flow: skip setup, land on questions.
+  useEffect(() => {
+    if (initialSession) {
+      setAttemptId(initialSession.attemptId)
+      setQuestions(initialSession.questions)
+      setIndex(0)
+      setSelected(null)
+      setReveal(null)
+      setStage({ name: "answering" })
+      onSessionConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSession])
 
   async function generate(payload: QuizStartPayload) {
     setStage({ name: "busy", label: "Generating quiz…" })
@@ -65,7 +84,7 @@ export function QuizTaker({
           difficulty: null,
         })
         setStage({ name: "busy", label: "Starting attempt…" })
-        const start = await apiClient.post<{ attempt_id: string; questions: Question[] }>(
+        const start = await apiClient.post<{ attempt_id: string; questions: AttemptQuestion[] }>(
           `/projects/${projectId}/quizzes/${gen.data.quiz_id}/attempts`,
         )
         setAttemptId(start.data.attempt_id)

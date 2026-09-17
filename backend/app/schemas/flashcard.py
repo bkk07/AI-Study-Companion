@@ -5,11 +5,16 @@ from pydantic import BaseModel, Field
 
 
 class DeckBuildRequest(BaseModel):
-    """Scope for deck building — at most one of subtopic/topic/concept; none = project."""
+    """Scope for deck building — one scope max; none = project.
+
+    concept_ids carries an explicit multi-select (tutor flows); the single
+    ids keep the existing single-scope UI working.
+    """
 
     subtopic_id: uuid.UUID | None = None
     topic_id: uuid.UUID | None = None
     concept_id: uuid.UUID | None = None
+    concept_ids: list[uuid.UUID] | None = None
 
 
 class DeckBuildResponse(BaseModel):

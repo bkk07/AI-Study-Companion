@@ -125,7 +125,7 @@ def get_messages(db: Session, conversation_id: uuid.UUID) -> list[TutorMessage]:
     return (
         db.query(TutorMessage)
         .filter(TutorMessage.conversation_id == conversation_id)
-        .order_by(TutorMessage.created_at.asc(), TutorMessage.id.asc())
+        .order_by(TutorMessage.seq.asc())
         .all()
     )
 

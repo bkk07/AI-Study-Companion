@@ -16,6 +16,8 @@ from app.schemas.tutor import (
     ConversationCreate,
     ConversationDetail,
     ConversationRead,
+    QuizPlanRequest,
+    QuizPlanResponse,
     TutorAskRequest,
     TutorAskResponse,
     TutorMessageRead,
@@ -162,3 +164,26 @@ def delete_conversation(
     convo = _convo_or_404(db, conversation_id, project, user)
     tutor_conversation_service.delete_conversation(db, convo)
     return None
+
+
+@router.post("/quiz-plan", response_model=QuizPlanResponse)
+def quiz_plan(
+    body: QuizPlanRequest,
+    project: Project = Depends(get_authorized_project),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("tutor")),
+) -> QuizPlanResponse:
+    """Map recent prompts to quiz concepts for the quiz-me confirm UI."""
+    try:
+        plan = tutor_service.plan_quiz(db, project_id=project.id, questions=body.questions)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except TutorProviderError as e:
+        raise HTTPException(status_code=502, detail="Tutor AI provider returned an unusable response") from e
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail="Tutor AI provider unavailable") from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return QuizPlanResponse(label=plan.label, concept_ids=list(plan.concept_ids))

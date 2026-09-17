@@ -31,6 +31,8 @@ type Card = {
   due: boolean
 }
 
+export type { Card }
+
 type LeafNode = { id: string; title: string }
 type SubtopicNode = { id: string; title: string; core_count: number; concepts: LeafNode[] }
 type TopicNode = { id: string; title: string; subtopics: SubtopicNode[] }
@@ -247,7 +249,15 @@ function SearchablePicker({
 
 type SubView = "dashboard" | "study" | "library" | "generate"
 
-export function Flashcards({ projectId }: { projectId: string }) {
+export function Flashcards({
+  projectId,
+  initialDeck,
+  onDeckConsumed,
+}: {
+  projectId: string
+  initialDeck?: { cards: Card[] } | null
+  onDeckConsumed?: () => void
+}) {
   const [topics, setTopics] = useState<TopicNode[] | null>(null)
   const [cards, setCards] = useState<Card[]>([])
   const [dueCount, setDueCount] = useState(0)
@@ -284,6 +294,16 @@ export function Flashcards({ projectId }: { projectId: string }) {
     setView("dashboard")
     void load()
   }, [load])
+
+  // Direct entry from the tutor plan flow: jump straight into the deck.
+  useEffect(() => {
+    if (initialDeck && initialDeck.cards.length > 0) {
+      setSession({ cards: initialDeck.cards, total: initialDeck.cards.length })
+      setView("study")
+      onDeckConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDeck])
 
   const conceptTitles = useMemo(() => {
     const map = new Map<string, string>()

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import apiClient from "@/lib/axios"
 
-type User = {
+export type User = {
   id: string
   email: string
   is_admin: boolean
@@ -12,7 +12,7 @@ type AuthContextType = {
   user: User | null
   token: string | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<User>
   register: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -61,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { Authorization: `Bearer ${newToken}` },
     })
     setUser(me.data)
+    return me.data
   }
 
   const register = async (email: string, password: string) => {

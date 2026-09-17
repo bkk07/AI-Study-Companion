@@ -2,14 +2,13 @@ import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BarChart2,
-  Bell,
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Command,
   CreditCard,
   Dumbbell,
   FileText,
+  Flame,
   HelpCircle,
   Layers,
   LayoutDashboard,
@@ -17,14 +16,13 @@ import {
   Map,
   MessageCircle,
   PenLine,
-  Search,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { Logo } from "@/components/ui"
 import { cn } from "@/lib/utils"
 import apiClient from "@/lib/axios"
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended" | "analytics"
 
 const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <LayoutDashboard size={16} /> },
@@ -36,118 +34,42 @@ const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "practice", label: "Practice", icon: <Dumbbell size={16} /> },
   { id: "open-ended", label: "Open Ended Answers", icon: <PenLine size={16} /> },
   { id: "progress", label: "Dashboard", icon: <BarChart2 size={16} /> },
+  { id: "analytics", label: "Analytics", icon: <Layers size={16} /> },
 ]
 
-function NotifBell() {
-  const [open, setOpen] = useState(false)
-  const notifs = [
-    { id: 1, text: "Flashcards due for review.", time: "Now" },
-    { id: 2, text: "New recommendation ready in Overview.", time: "1h ago" },
-    { id: 3, text: "Knowledge map updated from your latest PDF.", time: "2h ago" },
-  ]
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        className="relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-slate-100"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
-      >
-        <Bell size={16} className="text-slate-500" />
-        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-600" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <span className="text-sm font-semibold text-slate-800">Notifications</span>
-            <button type="button" className="text-xs text-indigo-600 hover:underline" onClick={() => setOpen(false)}>
-              Close
-            </button>
-          </div>
-          {notifs.map((n) => (
-            <div key={n.id} className="cursor-pointer border-b border-slate-50 px-4 py-3 last:border-0 hover:bg-slate-50">
-              <p className="text-sm text-slate-700">{n.text}</p>
-              <p className="mt-0.5 text-xs text-slate-400">{n.time}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CommandPalette({ onClose }: { onClose: () => void }) {
-  const nav = useNavigate()
-  const { spaceId, projectId } = useParams<{ spaceId: string; projectId: string }>()
-  const inProject = Boolean(spaceId && projectId)
-  const base = inProject ? `/spaces/${spaceId}/projects/${projectId}` : null
-
-  const actions = inProject && base
-    ? [
-        { label: "Ask Tutor", hint: "Grounded Q&A", tab: "tutor" as TabId },
-        { label: "Start Quiz", hint: "Practice mode", tab: "quiz" as TabId },
-        { label: "Start Practice", hint: "MCQs + open-ended", tab: "practice" as TabId },
-        { label: "Open-Ended Answers", hint: "Explain + evaluate", tab: "open-ended" as TabId },
-        { label: "Review Flashcards", hint: "Due cards", tab: "flashcards" as TabId },
-        { label: "View Knowledge Map", hint: "Topic tree", tab: "structure" as TabId },
-        { label: "Upload Document", hint: "PDF library", tab: "materials" as TabId },
-        { label: "View Dashboard", hint: "Progress", tab: "progress" as TabId },
-      ]
-    : [
-        { label: "Go to Spaces", hint: "Library", tab: null },
-        { label: "Open Admin", hint: "Overview", tab: null },
-      ]
-
-  const [q, setQ] = useState("")
-  const filtered = actions.filter((a) => a.label.toLowerCase().includes(q.toLowerCase()))
+function StreakFlame() {
+  const { token } = useAuth()
+  const [streak, setStreak] = useState<number | null>(null)
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+    if (!token) {
+      setStreak(null)
+      return
     }
-    window.addEventListener("keydown", h)
-    return () => window.removeEventListener("keydown", h)
-  }, [onClose])
+    let cancelled = false
+    apiClient
+      .get<{ streak_days: number }>("/me/streak")
+      .then((r) => {
+        if (!cancelled) setStreak(r.data.streak_days)
+      })
+      .catch(() => {
+        if (!cancelled) setStreak(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
+  // No streak yet or still loading: stay invisible, never an error state.
+  if (streak === null || streak < 1) return null
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 pt-24" onClick={onClose}>
-      <div
-        className="mx-auto max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Type a command…"
-          className="w-full border-b border-slate-100 px-4 py-3 text-sm outline-none placeholder:text-slate-400"
-        />
-        <div className="max-h-80 overflow-y-auto p-2">
-          {filtered.map((a) => (
-            <button
-              key={a.label}
-              type="button"
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-slate-50"
-              onClick={() => {
-                if (a.tab && base) nav(`${base}?tab=${a.tab}`)
-                else if (a.label.includes("Spaces")) nav("/spaces")
-                else nav("/admin")
-                onClose()
-              }}
-            >
-              <span className="font-medium text-slate-800">{a.label}</span>
-              <span className="text-xs text-slate-400">{a.hint}</span>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-slate-400">No matching actions</p>
-          )}
-        </div>
-        <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">
-          ↑↓ navigate · ↵ select · Esc close
-        </div>
-      </div>
-    </div>
+    <span
+      title={`${streak}-day study streak — evidence logged every day`}
+      className="flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-200"
+    >
+      <Flame size={13} className="fill-orange-200" />
+      {streak}
+    </span>
   )
 }
 
@@ -158,22 +80,13 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
   const { spaceId, projectId } = useParams<{ spaceId: string; projectId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
-  const [commandOpen, setCommandOpen] = useState(false)
   const [spaceName, setSpaceName] = useState<string | null>(null)
 
   const inProject = Boolean(spaceId && projectId)
   const activeTab = (searchParams.get("tab") as TabId | null) ?? "overview"
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault()
-        setCommandOpen(true)
-      }
-    }
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
-  }, [])
+  // Admins get a minimal shell: admin content + sign out only. No spaces,
+  // project nav, command palette, or collapse toggle.
+  const isAdmin = user?.is_admin === true
 
   useEffect(() => {
     if (!spaceId || !token) {
@@ -272,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          {!inProject ? (
+          {isAdmin ? null : !inProject ? (
             <div className="mb-3 space-y-0.5">
               <div
                 className={cn("sidebar-item", location.pathname.startsWith("/spaces") && "active")}
@@ -326,10 +239,6 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
         </nav>
 
         <div className="space-y-0.5 border-t border-slate-100 p-2">
-          <div className="sidebar-item" onClick={() => setCommandOpen(true)} title={collapsed ? "Command" : undefined}>
-            <Command size={16} className="shrink-0" />
-            {!collapsed && <span>Command</span>}
-          </div>
           <div
             className="sidebar-item"
             onClick={() => {
@@ -341,26 +250,19 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
             <LogOut size={16} className="shrink-0" />
             {!collapsed && <span>Sign out</span>}
           </div>
-          <button type="button" className="sidebar-item w-full" onClick={() => setCollapsed((c) => !c)}>
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            {!collapsed && <span className="text-xs">Collapse</span>}
-          </button>
+          {!isAdmin && (
+            <button type="button" className="sidebar-item w-full" onClick={() => setCollapsed((c) => !c)}>
+              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+              {!collapsed && <span className="text-xs">Collapse</span>}
+            </button>
+          )}
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-6">
           <div className="flex-1 truncate text-sm font-medium text-slate-500">{breadcrumb}</div>
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-slate-100"
-            onClick={() => setCommandOpen(true)}
-          >
-            <Search size={14} />
-            <span className="hidden sm:inline">Search</span>
-            <kbd className="font-mono-data ml-1 text-xs text-slate-400">⌘K</kbd>
-          </button>
-          <NotifBell />
+          {!isAdmin && <StreakFlame />}
           <div
             className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
             title={user?.email ?? "Account"}
@@ -370,8 +272,6 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
-
-      {commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} />}
     </div>
   )
 }

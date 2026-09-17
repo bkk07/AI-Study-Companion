@@ -9,12 +9,14 @@ type Analytics = {
   materials_by_status: Record<string, number>
   topics_count: number
   concepts_count: number
+  core_concepts_count: number
   quiz_attempts: number
   quiz_attempts_completed: number
   avg_mcq: number | null
   avg_applied: number | null
+  avg_final: number | null
   evidenced_concepts: number
-  tutor_interactions: null
+  tutor_interactions: number
 }
 
 function fmt(value: number | null): string {
@@ -55,7 +57,13 @@ export function AnalyticsView({ projectId }: { projectId: string }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Documents" value={data.materials_total} icon={<BookOpenText size={18} />} accent="slate" />
         <StatCard label="Topics" value={data.topics_count} icon={<Layers size={18} />} accent="slate" />
-        <StatCard label="Concepts" value={data.concepts_count} icon={<BrainCircuit size={18} />} accent="indigo" />
+        <StatCard
+          label="Concepts"
+          value={data.core_concepts_count}
+          sub={`of ${data.concepts_count} total`}
+          icon={<BrainCircuit size={18} />}
+          accent="indigo"
+        />
         <StatCard label="Quiz Attempts" value={data.quiz_attempts_completed} sub={`of ${data.quiz_attempts}`} icon={<HelpCircle size={18} />} accent="slate" />
         <StatCard label="Avg MCQ" value={fmt(data.avg_mcq)} icon={<BrainCircuit size={18} />} accent="green" />
         <StatCard label="Avg Applied" value={fmt(data.avg_applied)} icon={<CreditCard size={18} />} accent="amber" />
@@ -65,12 +73,13 @@ export function AnalyticsView({ projectId }: { projectId: string }) {
           <MessageCircle size={15} className="text-slate-400" /> Activity
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          {data.evidenced_concepts} evidenced concepts · tutor chats coming soon
+          {data.evidenced_concepts} evidenced concepts · {data.tutor_interactions} tutor questions
         </p>
-        {Object.keys(data.materials_by_status).length > 0 && (
+        {Object.entries(data.materials_by_status).filter(([, count]) => count > 0).length > 0 && (
           <p className="mt-2 text-xs text-slate-400">
             Materials:{" "}
             {Object.entries(data.materials_by_status)
+              .filter(([, count]) => count > 0)
               .map(([status, count]) => `${status} ${count}`)
               .join(" · ")}
           </p>

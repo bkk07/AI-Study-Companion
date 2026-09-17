@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,3 +19,9 @@ class Project(Base, UUIDTimestampMixin):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # PRD §4: a Project carries a description and a learning goal. Nullable
+    # so pre-existing rows keep working. `goal` feeds the recommendation
+    # engine's goal bonus and the Tutor's project context; `description`
+    # is display-only.
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)

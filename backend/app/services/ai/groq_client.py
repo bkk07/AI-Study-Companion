@@ -8,9 +8,12 @@ untrusted data; callers must validate with Pydantic before persistence.
 API key is never logged.
 """
 
+import contextvars
 import json
 import re
+import time
 import unicodedata
+from dataclasses import dataclass
 
 import httpx
 
@@ -40,6 +43,44 @@ _PROVIDERS = {
 # (observed: U+FFFD replacement chars → Groq `json_validate_failed` 400s).
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
+# Rough token fallback when a provider omits the usage block (chars/token).
+_CHARS_PER_TOKEN = 4
+
+
+@dataclass
+class LLMCallRecord:
+    """Metering for one provider call — no prompt/response text, ever."""
+
+    provider: str
+    model: str
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    tokens_estimated: bool = False
+    latency_ms: int | None = None
+    success: bool = True
+    error_type: str | None = None
+    # HTTP status when the failure came from the provider (400/429/5xx...).
+    http_status: int | None = None
+
+
+# Active metering scope: None outside app.services.ai_usage_service.track_llm_call.
+# chat_json appends one record per HTTP attempt (success or failure); the
+# tracker drains the list on exit. Context-local, so request threads and
+# Celery worker processes never see each other's calls.
+_calls_in_scope: contextvars.ContextVar[list[LLMCallRecord] | None] = (
+    contextvars.ContextVar("llm_calls_in_scope", default=None)
+)
+
+
+def _note_call(record: LLMCallRecord) -> None:
+    calls = _calls_in_scope.get()
+    if calls is not None:
+        calls.append(record)
+
+
+def _estimate_tokens(*texts: str) -> int:
+    return max(1, sum(len(t or "") for t in texts) // _CHARS_PER_TOKEN)
+
 
 def sanitize_for_llm(text: str) -> str:
     """Make extracted text safe for LLM prompts without changing its meaning.
@@ -64,6 +105,10 @@ def chat_json(
     timeout: float = 60.0,
 ) -> dict:
     """Call the configured provider's chat completions in JSON mode.
+
+    Every HTTP attempt appends an LLMCallRecord to the active metering
+    scope (if any) — see app.services.ai_usage_service.track_llm_call.
+    Prompt/response text is never recorded.
 
     Raises:
         RuntimeError: if the active provider's API key is missing.
@@ -98,17 +143,68 @@ def chat_json(
             {"role": "user", "content": user},
         ],
     }
-    resp = httpx.post(provider["url"], json=payload, headers=headers, timeout=timeout)
-    resp.raise_for_status()
-    data = resp.json()
+    resp = None
+    data: dict = {}
+    content = ""
+    start = time.perf_counter()
     try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as e:
-        raise ValueError(f"Unexpected {provider_name} response shape: {e}") from e
-    try:
-        parsed = json.loads(content)
-    except (json.JSONDecodeError, TypeError) as e:
-        raise ValueError(f"{provider_name} response was not valid JSON: {e}") from e
-    if not isinstance(parsed, dict):
-        raise ValueError(f"{provider_name} response JSON must be an object")
+        resp = httpx.post(provider["url"], json=payload, headers=headers, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise ValueError(f"Unexpected {provider_name} response shape: {e}") from e
+        try:
+            parsed = json.loads(content)
+        except (json.JSONDecodeError, TypeError) as e:
+            raise ValueError(f"{provider_name} response was not valid JSON: {e}") from e
+        if not isinstance(parsed, dict):
+            raise ValueError(f"{provider_name} response JSON must be an object")
+    except Exception as e:
+        response = getattr(e, "response", None)
+        status = getattr(response, "status_code", None)
+        _note_call(
+            LLMCallRecord(
+                provider=provider_name,
+                model=resolved_model,
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                success=False,
+                error_type=type(e).__name__,
+                http_status=status if isinstance(status, int) else None,
+            )
+        )
+        raise
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    # OpenAI-compatible providers disagree on key names (Inception Labs has
+    # served both prompt_tokens and input_tokens shapes) — accept aliases so
+    # real Mercury token counts (often millions) are recorded, not estimated.
+    prompt_tokens = usage.get("prompt_tokens", usage.get("input_tokens"))
+    completion_tokens = usage.get("completion_tokens", usage.get("output_tokens"))
+    # bool is an int subclass — exclude it so True/False never become counts.
+    if (
+        not isinstance(prompt_tokens, int)
+        or isinstance(prompt_tokens, bool)
+        or not isinstance(completion_tokens, int)
+        or isinstance(completion_tokens, bool)
+    ):
+        # Provider omitted usage — fall back to len/4 so cost stays
+        # attributable, flagged for honesty.
+        prompt_tokens = _estimate_tokens(system, user)
+        completion_tokens = _estimate_tokens(content)
+        estimated = True
+    else:
+        estimated = False
+    _note_call(
+        LLMCallRecord(
+            provider=provider_name,
+            model=resolved_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            tokens_estimated=estimated,
+            latency_ms=latency_ms,
+            success=True,
+        )
+    )
     return parsed

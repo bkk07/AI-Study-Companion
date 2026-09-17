@@ -156,3 +156,40 @@ def test_create_space_validation():
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+def test_create_space_with_description():
+    client, engine, _ = _override_and_client()
+    try:
+        email = f"desc_{uuid.uuid4().hex[:8]}@example.com"
+        token = _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = client.post(
+            "/api/v1/spaces",
+            json={"name": "Physics", "description": "Mechanics track"},
+            headers=headers,
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["description"] == "Mechanics track"
+
+        # omitted description stays null; blank normalizes to null
+        resp = client.post("/api/v1/spaces", json={"name": "NoDesc"}, headers=headers)
+        assert resp.status_code == 201
+        assert resp.json()["description"] is None
+        resp = client.post(
+            "/api/v1/spaces", json={"name": "Blank", "description": "   "}, headers=headers
+        )
+        assert resp.status_code == 201
+        assert resp.json()["description"] is None
+
+        # over-long description rejected (pydantic 422 or service 400)
+        resp = client.post(
+            "/api/v1/spaces", json={"name": "Big", "description": "x" * 2001}, headers=headers
+        )
+        assert resp.status_code in (400, 422)
+
+        _cleanup_user(client, email, engine)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()

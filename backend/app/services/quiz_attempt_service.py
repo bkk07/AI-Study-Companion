@@ -38,11 +38,25 @@ def _get_open_attempt(db: Session, attempt_id: uuid.UUID, user_id: uuid.UUID, pr
 
 def start_attempt(db: Session, *, quiz_id: uuid.UUID, project_id: uuid.UUID, user_id: uuid.UUID) -> QuizAttempt:
     """Create an attempt and return it (questions served separately, answer-free)."""
+    from app.services import activity_service
+
     quiz = _get_quiz_in_project(db, quiz_id, project_id)
     attempt = QuizAttempt(quiz_id=quiz.id, user_id=user_id, started_at=datetime.now(timezone.utc))
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
+    # §12: quiz.started — idempotent on retry.
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        space_id=activity_service.resolve_space_id(db, project_id=project_id),
+        event_type=activity_service.EVENT_QUIZ_STARTED,
+        entity_type="attempt",
+        entity_id=attempt.id,
+        payload={"quiz_id": str(quiz.id)},
+        idempotency_key=f"attempt:{attempt.id}:started",
+    )
     return attempt
 
 
@@ -99,6 +113,24 @@ def submit_answer(
         db.rollback()
         raise ValueError("question already answered in this attempt") from e
     db.refresh(answer)
+    # §12: question.answered — small outcome payload, never the text.
+    from app.services import activity_service
+
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        space_id=activity_service.resolve_space_id(db, project_id=project_id),
+        event_type=activity_service.EVENT_QUESTION_ANSWERED,
+        entity_type="answer",
+        entity_id=answer.id,
+        payload={
+            "is_correct": bool(answer.is_correct),
+            "confidence": confidence,
+            "attempt_id": str(attempt.id),
+        },
+        idempotency_key=f"answer:{answer.id}",
+    )
     return answer, question.correct_index
 
 
@@ -153,12 +185,38 @@ def complete_attempt(
     attempt.completed_at = datetime.now(timezone.utc)
     attempt.score = Decimal(correct * 100) / Decimal(total) if total else Decimal("0")
     try:
-        write_mcq_evidence(db, attempt, project_id)
+        evidence_rows = write_mcq_evidence(db, attempt, project_id)
         db.commit()
     except Exception:
         db.rollback()
         raise
     db.refresh(attempt)
+    # §12: quiz.completed + mastery.updated — the completion banks evidence.
+    from app.services import activity_service
+
+    _space = activity_service.resolve_space_id(db, project_id=project_id)
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        space_id=_space,
+        event_type=activity_service.EVENT_QUIZ_COMPLETED,
+        entity_type="attempt",
+        entity_id=attempt.id,
+        payload={"score": float(attempt.score), "answers": total},
+        idempotency_key=f"quiz:{attempt.id}:completed",
+    )
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        space_id=_space,
+        event_type=activity_service.EVENT_MASTERY_UPDATED,
+        entity_type="attempt",
+        entity_id=attempt.id,
+        payload={"evidence_rows": evidence_rows, "source": "quiz"},
+        idempotency_key=f"attempt:{attempt.id}:mastery",
+    )
     # Blueprint §16: recommendation recomputes after mastery-affecting
     # events. Best-effort — evidence is already committed; a broker outage
     # must not fail the completion response.

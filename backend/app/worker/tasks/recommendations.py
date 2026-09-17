@@ -24,7 +24,7 @@ def generate_recommendation(self, user_id: str, project_id: str) -> str | None:
         uid, pid = uuid.UUID(user_id), uuid.UUID(project_id)
         project = db.get(__import__("app.models.project", fromlist=["Project"]).Project, pid)
         goal_keywords = (
-            recommendation_service.goal_keywords_for_project(project.name)
+            recommendation_service.goal_keywords_for_project(project.name, project.goal)
             if project is not None
             else ()
         )

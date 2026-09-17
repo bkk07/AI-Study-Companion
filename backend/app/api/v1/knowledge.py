@@ -14,12 +14,14 @@ from app.models.quiz_attempt import QuizAnswer, QuizAttempt
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
 from app.models.user import User
+from app.models.concept_relationship import ConceptRelationship
 from app.schemas.knowledge import (
     BrowseConceptRead,
     BrowseSubtopicRead,
     BrowseTopicRead,
     ConceptDetailRead,
     CoverageRead,
+    KnowledgeGraphRead,
     KnowledgeTreeRead,
     SearchHitRead,
     SearchResultsRead,
@@ -164,6 +166,56 @@ def search(
     return SearchResultsRead(query=q.strip(), hits=[_hit(db, row, user.id) for row in rows])
 
 
+@router.get("/graph", response_model=KnowledgeGraphRead)
+def get_graph(
+    project: Project = Depends(get_authorized_project),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> KnowledgeGraphRead:
+    """Mini-map: CORE concept nodes with mastery + semantic edges. Reads only.
+
+    Nodes reuse the gated dashboard progress (same mastery as everywhere);
+    edges are the stored PREREQUISITE_OF / RELATED_TO links between project
+    concepts, capped so large maps stay renderable.
+    """
+    from app.schemas.knowledge import GraphEdgeRead, GraphNodeRead
+
+    progress, _ = dashboard_service.build_dashboard(db, user_id=user.id, project_id=project.id)
+    by_id = {p.concept_id: p for p in progress}
+    topics = {t.id: t.title for t in db.query(Topic).filter(Topic.project_id == project.id).all()}
+    subs = {s.id: s for s in db.query(Subtopic).filter(Subtopic.project_id == project.id).all()}
+    nodes = []
+    for p in progress:
+        concept = db.get(Concept, p.concept_id)
+        sub = subs.get(concept.subtopic_id) if concept else None
+        nodes.append(GraphNodeRead(
+            id=p.concept_id,
+            title=p.title,
+            topic=topics.get(sub.topic_id, "?") if sub else "?",
+            mastery=display_mastery(p.scores),
+            status=status_for(display_mastery(p.scores)),
+        ))
+    owned = {p.concept_id for p in progress}
+    if not owned:
+        return KnowledgeGraphRead(nodes=nodes, edges=[])
+    edge_rows = (
+        db.query(ConceptRelationship)
+        .filter(
+            ConceptRelationship.from_concept_id.in_(owned),
+            ConceptRelationship.to_concept_id.in_(owned),
+            ConceptRelationship.relation.in_(("PREREQUISITE_OF", "RELATED_TO")),
+        )
+        .order_by(ConceptRelationship.created_at.asc())
+        .limit(300)
+        .all()
+    )
+    return KnowledgeGraphRead(
+        nodes=nodes,
+        edges=[GraphEdgeRead(from_id=e.from_concept_id, to_id=e.to_concept_id, relation=e.relation)
+               for e in edge_rows],
+    )
+
+
 @router.get("/concepts/{concept_id}", response_model=ConceptDetailRead)
 def get_concept_detail(
     concept_id: uuid.UUID,
@@ -189,7 +241,8 @@ def get_concept_detail(
     attempted = len(answers)
     correct = sum(1 for ok, _ in answers if ok)
     lasts = [at for _, at in answers]
-    lasts += [s.last_at for s in (scores.mcq, scores.applied) if s.last_at is not None]
+    lasts += [s.last_at for s in (scores.quiz, scores.open_ended, scores.practice,
+                                  scores.flashcard, scores.tutor) if s.last_at is not None]
     last_at = max(lasts) if lasts else None
 
     related = relationship_service.get_related(db, concept.id)
@@ -222,6 +275,13 @@ def get_concept_detail(
         mastery=mastery, status=status_for(mastery),
         mcq=StreamRead(value=scores.mcq.value, count=scores.mcq.count),
         applied=StreamRead(value=scores.applied.value, count=scores.applied.count),
+        final_mastery=scores.final,
+        evidence_confidence=scores.evidence_confidence,
+        streams={
+            name: StreamRead(value=getattr(scores, name).value,
+                             count=getattr(scores, name).count)
+            for name in ("quiz", "open_ended", "practice", "flashcard", "tutor")
+        },
         questions_attempted=attempted, questions_correct=correct,
         last_practiced_at=last_at,
         prerequisites=prerequisites, related=related_hits, supporting=supporting,

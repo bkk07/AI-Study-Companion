@@ -21,9 +21,26 @@ from app.models.quiz import Quiz, QuizQuestion
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
 from app.schemas.quiz import MCQOutline
+from app.services import ai_usage_service
 from app.services.ai import groq_client
 from app.services.mastery_levels import is_mastery_target
 from app.services.relationship_service import get_related
+
+# Adaptive wiring (no circular import: adaptive module is pure, no DB).
+try:
+    from app.services.adaptive_quiz_service import UNKNOWN_MASTERY as _ADAPT_UNKNOWN
+    from app.services.adaptive_quiz_service import _target_level as _adapt_target_level
+    from app.services.adaptive_quiz_service import DIFFICULTIES as _ADAPT_DIFFS
+except Exception:  # pragma: no cover — adaptive module always present in practice
+    _ADAPT_UNKNOWN = 50.0
+    _ADAPT_DIFFS = ("easy", "medium", "hard")
+
+    def _adapt_target_level(mastery: float) -> int:
+        if mastery < 34.0:
+            return 0
+        if mastery <= 66.0:
+            return 1
+        return 2
 
 MAX_SOURCE_CHARS = 6_000
 MAX_CONTEXT_CHARS = 1_500
@@ -227,13 +244,20 @@ def generate_quiz(
     call = client or groq_client.chat_json
     last_error: Exception | None = None
     outline: MCQOutline | None = None
-    for _ in range(2):  # initial + one retry
-        try:
-            outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
-            break
-        except (ValidationError, ValueError, KeyError, TypeError) as e:
-            last_error = e
-            continue
+    # Injected test fakes make no provider calls → the tracker writes nothing.
+    with ai_usage_service.track_llm_call(
+        user_id=ai_usage_service.resolve_owner_user_id(db, project_id=project_id),
+        project_id=project_id,
+        feature=ai_usage_service.FEATURE_QUIZ_GENERATION,
+        meta={"mode": mode, "num_questions": num_questions, "difficulty": difficulty},
+    ):
+        for _ in range(2):  # initial + one retry
+            try:
+                outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
+                break
+            except (ValidationError, ValueError, KeyError, TypeError) as e:
+                last_error = e
+                continue
     if outline is None:
         raise QuizGenerationError(f"Invalid quiz output after retry: {last_error}")
 
@@ -392,8 +416,207 @@ def _resolve_practice_concepts(
     return targets, f"Practice selection ({len(targets)} concepts)"
 
 
+def _page_range_scoped_source(db: Session, project_id, concepts: list[Concept]) -> str:
+    """Grounded source from the selection's own page spans.
+
+    Production chunks are never concept-tagged (concept_id NULL), so the old
+    concept_id filter always missed and fell back to project-wide text —
+    questions felt random. Page spans (material_id + page_start/end) ARE
+    stored, so collect those chunks first, ordered by material/page/index.
+    Returns "" when nothing matches (caller falls back).
+    """
+    collected: list[DocumentChunk] = []
+    seen_chunk_ids: set = set()
+    for concept in concepts or []:
+        if not getattr(concept, "material_id", None) or not concept.page_start or not concept.page_end:
+            continue
+        try:
+            rows = (
+                db.query(DocumentChunk)
+                .filter(
+                    DocumentChunk.project_id == project_id,
+                    DocumentChunk.material_id == concept.material_id,
+                    DocumentChunk.page_number.is_not(None),
+                    DocumentChunk.page_number >= concept.page_start,
+                    DocumentChunk.page_number <= concept.page_end,
+                )
+                .order_by(DocumentChunk.page_number.asc(), DocumentChunk.chunk_index.asc())
+                .all()
+            )
+        except Exception:
+            continue
+        for ch in rows:
+            if ch.id not in seen_chunk_ids:
+                seen_chunk_ids.add(ch.id)
+                collected.append(ch)
+            if len("\n\n".join(c.content for c in collected)) >= MAX_SOURCE_CHARS:
+                break
+        if len("\n\n".join(c.content for c in collected)) >= MAX_SOURCE_CHARS:
+            break
+    # If page spans yielded nothing, prefer the selection's own materials
+    # over the whole project (still scoped, just coarser).
+    if not collected:
+        mat_ids = {c.material_id for c in (concepts or []) if getattr(c, "material_id", None)}
+        if mat_ids:
+            try:
+                rows = (
+                    db.query(DocumentChunk)
+                    .filter(
+                        DocumentChunk.project_id == project_id,
+                        DocumentChunk.material_id.in_(list(mat_ids)),
+                    )
+                    .order_by(DocumentChunk.chunk_index.asc())
+                    .all()
+                )
+                collected = rows
+            except Exception:
+                collected = []
+    texts = [c.content.strip() for c in collected if (c.content or "").strip()]
+    if not texts:
+        return ""
+    return "\n\n".join(texts)[:MAX_SOURCE_CHARS].strip()
+
+
+def _curriculum_key(db: Session, project_id) -> dict:
+    """Order index per concept id by Topic → Subtopic → Concept creation."""
+    try:
+        rows = (
+            db.query(Concept.id)
+            .join(Subtopic, Concept.subtopic_id == Subtopic.id)
+            .join(Topic, Subtopic.topic_id == Topic.id)
+            .filter(Concept.project_id == project_id)
+            .order_by(Topic.created_at.asc(), Subtopic.created_at.asc(), Concept.created_at.asc())
+            .all()
+        )
+        return {r[0]: i for i, r in enumerate(rows)}
+    except Exception:
+        return {}
+
+
+def _order_concepts_adaptive(
+    db: Session,
+    project_id,
+    concepts: list[Concept],
+    mastery: dict[str, float] | None = None,
+) -> list[Concept]:
+    """Weakest-first when mastery is known, else curriculum order.
+
+    Delegates ordering to the shared adaptive engine
+    (`adaptive_quiz_service.order_concepts_by_mastery`) so selection and
+    generation never drift. Mastery keys are str(concept_id); unknown
+    defaults to 50 neutral. Ties break by curriculum position, then id —
+    never bare UUID order.
+    """
+    from app.services.adaptive_quiz_service import order_concepts_by_mastery as _shared_order
+
+    order_uuid = _curriculum_key(db, project_id)
+    # Shared engine works on str ids with str-keyed maps.
+    str_order = {str(k): v for k, v in order_uuid.items()}
+    str_ids = [str(c.id) for c in concepts]
+    by_id = {str(c.id): c for c in concepts}
+    ordered_ids = _shared_order(str_ids, mastery or {}, str_order, {})
+    return [by_id[i] for i in ordered_ids if i in by_id]
+
+
+def _allocate_concepts(
+    ordered: list[Concept],
+    num_questions: int,
+    mastery: dict[str, float] | None = None,
+) -> list[Concept]:
+    """Proportional allocation: weaker concepts get more questions.
+
+    Weight = (100 - mastery) + 10 floor so even strong concepts keep one
+    slot when questions allow. First pass guarantees each concept one
+    question (when enough questions); remainder goes weakest-first.
+    Replaces pure round-robin which gave equal share regardless of need.
+    """
+    if not ordered or num_questions <= 0:
+        return []
+    mastery = mastery or {}
+
+    def _w(c: Concept) -> float:
+        try:
+            v = mastery.get(str(c.id), None)
+            m = float(v) if v is not None else float(_ADAPT_UNKNOWN)
+        except Exception:
+            m = float(_ADAPT_UNKNOWN)
+        return (100.0 - m) + 10.0
+
+    # First pass: one per concept in weakest-first order (up to num).
+    alloc: list[Concept] = []
+    for c in ordered:
+        if len(alloc) >= num_questions:
+            break
+        alloc.append(c)
+    if len(alloc) >= num_questions:
+        return alloc
+    # Remainder: weighted by weakness (weakest gets most extra).
+    weights = [_w(c) for c in ordered]
+    total = sum(weights) or 1.0
+    remaining = num_questions - len(alloc)
+    extra_counts = [int(round(w / total * remaining)) for w in weights]
+    # Fix rounding drift.
+    while sum(extra_counts) < remaining:
+        # Give to weakest (ordered[0] is weakest).
+        for i in range(len(ordered)):
+            if sum(extra_counts) >= remaining:
+                break
+            extra_counts[i] += 1
+    while sum(extra_counts) > remaining:
+        for i in range(len(ordered) - 1, -1, -1):
+            if sum(extra_counts) <= remaining:
+                break
+            if extra_counts[i] > 0:
+                extra_counts[i] -= 1
+    for concept, n in zip(ordered, extra_counts):
+        alloc.extend([concept] * n)
+    return alloc[:num_questions]
+
+
+def _adaptive_difficulty_hint(
+    ordered: list[Concept],
+    alloc: list[Concept],
+    mastery: dict[str, float] | None = None,
+) -> str | None:
+    """Human-readable difficulty plan for the LLM prompt when adaptive.
+
+    Maps each allocated concept to easy/medium/hard via the single-sourced
+    adaptive bands. Returns None when caller forced an explicit difficulty.
+    """
+    mastery = mastery or {}
+    parts: list[str] = []
+    counts: dict[str, int] = {}
+    for c in alloc:
+        counts[str(c.id)] = counts.get(str(c.id), 0) + 1
+    for c in ordered:
+        n = counts.get(str(c.id), 0)
+        if n <= 0:
+            continue
+        try:
+            v = mastery.get(str(c.id), None)
+            m = float(v) if v is not None else float(_ADAPT_UNKNOWN)
+        except Exception:
+            m = float(_ADAPT_UNKNOWN)
+        level = _ADAPT_DIFFS[_adapt_target_level(m)]
+        # Fresh (no mastery): foundational half starts easy for onboarding.
+        if str(c.id) not in mastery:
+            level = "easy"
+        parts.append(f"{n}x {level} on '{c.title}'")
+    if not parts:
+        return None
+    return "Adaptive difficulty plan: " + "; ".join(parts) + "."
+
+
 def _scoped_source(db: Session, project_id, concepts: list[Concept]) -> str:
-    """Combined project-local source for a scoped quiz (single LLM call)."""
+    """Combined project-local source for a scoped quiz (single LLM call).
+
+    Priority: page-range chunks of the selected concepts (grounded in the
+    user's actual selection) → concept-tagged chunks (legacy) → chunks from
+    the selection's own materials → project-wide (last resort).
+    """
+    ranged = _page_range_scoped_source(db, project_id, concepts)
+    if ranged.strip():
+        return ranged
     ids = [c.id for c in concepts]
     chunks = (
         db.query(DocumentChunk)
@@ -429,13 +652,16 @@ def generate_scoped_quiz(
     mode: str = "practice",
     difficulty: str | None = None,
     client: Callable[[str, str], dict] | None = None,
+    mastery: dict[str, float] | None = None,
+    user_id=None,
 ) -> Quiz:
     """Generate one quiz across a topic/subtopic/project scope.
 
-    Single LLM call over combined scope source; returned questions are
-    attributed round-robin across the scope's concepts so per-concept
-    mastery evidence keeps working. Single-concept scope behaves exactly
-    like :func:`generate_quiz`.
+    Adaptive: concepts are ordered weakest-first (or curriculum order when
+    fresh), questions are allocated proportionally (weaker gets more), and
+    the LLM prompt carries an explicit difficulty plan when `difficulty` is
+    None. Attribution follows the allocation — not pure round-robin.
+    Single-concept scope behaves exactly like :func:`generate_quiz`.
     """
     if not isinstance(num_questions, int) or not MIN_QUESTIONS <= num_questions <= MAX_QUESTIONS:
         raise ValueError(f"num_questions must be {MIN_QUESTIONS}..{MAX_QUESTIONS}")
@@ -450,36 +676,79 @@ def generate_scoped_quiz(
     if project is None:
         raise LookupError("project not found in scope")
 
-    if scope == "practice":
-        concepts, focus = _resolve_practice_concepts(
-            db, project, topic_ids=topic_ids,
-            subtopic_ids=subtopic_ids, concept_ids=concept_ids,
-        )
-        source = _scoped_source(db, project.id, concepts)
+    # Resolve caller mastery when user is known and no explicit map given.
+    # Best-effort: never fails generation when mastery lookup fails.
+    if mastery is None and user_id is not None:
+        try:
+            from app.services.mastery_service import mastery_for_concept as _mfc
+            from app.services.rollup_service import display_mastery as _dm
+            mastery = {}
+            # Concepts unknown until scope resolves — filled below.
+        except Exception:
+            mastery = None
 
-        user_prompt = _build_user_prompt(source, num_questions, difficulty, focus, None, None)
+    def _finalize_scope(concepts: list[Concept], focus: str) -> Quiz:
+        # Order + allocate via the shared adaptive engine.
+        eff_mastery: dict[str, float] | None = mastery
+        if eff_mastery is None and user_id is not None:
+            try:
+                from app.services.mastery_service import mastery_for_concept as _mfc2
+                from app.services.rollup_service import display_mastery as _dm2
+                eff_mastery = {}
+                for c in concepts:
+                    try:
+                        scores = _mfc2(db, user_id=user_id, project_id=project.id, concept_id=c.id)
+                        val = _dm2(scores)
+                        if val is not None:
+                            eff_mastery[str(c.id)] = float(val)
+                    except Exception:
+                        continue
+            except Exception:
+                eff_mastery = None
+        ordered = _order_concepts_adaptive(db, project.id, concepts, eff_mastery)
+        alloc = _allocate_concepts(ordered, num_questions, eff_mastery)
+        if not alloc:
+            raise QuizGenerationError("Project has no practicable concepts yet — upload material first")
+        source = _scoped_source(db, project.id, ordered)
+        # Adaptive prompt: explicit difficulty plan when caller left it open.
+        prompt_difficulty = difficulty
+        focus_label = focus
+        if difficulty is None:
+            hint = _adaptive_difficulty_hint(ordered, alloc, eff_mastery)
+            if hint:
+                focus_label = f"{focus}. {hint}"
+        user_prompt = _build_user_prompt(source, num_questions, prompt_difficulty, focus_label, None, None)
         call = client or groq_client.chat_json
         last_error: Exception | None = None
         outline: MCQOutline | None = None
-        for _ in range(2):  # initial + one retry
-            try:
-                outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
-                break
-            except (ValidationError, ValueError, KeyError, TypeError) as e:
-                last_error = e
-                continue
+        # Injected test fakes make no provider calls → the tracker writes nothing.
+        with ai_usage_service.track_llm_call(
+            user_id=user_id,
+            project_id=project.id,
+            feature=ai_usage_service.FEATURE_QUIZ_GENERATION,
+            meta={"mode": mode, "num_questions": num_questions, "scope": scope},
+        ):
+            for _ in range(2):  # initial + one retry
+                try:
+                    outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
+                    break
+                except (ValidationError, ValueError, KeyError, TypeError) as e:
+                    last_error = e
+                    continue
         if outline is None:
             raise QuizGenerationError(f"Invalid quiz output after retry: {last_error}")
-
         try:
             quiz = Quiz(project_id=project.id, mode=mode, question_count=len(outline.questions))
             db.add(quiz)
             db.flush()
             for i, item in enumerate(outline.questions):
+                # Proportional attribution: alloc has len == num_questions
+                # (or outline shorter on LLM shortfall — index safely).
+                concept = alloc[i] if i < len(alloc) else alloc[i % len(alloc)]
                 db.add(
                     QuizQuestion(
                         quiz_id=quiz.id,
-                        concept_id=concepts[i % len(concepts)].id,
+                        concept_id=concept.id,
                         question_text=item.question_text,
                         options=item.options,
                         correct_index=item.correct_index,
@@ -494,6 +763,13 @@ def generate_scoped_quiz(
             db.rollback()
             raise
 
+    if scope == "practice":
+        concepts, focus = _resolve_practice_concepts(
+            db, project, topic_ids=topic_ids,
+            subtopic_ids=subtopic_ids, concept_ids=concept_ids,
+        )
+        return _finalize_scope(concepts, focus)
+
     if scope == "concept":
         if concept_id is None:
             raise ValueError("concept_id is required when scope is 'concept'")
@@ -507,41 +783,4 @@ def generate_scoped_quiz(
         db, project, scope=scope, topic_id=topic_id,
         subtopic_id=subtopic_id, concept_id=concept_id,
     )
-    source = _scoped_source(db, project.id, concepts)
-
-    user_prompt = _build_user_prompt(source, num_questions, difficulty, focus, None, None)
-    call = client or groq_client.chat_json
-    last_error: Exception | None = None
-    outline: MCQOutline | None = None
-    for _ in range(2):  # initial + one retry
-        try:
-            outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
-            break
-        except (ValidationError, ValueError, KeyError, TypeError) as e:
-            last_error = e
-            continue
-    if outline is None:
-        raise QuizGenerationError(f"Invalid quiz output after retry: {last_error}")
-
-    try:
-        quiz = Quiz(project_id=project.id, mode=mode, question_count=len(outline.questions))
-        db.add(quiz)
-        db.flush()
-        for i, item in enumerate(outline.questions):
-            db.add(
-                QuizQuestion(
-                    quiz_id=quiz.id,
-                    concept_id=concepts[i % len(concepts)].id,
-                    question_text=item.question_text,
-                    options=item.options,
-                    correct_index=item.correct_index,
-                    difficulty=item.difficulty,
-                    source_chunk_id=None,
-                )
-            )
-        db.commit()
-        db.refresh(quiz)
-        return quiz
-    except Exception:
-        db.rollback()
-        raise
+    return _finalize_scope(concepts, focus)

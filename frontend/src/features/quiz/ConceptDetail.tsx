@@ -23,6 +23,9 @@ type Detail = {
   status: string
   mcq: { value: number | null; count: number }
   applied: { value: number | null; count: number }
+  final_mastery?: number | null
+  evidence_confidence?: string
+  streams?: Record<string, { value: number | null; count: number }>
   questions_attempted: number
   questions_correct: number
   last_practiced_at: string | null
@@ -133,6 +136,45 @@ export function ConceptDetail({
               </p>
             </div>
             <ProgressBar value={detail.mastery} className="mt-1.5" barClass="bg-indigo-500" />
+            {detail.final_mastery !== null && detail.final_mastery !== undefined && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-semibold text-slate-700">
+                  Final: <span className="font-mono-data">{Math.round(detail.final_mastery)}%</span>
+                </span>
+                {detail.evidence_confidence === "low" && (
+                  <span
+                    title="Fewer than 3 evidence rows — treat this mastery as an early estimate"
+                    className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                  >
+                    Early estimate
+                  </span>
+                )}
+              </div>
+            )}
+            {detail.streams && Object.keys(detail.streams).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(
+                  [
+                    ["quiz", "Quiz"],
+                    ["open_ended", "Open-ended"],
+                    ["practice", "Practice"],
+                    ["flashcard", "Flashcards"],
+                    ["tutor", "Tutor"],
+                  ] as const
+                ).map(([key, label]) => {
+                  const s = detail.streams?.[key]
+                  return (
+                    <span
+                      key={key}
+                      title={`${label}: ${s && s.value !== null ? `${Math.round(s.value)}% over ${s.count} evidence` : "no evidence yet"}`}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                    >
+                      {label} {s && s.value !== null ? `${Math.round(s.value)}%` : "—"}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500 sm:grid-cols-4">
               <span>Recognition: {detail.mcq.value === null ? "—" : `${Math.round(detail.mcq.value)}%`}</span>
               <span>Applied: {detail.applied.value === null ? "—" : `${Math.round(detail.applied.value)}%`}</span>

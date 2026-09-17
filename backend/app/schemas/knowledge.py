@@ -68,6 +68,31 @@ class SearchResultsRead(BaseModel):
     hits: list[SearchHitRead] = Field(default_factory=list)
 
 
+class GraphNodeRead(BaseModel):
+    """One CORE concept node with live mastery for the mini-map."""
+
+    id: uuid.UUID
+    title: str
+    topic: str
+    mastery: float | None = None
+    status: str
+
+
+class GraphEdgeRead(BaseModel):
+    """One semantic edge between project concepts (prerequisites + related)."""
+
+    from_id: uuid.UUID
+    to_id: uuid.UUID
+    relation: str
+
+
+class KnowledgeGraphRead(BaseModel):
+    """Project mini-map: mastery-colored nodes, prerequisite/related edges."""
+
+    nodes: list[GraphNodeRead] = Field(default_factory=list)
+    edges: list[GraphEdgeRead] = Field(default_factory=list)
+
+
 class StreamRead(BaseModel):
     value: float | None = None
     count: int = 0
@@ -85,6 +110,10 @@ class ConceptDetailRead(BaseModel):
     status: str
     mcq: StreamRead = Field(default_factory=StreamRead)
     applied: StreamRead = Field(default_factory=StreamRead)
+    # Plan A: weighted final + per-stream breakdown (additive).
+    final_mastery: float | None = None
+    evidence_confidence: str = "none"
+    streams: dict[str, StreamRead] = Field(default_factory=dict)
     questions_attempted: int = 0
     questions_correct: int = 0
     last_practiced_at: datetime | None = None

@@ -152,3 +152,49 @@ def test_projects_require_auth_and_validation():
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+def test_create_project_with_description_and_goal():
+    client, engine, _ = _override_and_client()
+    try:
+        email = f"goal_{uuid.uuid4().hex[:8]}@example.com"
+        token = _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = client.post("/api/v1/spaces", json={"name": "S"}, headers=headers)
+        space_id = resp.json()["id"]
+
+        resp = client.post(
+            f"/api/v1/spaces/{space_id}/projects",
+            json={"name": "ML", "description": "Exam prep", "goal": "Master gradient descent"},
+            headers=headers,
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["description"] == "Exam prep"
+        assert body["goal"] == "Master gradient descent"
+
+        # read-back carries the fields on both routes
+        resp = client.get(f"/api/v1/spaces/{space_id}/projects", headers=headers)
+        assert resp.json()[0]["goal"] == "Master gradient descent"
+        resp = client.get(f"/api/v1/projects/{body['id']}", headers=headers)
+        assert resp.json()["description"] == "Exam prep"
+
+        # omitted fields stay null; blanks normalize to null
+        resp = client.post(f"/api/v1/spaces/{space_id}/projects", json={"name": "Plain"}, headers=headers)
+        assert resp.status_code == 201
+        assert resp.json()["description"] is None
+        assert resp.json()["goal"] is None
+
+        # over-long goal rejected (pydantic 422 or service 400)
+        resp = client.post(
+            f"/api/v1/spaces/{space_id}/projects",
+            json={"name": "Big", "goal": "g" * 1001},
+            headers=headers,
+        )
+        assert resp.status_code in (400, 422)
+
+        _cleanup_user(client, email, engine)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()

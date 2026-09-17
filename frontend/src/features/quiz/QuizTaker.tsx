@@ -170,7 +170,7 @@ export function QuizTaker({
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
           <PartyPopper size={22} />
         </span>
-        <p className={cn("font-mono-data mt-4 text-5xl font-bold", pct >= 70 ? "text-green-600" : pct >= 40 ? "text-amber-600" : "text-red-600")}>{pct}%</p>
+        <p className={cn("font-mono-data mt-4 text-5xl font-bold", pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-600" : "text-red-600")}>{pct}%</p>
         <p className="mt-1 text-base font-semibold text-slate-900">Quiz complete</p>
         <p className="mt-1 text-sm text-slate-500">
           {stage.correct} of {stage.total} correct — mastery updated.
@@ -209,7 +209,7 @@ export function QuizTaker({
         <Info size={15} className="mt-0.5 shrink-0 text-indigo-600" />
         <p className="text-xs leading-relaxed text-slate-600">
           <span className="font-semibold text-slate-800">Why this question? </span>
-          Tuned to your weakest concept based on recognition vs. applied mastery.
+          Adaptive: weakest-first with history, otherwise foundational curriculum order. Difficulty matched to mastery.
         </p>
       </div>
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-7">

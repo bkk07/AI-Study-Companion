@@ -90,14 +90,38 @@ def test_admin_sees_users_without_passwords():
     client, engine = _setup()
     try:
         ha, _, admin_email, user_email = _users(client, engine)
-        resp = client.get("/api/v1/admin/users", headers=ha)
+        suffix = admin_email.split("-")[1].split("@")[0]
+        resp = client.get("/api/v1/admin/users", params={"q": suffix}, headers=ha)
         assert resp.status_code == 200, resp.text
-        got = {u["email"]: u for u in resp.json()}
+        body = resp.json()
+        assert set(body) == {"items", "total", "limit", "offset"}
+        got = {u["email"]: u for u in body["items"]}
         assert {admin_email, user_email} <= set(got)
         assert got[admin_email]["is_admin"] is True and got[user_email]["is_admin"] is False
         assert "hashed_password" not in resp.text
-        for u in resp.json():
-            assert set(u) == {"id", "email", "is_admin", "created_at"}
+        for u in body["items"]:
+            assert set(u) == {"id", "email", "is_admin", "created_at", "project_count", "last_active"}
+            assert isinstance(u["project_count"], int) and u["project_count"] >= 0
+        assert body["total"] >= 2 and body["limit"] == 25 and body["offset"] == 0
+    finally:
+        _teardown(engine)
+
+
+def test_users_pagination_and_search():
+    client, engine = _setup()
+    try:
+        ha, _, admin_email, user_email = _users(client, engine)
+        first = client.get("/api/v1/admin/users", params={"limit": 1, "offset": 0}, headers=ha)
+        assert first.status_code == 200, first.text
+        assert len(first.json()["items"]) == 1
+        assert first.json()["total"] >= 2
+        second = client.get("/api/v1/admin/users", params={"limit": 1, "offset": 1}, headers=ha)
+        assert second.json()["items"][0]["id"] != first.json()["items"][0]["id"]
+        found = client.get("/api/v1/admin/users", params={"q": admin_email}, headers=ha)
+        assert found.json()["total"] == 1
+        assert found.json()["items"][0]["email"] == admin_email
+        missing = client.get("/api/v1/admin/users", params={"q": "no-such-user-xyz"}, headers=ha)
+        assert missing.json()["total"] == 0 and missing.json()["items"] == []
     finally:
         _teardown(engine)
 
@@ -110,7 +134,8 @@ def test_overview_counts_match_domain():
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert set(body) == {"users", "spaces", "projects", "materials", "quizzes",
-                             "quiz_attempts", "evidence_rows", "recommendations"}
+                             "quiz_attempts", "evidence_rows", "recommendations",
+                             "quiz_attempts_week", "cost_week_usd"}
         Sess = sessionmaker(bind=engine)
         db = Sess()
         try:
@@ -118,7 +143,8 @@ def test_overview_counts_match_domain():
             assert body["spaces"] == db.query(Space).count() >= 1
         finally:
             db.close()
-        assert all(isinstance(v, int) and v >= 0 for v in body.values())
+        assert all(isinstance(v, int) and v >= 0 for k, v in body.items() if k != "cost_week_usd")
+        assert body["cost_week_usd"] is None or body["cost_week_usd"] >= 0
     finally:
         _teardown(engine)
 

@@ -1,9 +1,9 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertCircle, ArrowRight, BookOpen, Brain, Eye, EyeOff, Loader2, Network } from "lucide-react"
+import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { authErrorMessage } from "@/lib/api-error"
-import { KnowledgeGraphSVG } from "@/components/KnowledgeGraph"
+import { AuthSidePanel } from "@/features/auth/AuthSidePanel"
 
 export function Login() {
   const { login } = useAuth()
@@ -23,8 +23,8 @@ export function Login() {
     }
     setLoading(true)
     try {
-      await login(email, password)
-      nav("/")
+      const u = await login(email, password)
+      nav(u.is_admin ? "/admin" : "/")
     } catch (err: unknown) {
       setError(authErrorMessage(err, "Sign-in failed — please try again."))
     } finally {
@@ -33,38 +33,32 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-indigo-950 p-12 text-white lg:flex">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 to-slate-900" />
-        <div className="relative z-10 flex h-full flex-col">
-          <div className="mb-auto flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500">
-              <BookOpen size={18} />
-            </div>
-            <span className="text-lg font-semibold">Study Companion</span>
-          </div>
-          <div className="flex flex-1 flex-col items-center justify-center gap-10">
-            <KnowledgeGraphSVG />
-            <div className="max-w-xs text-center">
-              <h1 className="font-display mb-3 text-3xl font-semibold leading-snug">
-                Turn your own study material into a measurable learning system.
-              </h1>
-              <p className="text-sm leading-relaxed text-indigo-300">
-                Upload → Understand → Learn → Practice → Explain → Measure → Detect Weakness → Recommend → Improve
-              </p>
-            </div>
-          </div>
-          <div className="mt-auto flex gap-8 text-sm text-indigo-400">
-            <div className="flex items-center gap-2"><Brain size={14} /> AI-grounded learning</div>
-            <div className="flex items-center gap-2"><Network size={14} /> Evidence-based mastery</div>
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-screen bg-slate-100">
+      <AuthSidePanel
+        image="https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1600&auto=format&fit=crop"
+        imageAlt="Grand university library hall with tall bookshelves"
+        title="Turn your own study material into a measurable learning system."
+        subtitle="Your uploads in. Grounded answers, measured mastery, and what's-next guidance out."
+        slides={[
+          {
+            title: "Grounded answers",
+            text: "Every tutor reply cites your uploads — or honestly says the material doesn't cover it.",
+          },
+          {
+            title: "Evidence-based mastery",
+            text: "Quizzes, flashcards, and explanations banked as signal per concept.",
+          },
+          {
+            title: "Weakness radar",
+            text: "Confidence vs. correctness mismatches surfaced before exam day.",
+          },
+        ]}
+      />
 
-      <div className="flex flex-1 items-center justify-center bg-white p-8">
-        <div className="w-full max-w-sm">
+      <div className="flex flex-1 items-center justify-center p-8">
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-8">
-            <h2 className="mb-1 text-2xl font-semibold text-slate-900">Welcome back</h2>
+            <h2 className="mb-1 text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h2>
             <p className="text-sm text-slate-500">Sign in to continue learning</p>
           </div>
 

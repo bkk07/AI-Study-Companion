@@ -1,0 +1,10 @@
+{
+  "description": "Enables users to create and customize digital projects efficiently, enhancing productivity with intuitive design and seamless workflow integration.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -60,13 +60,13 @@ type Hit = {
 type Mode = "recommended" | "browse" | "search"
 
 function masteryLabel(mastery: number | null): string {
-  return mastery === null ? "Not started" : `${Math.round(mastery)}%`
+  return mastery === null ? "Not Started" : `${Math.round(mastery)}%`
 }
 
 function PracticeButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
     <Button type="button" size="sm" onClick={onClick} disabled={disabled}>
-      <Play size={14} /> Practice
+      <Play size={14} /> Quiz this
     </Button>
   )
 }
@@ -110,7 +110,7 @@ function CandidateCard({
             disabled={busy}
             className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
           >
-            <Play size={14} /> Start Practice
+            <Play size={14} /> Quiz this →
           </button>
         </div>
       </div>

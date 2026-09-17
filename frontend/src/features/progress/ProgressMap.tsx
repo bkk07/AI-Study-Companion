@@ -34,7 +34,7 @@ type TopicNode = {
 type Tree = { topics: TopicNode[]; overall: Coverage }
 
 function masteryLabel(mastery: number | null): string {
-  return mastery === null ? "Not started" : `${Math.round(mastery)}%`
+  return mastery === null ? "Not Started" : `${Math.round(mastery)}%`
 }
 
 export function ProgressMap({ projectId }: { projectId: string }) {

@@ -38,11 +38,25 @@ class Rollup:
 
 
 def display_mastery(scores: MasteryScores) -> float | None:
-    """Mean of known streams; None when both streams lack evidence."""
+    """Mean of known compat streams; None when both streams lack evidence.
+
+    Unchanged by Plan A (rollups stay comparable over time). The Plan A
+    weighted final is available via `final_mastery` for new surfaces.
+    """
     known = [s.value for s in (scores.mcq, scores.applied) if s.value is not None]
     if not known:
         return None
     return sum(known) / len(known)
+
+
+def final_mastery(scores: MasteryScores) -> float | None:
+    """Plan A weighted final mastery (renormalized, tutor-only capped)."""
+    return scores.final
+
+
+def evidence_total(scores: MasteryScores) -> int:
+    """Total evidence rows behind a score (all five streams)."""
+    return scores.total_count
 
 
 def _scope_concepts(concepts: list[Concept]) -> list[Concept]:
@@ -61,7 +75,7 @@ def rollup_concepts(
         scores = mastery_service.mastery_for_concept(
             db, user_id=user_id, project_id=project_id, concept_id=concept.id
         )
-        if scores.mcq.count + scores.applied.count > 0:
+        if evidence_total(scores) > 0:
             practiced += 1
             value = display_mastery(scores)
             if value is not None:

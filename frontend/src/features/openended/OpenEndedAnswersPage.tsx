@@ -3,10 +3,11 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { ArrowLeft, ArrowRight, Loader2, PenLine, RotateCcw } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { estimateMinutes } from "@/lib/estimate"
 import { Button, EmptyState, ErrorBox, LoadingState, PageHeader, ProgressBar } from "@/components/ui"
 import {
+  AnimatedNumber,
   KnowledgeTreeSelector,
-  SelectionSummary,
   minimalCover,
   selectionCounts,
   type TreeTopic,
@@ -196,7 +197,7 @@ export function OpenEndedAnswersPage({
 
   return (
     <div className="min-h-full bg-slate-50">
-      <div className="mx-auto max-w-5xl px-8 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <PageHeader
           title="Open Ended Answers"
           description="Explain concepts in your own words and evaluate your understanding using your project knowledge."
@@ -228,39 +229,77 @@ export function OpenEndedAnswersPage({
         )}
 
         {topics !== null && topics.length > 0 && stage === "setup" && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="space-y-6">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-                <h2 className="mb-4 text-base font-semibold text-slate-900">How many questions do you want to generate?</h2>
-                <QuestionCountStepper label="Number of questions" hint={`1 to ${MAX_QUESTIONS} open-ended questions`} value={count} onChange={setCount} min={1} max={MAX_QUESTIONS} />
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-                <h2 className="mb-1 text-base font-semibold text-slate-900">What should these questions cover?</h2>
-                <p className="mb-4 text-sm text-slate-500">Select an entire project, topics, subtopics, or individual concepts.</p>
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-5"
+          >
+            <section
+              aria-label="Knowledge selection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-3"
+            >
+              <h2 className="text-base font-semibold text-slate-900">What should these questions cover?</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select an entire project, topics, subtopics, or individual concepts.
+              </p>
+              <div className="mt-4">
                 <KnowledgeTreeSelector topics={topics} checked={checked} onChange={setChecked} />
               </div>
-            </div>
-            <div className="lg:sticky lg:top-6 lg:self-start">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-900">Session summary</h3>
-                <p className="mt-1 text-sm text-slate-600">{count} question{count === 1 ? "" : "s"}</p>
-                <div className="mt-2">
-                  <SelectionSummary counts={counts} />
+            </section>
+
+            <aside aria-label="Open-ended settings" className="lg:col-span-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:sticky lg:top-6">
+                <h2 className="text-base font-semibold text-slate-900">Open-ended settings</h2>
+
+                <div className="mt-4">
+                  <QuestionCountStepper label="Number of questions" hint={`1 to ${MAX_QUESTIONS} open-ended questions`} value={count} onChange={setCount} min={1} max={MAX_QUESTIONS} />
                 </div>
+                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  Questions will be generated from your selected project knowledge and evaluated against the
+                  retrieved material.
+                </p>
+
                 {error && (
-                  <div className="mt-3">
+                  <div className="mt-4">
                     <ErrorBox message={error} onRetry={() => setError(null)} retryLabel="Dismiss" />
                   </div>
                 )}
-                <Button type="button" disabled={counts.concepts === 0} onClick={() => void generate()} className="mt-4 w-full">
-                  Create Questions
-                </Button>
+
+                <div className="mt-5 border-t border-slate-100 pt-4" aria-live="polite">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Session summary</p>
+                  <dl className="mt-2 space-y-1.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Concepts</dt>
+                      <dd className="font-mono-data font-semibold text-slate-900">
+                        <AnimatedNumber value={counts.concepts} />
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Questions</dt>
+                      <dd className="font-mono-data font-semibold text-slate-900">{count}</dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Estimated time</dt>
+                      <dd className="font-medium text-slate-900">{estimateMinutes({ openEnded: count })}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={counts.concepts === 0}
+                  onClick={() => void generate()}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Create Questions →
+                </button>
                 {counts.concepts === 0 && (
                   <p className="mt-2 text-center text-xs text-slate-400">Select at least one concept to continue.</p>
                 )}
               </div>
-            </div>
-          </div>
+            </aside>
+          </motion.div>
         )}
 
         {stage === "generating" && (

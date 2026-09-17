@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -14,6 +13,12 @@ import {
 } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { Button, EmptyState, ErrorBox, LoadingState, SectionHeader, Tag } from "@/components/ui"
+import {
+  AnimatedNumber,
+  checkedConceptIds,
+  KnowledgeTreeSelector,
+  selectionCounts,
+} from "@/components/knowledge/KnowledgeTreeSelector"
 import { cn } from "@/lib/utils"
 
 type Card = {
@@ -46,10 +51,10 @@ function cardState(c: Card): CardState {
 }
 
 const GRADES = [
-  { id: "again", label: "Again", hint: "+1d", cls: "border-red-200 bg-red-50 text-red-600 hover:bg-red-100" },
-  { id: "hard", label: "Hard", hint: "+3d", cls: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" },
-  { id: "good", label: "Good", hint: "+4d", cls: "border-green-200 bg-green-50 text-green-700 hover:bg-green-100" },
-  { id: "easy", label: "Easy", hint: "+7d", cls: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" },
+  { id: "again", label: "Again", hint: "Restart", cls: "border-red-200 bg-red-50 text-red-600 hover:bg-red-100" },
+  { id: "hard", label: "Hard", hint: "Soon", cls: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" },
+  { id: "good", label: "Good", hint: "Later", cls: "border-green-200 bg-green-50 text-green-700 hover:bg-green-100" },
+  { id: "easy", label: "Easy", hint: "Much later", cls: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" },
 ] as const
 
 function StudySession({
@@ -177,76 +182,6 @@ function StudySession({
   )
 }
 
-function SearchablePicker({
-  label,
-  searchPlaceholder,
-  items,
-  selectedId,
-  onSelect,
-}: {
-  label: string
-  searchPlaceholder: string
-  items: { id: string; title: string; hint?: string }[]
-  selectedId: string | null
-  onSelect: (id: string) => void
-}) {
-  const [q, setQ] = useState("")
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter(
-      (i) => i.title.toLowerCase().includes(needle) || (i.hint ?? "").toLowerCase().includes(needle),
-    )
-  }, [q, items])
-
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
-      <div className="relative mb-2">
-        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={`Search ${label.toLowerCase()}`}
-          className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
-      </div>
-      <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-        {filtered.length === 0 && (
-          <p className="px-2 py-4 text-center text-xs text-slate-400">
-            No matches for “{q.trim()}” — try a different term.
-          </p>
-        )}
-        {filtered.map((item) => {
-          const active = selectedId === item.id
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                active
-                  ? "border-indigo-500 bg-indigo-50 text-indigo-800"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
-              )}
-            >
-              <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full", active ? "bg-indigo-600 text-white" : "bg-slate-100 text-transparent")}>
-                <Check size={12} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{item.title}</span>
-                {item.hint && <span className="block truncate text-xs opacity-70">{item.hint}</span>}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 type SubView = "dashboard" | "study" | "library" | "generate"
 
 export function Flashcards({
@@ -269,10 +204,7 @@ export function Flashcards({
   const [view, setView] = useState<SubView>("dashboard")
   const [filter, setFilter] = useState("all")
   const [search, setSearch] = useState("")
-  const [genScope, setGenScope] = useState<"project" | "topic" | "subtopic" | "concept">("project")
-  const [genTopicId, setGenTopicId] = useState<string | null>(null)
-  const [genSubId, setGenSubId] = useState<string | null>(null)
-  const [genConceptId, setGenConceptId] = useState<string | null>(null)
+  const [genChecked, setGenChecked] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     setFailed(false)
@@ -351,19 +283,28 @@ export function Flashcards({
     }
   }
 
+  const genCounts = useMemo(() => selectionCounts(topics ?? [], genChecked), [topics, genChecked])
+  const genConceptList = useMemo(
+    () => checkedConceptIds(topics ?? [], genChecked),
+    [topics, genChecked],
+  )
+  const totalConcepts = useMemo(
+    () => (topics ?? []).reduce((n, t) => n + t.subtopics.reduce((m, s) => m + s.concepts.length, 0), 0),
+    [topics],
+  )
+  const genValid = genConceptList.length > 0
+
   async function buildDeck() {
-    if (building) return
-    if (genScope === "topic" && !genTopicId) return
-    if (genScope === "subtopic" && !genSubId) return
-    if (genScope === "concept" && !genConceptId) return
+    if (building || !genValid) return
     setBuilding(true)
     setBuildResult(null)
     try {
+      // Entire project selected → project scope ({}); otherwise the explicit
+      // concept_ids multi-select (same backend path as the tutor flow).
       const body =
-        genScope === "topic" ? { topic_id: genTopicId }
-        : genScope === "subtopic" ? { subtopic_id: genSubId }
-        : genScope === "concept" ? { concept_id: genConceptId }
-        : {}
+        genConceptList.length >= totalConcepts && totalConcepts > 0
+          ? {}
+          : { concept_ids: genConceptList }
       const res = await apiClient.post<{ created: number; total: number }>(`/projects/${projectId}/flashcards/decks`, body)
       setBuildResult(res.data)
       await load()
@@ -387,41 +328,14 @@ export function Flashcards({
     })
   }, [cards, filter, search, conceptTitles])
 
-  const genTopicItems = useMemo(
-    () => (topics ?? []).map((t) => ({ id: t.id, title: t.title, hint: `${t.subtopics.length} subtopics` })),
-    [topics],
-  )
-  const genSubItems = useMemo(
-    () => (topics ?? []).flatMap((t) => t.subtopics.map((s) => ({ id: s.id, title: s.title, hint: t.title }))),
-    [topics],
-  )
-  const genConceptItems = useMemo(() => {
-    const out: { id: string; title: string; hint?: string }[] = []
-    for (const t of topics ?? []) {
-      for (const s of t.subtopics) {
-        for (const c of s.concepts ?? []) out.push({ id: c.id, title: c.title, hint: `${t.title} → ${s.title}` })
-      }
-    }
-    return out
-  }, [topics])
   const builtPreview = useMemo(() => {
     if (!buildResult) return []
-    if (genScope === "concept" && genConceptId) {
-      return cards.filter((c) => c.concept_id === genConceptId).slice(0, 10)
+    if (genConceptList.length >= totalConcepts || genConceptList.length === 0) {
+      return cards.slice(0, 10)
     }
-    if (genScope === "subtopic" && genSubId) {
-      const allowed = new Set(
-        (topics ?? []).flatMap((t) => t.subtopics).find((s) => s.id === genSubId)?.concepts.map((c) => c.id) ?? [],
-      )
-      return cards.filter((c) => allowed.has(c.concept_id)).slice(0, 10)
-    }
-    if (genScope === "topic" && genTopicId) {
-      const topic = (topics ?? []).find((t) => t.id === genTopicId)
-      const allowed = new Set((topic?.subtopics ?? []).flatMap((s) => s.concepts.map((c) => c.id)))
-      return cards.filter((c) => allowed.has(c.concept_id)).slice(0, 10)
-    }
-    return cards.slice(0, 10)
-  }, [buildResult, cards, genScope, genConceptId, genSubId, genTopicId, topics])
+    const allowed = new Set(genConceptList)
+    return cards.filter((c) => allowed.has(c.concept_id)).slice(0, 10)
+  }, [buildResult, cards, genConceptList, totalConcepts])
 
   if (session) {
     return (
@@ -607,51 +521,49 @@ export function Flashcards({
       )}
 
       {view === "generate" && (
-        <div className="max-w-2xl">
-          <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-8">
+        <div>
+          <div className="rounded-xl border border-slate-200 bg-white p-8">
             <h2 className="text-lg font-semibold text-slate-900">Generate Flashcards</h2>
-            <p className="text-sm text-slate-500">
-              Decks are built deterministically from your learning targets — one recall card per CORE concept, no duplicates.
+            <p className="mt-1 text-sm text-slate-500">
+              Select topics, subtopics, or individual concepts — one recall card per CORE concept, no duplicates.
             </p>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Scope</label>
-              <div className="flex flex-wrap gap-2">
-                {(["project", "topic", "subtopic", "concept"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setGenScope(s)}
-                    className={cn("rounded-lg border px-3 py-1.5 text-sm capitalize transition-colors", genScope === s ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-600 hover:border-slate-300")}
-                  >
-                    {s === "project" ? "Entire Project" : s}
-                  </button>
-                ))}
-              </div>
+            <div className="mt-4">
+              <KnowledgeTreeSelector topics={topics} checked={genChecked} onChange={setGenChecked} />
             </div>
 
-            {genScope === "topic" && (
-              <SearchablePicker label="Topic" searchPlaceholder="Search topics…" items={genTopicItems} selectedId={genTopicId} onSelect={setGenTopicId} />
-            )}
-            {genScope === "subtopic" && (
-              <SearchablePicker label="Subtopic" searchPlaceholder="Search subtopics…" items={genSubItems} selectedId={genSubId} onSelect={setGenSubId} />
-            )}
-            {genScope === "concept" && (
-              <SearchablePicker label="Concept" searchPlaceholder="Search concepts…" items={genConceptItems} selectedId={genConceptId} onSelect={setGenConceptId} />
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-4" aria-live="polite">
+              <p className="text-sm text-slate-600">
+                Selected knowledge ·{" "}
+                <strong className="font-semibold text-slate-900">
+                  <AnimatedNumber value={genCounts.topics} /> Topic{genCounts.topics === 1 ? "" : "s"}
+                </strong>
+                {" · "}
+                <strong className="font-semibold text-slate-900">
+                  <AnimatedNumber value={genCounts.subtopics} /> Subtopic{genCounts.subtopics === 1 ? "" : "s"}
+                </strong>
+                {" · "}
+                <strong className="font-semibold text-slate-900">
+                  <AnimatedNumber value={genCounts.concepts} /> Concept{genCounts.concepts === 1 ? "" : "s"}
+                </strong>
+              </p>
+            </div>
 
             <button
               type="button"
               onClick={() => void buildDeck()}
-              disabled={building || (genScope === "topic" && !genTopicId) || (genScope === "subtopic" && !genSubId) || (genScope === "concept" && !genConceptId)}
-              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+              disabled={building || !genValid}
+              className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {building && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
               {building ? "Building…" : "Generate"}
             </button>
+            {!genValid && (
+              <p className="mt-2 text-xs text-slate-400">Select at least one concept to generate.</p>
+            )}
 
             {buildResult && (
-              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                 Built {buildResult.created} new card{buildResult.created === 1 ? "" : "s"} — {buildResult.total} total in project.
               </div>
             )}

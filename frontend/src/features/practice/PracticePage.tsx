@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 import { Dumbbell, Loader2 } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
+import { estimateMinutes } from "@/lib/estimate"
 import { Button, EmptyState, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
 import {
+  AnimatedNumber,
   KnowledgeTreeSelector,
-  SelectionSummary,
   minimalCover,
   selectionCounts,
   type TreeTopic,
@@ -18,7 +19,7 @@ import { PracticeSession } from "./PracticeSession"
 import type { ConceptMeta, McqItem, McqResult, OeItem, OeResult, PracticeLevel } from "./types"
 import type { ProjectTab } from "@/features/dashboard/Dashboard"
 
-type Stage = "select" | "configure" | "generating" | "session" | "results"
+type Stage = "select" | "generating" | "session" | "results"
 
 const LEVELS: { id: PracticeLevel; label: string; hint: string }[] = [
   { id: "adaptive", label: "Current level", hint: "Matched to mastery" },
@@ -52,6 +53,7 @@ export function PracticePage({
   const [stage, setStage] = useState<Stage>("select")
   const [genLabel, setGenLabel] = useState("Preparing your practice…")
   const [genError, setGenError] = useState<string | null>(null)
+  const reduce = useReducedMotion()
 
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [mcq, setMcq] = useState<McqItem[]>([])
@@ -84,6 +86,9 @@ export function PracticePage({
   }, [topics])
 
   const counts = useMemo(() => selectionCounts(topics ?? [], checked), [topics, checked])
+  const hasConcepts = counts.concepts > 0
+  const hasQuestions = mcqCount + oeCount > 0
+  const valid = hasConcepts && hasQuestions
 
   const reset = () => {
     setStage("select")
@@ -102,7 +107,7 @@ export function PracticePage({
     setMcqCount(Math.max(0, Math.min(20, initialPlan.mcqCount)))
     setOeCount(Math.max(0, Math.min(10, initialPlan.oeCount)))
     onPlanConsumed?.()
-    // start() routes to session on success, or configure (prefilled) on error.
+    // start() routes to session on success, or back to select (prefilled) on error.
     void start({
       conceptIds: initialPlan.conceptIds,
       mcqCount: initialPlan.mcqCount,
@@ -170,20 +175,22 @@ export function PracticePage({
               ? (detail ?? "This selection has no practicable concepts yet — pick different knowledge.")
               : (detail ?? "Could not build your practice session."),
       )
-      setStage("configure")
+      setStage("select")
     }
   }
 
+  const levelLabel = LEVELS.find((l) => l.id === level)?.label ?? "Current level"
+
   return (
     <div className="min-h-full bg-slate-50">
-      <div className="mx-auto max-w-5xl px-8 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <PageHeader
           title="Practice"
           description="Practice what you've learned using questions grounded in your project knowledge."
         />
 
         {topics === null && !failed && (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6">
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-6 shadow-sm">
             <LoadingState text="Loading your knowledge…" />
           </div>
         )}
@@ -193,7 +200,7 @@ export function PracticePage({
           </div>
         )}
         {topics !== null && topics.length === 0 && stage === "select" && (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <EmptyState
               icon={<Dumbbell size={24} />}
               title="Practice your knowledge"
@@ -208,90 +215,112 @@ export function PracticePage({
         )}
 
         {topics !== null && topics.length > 0 && stage === "select" && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h2 className="mb-1 text-base font-semibold text-slate-900">What do you want to practice?</h2>
-              <p className="mb-4 text-sm text-slate-500">Select any combination — an entire project, topics, subtopics, or individual concepts.</p>
-              <KnowledgeTreeSelector topics={topics} checked={checked} onChange={setChecked} />
-            </div>
-            <div className="lg:sticky lg:top-6 lg:self-start">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-900">Selection summary</h3>
-                <div className="mt-2">
-                  <SelectionSummary counts={counts} />
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-5"
+          >
+            <section
+              aria-label="Knowledge selection"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-3"
+            >
+              <h2 className="text-base font-semibold text-slate-900">What do you want to practice?</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select any combination — an entire project, topics, subtopics, or individual concepts.
+              </p>
+              <div className="mt-4">
+                <KnowledgeTreeSelector topics={topics} checked={checked} onChange={setChecked} />
+              </div>
+            </section>
+
+            <aside aria-label="Practice settings" className="lg:col-span-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:sticky lg:top-6">
+                <h2 className="text-base font-semibold text-slate-900">Practice settings</h2>
+
+                <div className="mt-4 space-y-4">
+                  <QuestionCountStepper label="How many MCQs?" hint="Multiple-choice questions" value={mcqCount} onChange={setMcqCount} min={0} max={MAX_MCQS} />
+                  <QuestionCountStepper label="How many Open-Ended Answers?" hint="Written answers, AI-evaluated" value={oeCount} onChange={setOeCount} min={0} max={MAX_OE} />
                 </div>
-                <p className="mt-1 text-xs text-slate-400">{counts.concepts} concepts selected</p>
-                <Button type="button" disabled={counts.concepts === 0} onClick={() => setStage("configure")} className="mt-4 w-full">
-                  Continue
-                </Button>
-                {counts.concepts === 0 && (
-                  <p className="mt-2 text-center text-xs text-slate-400">Select at least one concept to continue.</p>
+
+                <div className="mt-5">
+                  <p className="mb-2 text-sm font-semibold text-slate-800">Level</p>
+                  <div className="grid grid-cols-2 gap-2" role="group" aria-label="Practice level">
+                    {LEVELS.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => setLevel(l.id)}
+                        aria-pressed={level === l.id}
+                        className={cn(
+                          "rounded-lg border px-4 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+                          level === l.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-slate-300",
+                        )}
+                      >
+                        <span className={cn("block text-sm font-medium", level === l.id ? "text-indigo-700" : "text-slate-600")}>{l.label}</span>
+                        <span className="block text-xs text-slate-400">{l.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    Questions are generated from your project knowledge and matched to your level.
+                  </p>
+                </div>
+
+                {genError && (
+                  <div className="mt-4">
+                    <ErrorBox message={genError} onRetry={() => setGenError(null)} retryLabel="Dismiss" />
+                  </div>
+                )}
+
+                <div className="mt-5 border-t border-slate-100 pt-4" aria-live="polite">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Practice summary</p>
+                  <dl className="mt-2 space-y-1.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Concepts</dt>
+                      <dd className="font-mono-data font-semibold text-slate-900">
+                        <AnimatedNumber value={counts.concepts} />
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Questions</dt>
+                      <dd className="font-mono-data font-semibold text-slate-900">
+                        {mcqCount} MCQ{mcqCount === 1 ? "" : "s"} + {oeCount} open-ended
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Estimated time</dt>
+                      <dd className="font-medium text-slate-900">{estimateMinutes({ mcq: mcqCount, openEnded: oeCount })}</dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-500">Mode</dt>
+                      <dd className="font-medium text-slate-900">Practice · {levelLabel}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!valid}
+                  onClick={() => void start()}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Start Practice →
+                </button>
+                {!valid && (
+                  <p className="mt-2 text-center text-xs text-slate-400">
+                    {!hasConcepts
+                      ? "Select at least one concept to start."
+                      : "Request at least one question to start."}
+                  </p>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-
-        {stage === "configure" && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mt-6 max-w-2xl">
-            <div className="rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
-              <h2 className="text-base font-semibold text-slate-900">Configure your practice session</h2>
-              <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500">Selected knowledge</p>
-                <p className="mt-1 text-sm font-medium text-slate-800">
-                  {counts.topics} Topic{counts.topics === 1 ? "" : "s"} · {counts.subtopics} Subtopic{counts.subtopics === 1 ? "" : "s"} · {counts.concepts} Concept{counts.concepts === 1 ? "" : "s"}
-                </p>
-              </div>
-
-              <div className="mt-5">
-                <p className="mb-2 text-sm font-medium text-slate-700">Level</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {LEVELS.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => setLevel(l.id)}
-                      aria-pressed={level === l.id}
-                      className={cn(
-                        "rounded-lg border px-4 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
-                        level === l.id ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-slate-300",
-                      )}
-                    >
-                      <span className={cn("block text-sm font-medium", level === l.id ? "text-indigo-700" : "text-slate-600")}>{l.label}</span>
-                      <span className="block text-xs text-slate-400">{l.hint}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <QuestionCountStepper label="How many MCQs?" hint="Multiple-choice questions" value={mcqCount} onChange={setMcqCount} min={0} max={MAX_MCQS} />
-                <QuestionCountStepper label="How many Open-Ended Answers?" hint="Written answers, AI-evaluated" value={oeCount} onChange={setOeCount} min={0} max={MAX_OE} />
-              </div>
-
-              {genError && (
-                <div className="mt-4">
-                  <ErrorBox message={genError} onRetry={() => setGenError(null)} retryLabel="Dismiss" />
-                </div>
-              )}
-              {mcqCount + oeCount < 1 && (
-                <p className="mt-3 text-center text-xs text-amber-600">Request at least one question to start.</p>
-              )}
-
-              <div className="mt-6 flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => setStage("select")} className="flex-1">
-                  Back
-                </Button>
-                <Button type="button" disabled={mcqCount + oeCount < 1} onClick={() => void start()} className="flex-[2]">
-                  Start Practice
-                </Button>
-              </div>
-            </div>
+            </aside>
           </motion.div>
         )}
 
         {stage === "generating" && (
-          <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-slate-200 bg-white px-6 py-16 text-center">
+          <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
             <Loader2 className="mx-auto h-6 w-6 animate-spin text-indigo-600" />
             <p className="mt-3 text-sm font-medium text-slate-700" aria-live="polite">{genLabel}</p>
             <p className="mt-1 text-xs text-slate-400">Questions are written from your project knowledge.</p>

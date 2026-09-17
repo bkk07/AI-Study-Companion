@@ -1,13 +1,15 @@
-"""Growth analysis — read-time EMA replay over append-only evidence (Phase 45).
+"""Growth analysis — read-time EMA replay over append-only evidence (Phase 45 + Plan A).
 
 No separate engine and no counters: for a scope, order its evidence rows
-by `created_at` and re-run the confirmed Phase 41 engine over each
-prefix, emitting the running mastery after every point. Concept scope
-yields the full series plus per-stream trends (last minus first running
-value; None when that stream has fewer than 2 points — sparse histories
-are reported honestly, never invented). Project scope aggregates
-per-concept current mastery over evidenced concepts only. Read-only,
-per-user, no LLM.
+by `created_at` and re-run the Plan A engine over each prefix, emitting
+the running mastery after every point. Concept scope yields the full
+series plus per-stream trends (last minus first running value; None when
+that stream has fewer than 2 points — sparse histories are reported
+honestly, never invented). Project scope aggregates per-concept current
+mastery over evidenced concepts only. Read-only, per-user, no LLM.
+
+The legacy `mcq` / `applied` series are preserved verbatim alongside the
+five Plan A streams and the weighted `final` series.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.models.concept import Concept
 from app.models.mastery_evidence import MasteryEvidence
 from app.models.project import Project
-from app.services.mastery_service import EvidenceInput, compute_mastery
+from app.services.mastery_service import EvidenceInput, compute_mastery, stream_for
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,12 @@ class GrowthPoint:
     raw_score: float
     mcq_after: float | None
     applied_after: float | None
+    quiz_after: float | None = None
+    open_ended_after: float | None = None
+    practice_after: float | None = None
+    flashcard_after: float | None = None
+    tutor_after: float | None = None
+    final_after: float | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +47,12 @@ class ConceptGrowth:
     points: tuple[GrowthPoint, ...] = ()
     mcq_trend: float | None = None
     applied_trend: float | None = None
+    final_trend: float | None = None
+    quiz_trend: float | None = None
+    open_ended_trend: float | None = None
+    practice_trend: float | None = None
+    flashcard_trend: float | None = None
+    tutor_trend: float | None = None
     count: int = 0
 
 
@@ -49,6 +63,7 @@ class ConceptCurrent:
     mcq: float | None
     applied: float | None
     count: int
+    final: float | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +71,7 @@ class ProjectGrowth:
     concepts: tuple[ConceptCurrent, ...] = ()
     avg_mcq: float | None = None
     avg_applied: float | None = None
+    avg_final: float | None = None
     evidenced_concepts: int = 0
     total_evidence: int = 0
     since: datetime | None = None
@@ -87,6 +103,15 @@ def _trend(values: list[float]) -> float | None:
     return values[-1] - values[0] if len(values) >= 2 else None
 
 
+def _to_input(row: MasteryEvidence) -> EvidenceInput:
+    return EvidenceInput(
+        evidence_type=row.evidence_type,
+        score=float(row.raw_score),
+        at=row.created_at,
+        source=getattr(row, "source", None),
+    )
+
+
 def concept_growth(
     db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID, concept_id: uuid.UUID
 ) -> ConceptGrowth:
@@ -97,13 +122,25 @@ def concept_growth(
     points: list[GrowthPoint] = []
     mcq_run: list[float] = []
     applied_run: list[float] = []
+    final_run: list[float] = []
+    stream_runs: dict[str, list[float]] = {
+        "quiz": [], "open_ended": [], "practice": [], "flashcard": [], "tutor": [],
+    }
     for row in rows:
-        seen.append(EvidenceInput(evidence_type=row.evidence_type, score=float(row.raw_score), at=row.created_at))
+        seen.append(_to_input(row))
         scores = compute_mastery(seen)
+        # Legacy trend membership is by evidence TYPE (unchanged): mcq rows
+        # extend the mcq run, everything else the applied run.
         if row.evidence_type == "mcq":
             mcq_run.append(scores.mcq.value)
         else:
             applied_run.append(scores.applied.value)
+        route = stream_for(row.evidence_type, getattr(row, "source", None))
+        stream_value = getattr(scores, route).value
+        if stream_value is not None:
+            stream_runs[route].append(stream_value)
+        if scores.final is not None:
+            final_run.append(scores.final)
         points.append(
             GrowthPoint(
                 at=row.created_at,
@@ -111,6 +148,12 @@ def concept_growth(
                 raw_score=float(row.raw_score),
                 mcq_after=scores.mcq.value,
                 applied_after=scores.applied.value,
+                quiz_after=scores.quiz.value,
+                open_ended_after=scores.open_ended.value,
+                practice_after=scores.practice.value,
+                flashcard_after=scores.flashcard.value,
+                tutor_after=scores.tutor.value,
+                final_after=scores.final,
             )
         )
     return ConceptGrowth(
@@ -118,6 +161,12 @@ def concept_growth(
         points=tuple(points),
         mcq_trend=_trend(mcq_run),
         applied_trend=_trend(applied_run),
+        final_trend=_trend(final_run),
+        quiz_trend=_trend(stream_runs["quiz"]),
+        open_ended_trend=_trend(stream_runs["open_ended"]),
+        practice_trend=_trend(stream_runs["practice"]),
+        flashcard_trend=_trend(stream_runs["flashcard"]),
+        tutor_trend=_trend(stream_runs["tutor"]),
         count=len(points),
     )
 
@@ -140,9 +189,7 @@ def project_growth(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) ->
         rows = _rows(db, user_id, project.id, concept.id)
         if not rows:
             continue  # unevidenced concepts are excluded, never zero-filled
-        scores = compute_mastery(
-            [EvidenceInput(evidence_type=r.evidence_type, score=float(r.raw_score), at=r.created_at) for r in rows]
-        )
+        scores = compute_mastery([_to_input(r) for r in rows])
         current.append(
             ConceptCurrent(
                 concept_id=concept.id,
@@ -150,16 +197,19 @@ def project_growth(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) ->
                 mcq=scores.mcq.value,
                 applied=scores.applied.value,
                 count=len(rows),
+                final=scores.final,
             )
         )
         stamps.extend(r.created_at for r in rows)
         total += len(rows)
     mcq_vals = [c.mcq for c in current if c.mcq is not None]
     applied_vals = [c.applied for c in current if c.applied is not None]
+    final_vals = [c.final for c in current if c.final is not None]
     return ProjectGrowth(
         concepts=tuple(current),
         avg_mcq=(sum(mcq_vals) / len(mcq_vals)) if mcq_vals else None,
         avg_applied=(sum(applied_vals) / len(applied_vals)) if applied_vals else None,
+        avg_final=(sum(final_vals) / len(final_vals)) if final_vals else None,
         evidenced_concepts=len(current),
         total_evidence=total,
         since=min(stamps) if stamps else None,

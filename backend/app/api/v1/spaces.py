@@ -19,7 +19,7 @@ def create_space(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        space = space_service.create_space(db, current_user.id, payload.name)
+        space = space_service.create_space(db, current_user.id, payload.name, payload.description)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return space

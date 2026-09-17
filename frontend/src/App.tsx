@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom"
 import { ArrowRight, FolderKanban, MessagesSquare, ShieldCheck, Wand2 } from "lucide-react"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -15,6 +15,8 @@ import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage"
 function Home() {
   const { user, token } = useAuth()
   if (!token) return <LandingPage />
+  // Admins live in /admin — no student home, no spaces nav.
+  if (user?.is_admin) return <Navigate to="/admin" replace />
 
   const cards = [
     {

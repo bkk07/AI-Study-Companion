@@ -36,8 +36,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.concept import Concept
+from app.models.concept_relationship import ConceptRelationship
 from app.models.project import Project
 from app.models.recommendation import Recommendation
+from app.models.subtopic import Subtopic
+from app.models.topic import Topic
 from app.models.mismatch import MISMATCH_TYPES
 from app.services.mastery_levels import MASTERED_FROM
 from app.services.mismatch_service import OVERCONFIDENT_ACCURACY, OVERCONFIDENT_CONF
@@ -98,17 +101,20 @@ def _goal_matched(concept_name: str, goal_keywords: tuple[str, ...]) -> bool:
     return False
 
 
-def goal_keywords_for_project(project_name: str | None) -> tuple[str, ...]:
-    """Derive goal keywords from a project name (no goal column exists yet).
+def goal_keywords_for_project(project_name: str | None, goal: str | None = None) -> tuple[str, ...]:
+    """Derive goal keywords from a project's goal text (falls back to its name).
 
-    Returns the raw name plus its tokens so `score_action` can match either
+    No `goal` column existed when this helper was introduced, so the project
+    name was the only signal; now the stored learning goal wins when present
+    and the name remains the fallback so old projects keep working.
+    Returns the raw text plus its tokens so `score_action` can match either
     a whole phrase ("Gradient Descent") or individual words ("gradient").
-    Empty names yield () — no bonus, never an error. Callers that gain a
-    real goal/objective field later should pass its text here instead.
+    Empty/blank input yields () — no bonus, never an error. Callers pass
+    `project.goal` first and `project.name` second.
     """
-    if not project_name or not project_name.strip():
+    text = (goal or "").strip() or (project_name or "").strip()
+    if not text:
         return ()
-    text = project_name.strip()
     return (text, *sorted(_tokenize(text)))
 
 
@@ -295,10 +301,70 @@ NEUTRAL_FALLBACK_REASON = "Start with a core concept from this topic."
 DEFAULT_PRACTICE_LIMIT = 4
 MAX_PRACTICE_LIMIT = 8
 
+# Fresh-starter reason template — curriculum-aware, never invented mastery.
+FRESH_STARTER_REASON = (
+    "No quiz history yet — starting with foundational concepts in curriculum order. "
+    "Suggested starting point {position} of {total}: {name}."
+)
+
 
 def _is_practice_eligible(signal: ConceptSignal) -> bool:
     """CORE-only gate for practice lists (None = legacy, reads as CORE)."""
     return signal.importance is None or signal.importance == "CORE"
+
+
+def _curriculum_order(db: Session, project_id: uuid.UUID) -> dict[uuid.UUID, int]:
+    """Curriculum position per concept: Topic → Subtopic → Concept creation order.
+
+    Falls back to empty map on any read problem (caller then uses id order).
+    """
+    try:
+        rows = (
+            db.query(Concept.id)
+            .join(Subtopic, Concept.subtopic_id == Subtopic.id)
+            .join(Topic, Subtopic.topic_id == Topic.id)
+            .filter(Concept.project_id == project_id)
+            .order_by(Topic.created_at.asc(), Subtopic.created_at.asc(), Concept.created_at.asc())
+            .all()
+        )
+        return {r[0]: i for i, r in enumerate(rows)}
+    except Exception:
+        return {}
+
+
+def _prereq_incoming_counts(db: Session, concept_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """Count of incoming PREREQUISITE_OF edges per concept (roots == 0)."""
+    if not concept_ids:
+        return {}
+    try:
+        rows = (
+            db.query(ConceptRelationship.to_concept_id)
+            .filter(
+                ConceptRelationship.to_concept_id.in_(concept_ids),
+                ConceptRelationship.relation == "PREREQUISITE_OF",
+            )
+            .all()
+        )
+        counts: dict[uuid.UUID, int] = {}
+        for (cid,) in rows:
+            counts[cid] = counts.get(cid, 0) + 1
+        return counts
+    except Exception:
+        return {}
+
+
+def _fresh_sort_key(
+    signal: ConceptSignal,
+    order: dict[uuid.UUID, int],
+    prereqs: dict[uuid.UUID, int],
+    goal_keywords: tuple[str, ...],
+    total_fresh: int = 0,
+) -> tuple:
+    """Roots first, then curriculum order, then id. Goal hits float to top."""
+    goal_hit = _goal_matched(signal.name, goal_keywords)
+    has_prereq = 1 if prereqs.get(signal.concept_id, 0) > 0 else 0
+    pos = order.get(signal.concept_id, 10**9)
+    return (0 if goal_hit else 1, has_prereq, pos, str(signal.concept_id))
 
 
 def recommend_many(
@@ -314,8 +380,8 @@ def recommend_many(
     """Rank CORE practice targets without persisting (Phase C, Recommended tab).
 
     Scores every evidenced CORE signal for TARGETED_QUIZ with the unchanged
-    `score_action` engine; returns the top-`limit` plus an optional neutral
-    fallback when nothing has evidence yet. Pure: the `recommendations`
+    `score_action` engine; returns the top-`limit` plus curriculum-ordered
+    fresh starters when nothing has evidence yet. Pure: the `recommendations`
     table and the single-active-row contract are untouched.
     """
     if any(not isinstance(s, ConceptSignal) for s in signals):
@@ -348,6 +414,8 @@ def recommend_many(
     for concept_id, action_type in recent:
         counts[(concept_id, action_type)] = counts.get((concept_id, action_type), 0) + 1
     evidenced = sum(1 for s in eligible if s.mcq_count + s.applied_count > 0)
+    order = _curriculum_order(db, project.id)
+    prereqs = _prereq_incoming_counts(db, [s.concept_id for s in eligible])
     ranked: list[PracticeCandidate] = []
     for signal in sorted(eligible, key=lambda s: str(s.concept_id)):
         if signal.mcq is None and signal.applied is None:
@@ -363,19 +431,38 @@ def recommend_many(
         ranked.append(PracticeCandidate(
             signal=signal, score=score,
             reasoning=_explain(signal, TARGETED_QUIZ, score, times, goal_keywords=goal_keywords)))
-    ranked.sort(key=lambda c: (-c.score, str(c.signal.concept_id)))
+    # Deterministic tie-break: score desc, then curriculum order, then id
+    # (previously bare UUID order — felt random on fresh/close scores).
+    ranked.sort(key=lambda c: (-c.score, order.get(c.signal.concept_id, 10**9), str(c.signal.concept_id)))
+    ranked = ranked[:limit]
+    # Top-up with foundational fresh starters when evidence is thin:
+    # fresh projects get curriculum-ordered entry points instead of one
+    # random-UUID fallback; partial-evidence projects fill remaining slots.
+    fresh = sorted(
+        (s for s in eligible if s.mcq is None and s.applied is None),
+        key=lambda s: _fresh_sort_key(s, order, prereqs, goal_keywords),
+    )
+    starters: list[PracticeCandidate] = []
+    if fresh:
+        slots = limit - len(ranked) if ranked else limit
+        for i, sig in enumerate(fresh[:slots]):
+            starters.append(PracticeCandidate(
+                signal=sig, score=None,
+                reasoning=FRESH_STARTER_REASON.format(
+                    position=i + 1, total=min(len(fresh), slots), name=sig.name),
+                fallback=False))
+    if ranked:
+        # Evidenced ranking wins; append fresh starters only to fill limit.
+        return (ranked + starters)[:limit], None
+    if starters:
+        # Fresh project: return curriculum-ordered starters as items, no
+        # single random fallback. Keeps old single-fallback shape out of the
+        # API — callers use items[0] as hero.
+        return starters, None
     fallback = None
-    if not ranked and eligible:
-        fresh = sorted(
-            (s for s in eligible if s.mcq is None and s.applied is None),
-            key=lambda s: str(s.concept_id),
-        )
-        if fresh:
-            fallback = PracticeCandidate(signal=fresh[0], score=None,
-                                         reasoning=NEUTRAL_FALLBACK_REASON, fallback=True)
-        else:
-            fallback = _review_fallback(eligible)
-    return ranked[:limit], fallback
+    if eligible:
+        fallback = _review_fallback(eligible)
+    return [], fallback
 
 
 def _review_fallback(eligible: list[ConceptSignal]) -> PracticeCandidate | None:
@@ -490,6 +577,24 @@ def recommend(
         db.add(row)
         db.commit()
         db.refresh(row)
+        # §12: recommendation.generated — single choke point covers the
+        # worker task, dashboard refresh, and direct callers.
+        try:
+            from app.services import activity_service
+
+            activity_service.record_event_committed(
+                db,
+                user_id=user_id,
+                project_id=project.id,
+                space_id=activity_service.resolve_space_id(db, project_id=project.id),
+                event_type=activity_service.EVENT_RECOMMENDATION_GENERATED,
+                entity_type="recommendation",
+                entity_id=row.id,
+                payload={"action": action, "score": round(float(score), 2)},
+                idempotency_key=f"recommendation:{row.id}",
+            )
+        except Exception:
+            pass
         return row
     except Exception:
         db.rollback()

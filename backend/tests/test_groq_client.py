@@ -146,6 +146,37 @@ def test_chat_json_explicit_model_override_wins():
     assert captured["json"]["temperature"] == 0.9  # already above floor, untouched
 
 
+def test_chat_json_accepts_input_output_token_aliases():
+    """Inception-style usage keys record exact counts (millions), never estimated."""
+    from app.services.ai import groq_client as gc
+
+    class FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"ok": true}'}}],
+                    "usage": {"input_tokens": 2_500_000, "output_tokens": 120_000}}
+
+    with (
+        patch("app.services.ai.groq_client.httpx.post", return_value=FakeResp()),
+        patch("app.services.ai.groq_client.get_settings") as settings,
+    ):
+        settings.return_value.llm_provider = "inception"
+        settings.return_value.inception_api_key = "k"
+        settings.return_value.inception_model = "mercury-2.5"
+        records: list = []
+        token = gc._calls_in_scope.set(records)
+        try:
+            assert chat_json("s", "u") == {"ok": True}
+        finally:
+            gc._calls_in_scope.reset(token)
+    assert len(records) == 1
+    assert records[0].prompt_tokens == 2_500_000
+    assert records[0].completion_tokens == 120_000
+    assert records[0].tokens_estimated is False
+
+
 def test_chat_json_transport_errors_propagate_untouched():
     with (
         patch("app.services.ai.groq_client.httpx.post",

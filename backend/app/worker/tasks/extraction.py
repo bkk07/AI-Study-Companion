@@ -3,7 +3,7 @@ import uuid
 
 from app.models.background_job import BackgroundJob
 from app.models.material import Material
-from app.services import job_service
+from app.services import activity_service, job_service
 from app.services.chunking_service import chunk_pages, persist_chunks
 from app.services.document_extraction_service import (
     combine_page_texts,
@@ -15,6 +15,52 @@ from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session as _get_task_session
 
 log = logging.getLogger(__name__)
+
+
+def _event_scope(db, material: Material) -> tuple:
+    """(user_id, space_id) for a material. None-tolerant — tracking never breaks."""
+    try:
+        from app.models.project import Project
+        from app.models.space import Space
+
+        project = db.get(Project, material.project_id)
+        if project is None:
+            return None, None
+        space = db.get(Space, project.space_id)
+        return (space.user_id if space is not None else None), project.space_id
+    except Exception:
+        log.warning("activity scope resolution failed", exc_info=True)
+        return None, None
+
+
+def _emit_ready(db, material: Material, *, page_count: int, chars: int) -> None:
+    user_id, space_id = _event_scope(db, material)
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=material.project_id,
+        space_id=space_id,
+        event_type=activity_service.EVENT_MATERIAL_READY,
+        entity_type="material",
+        entity_id=material.id,
+        payload={"page_count": page_count, "chars": chars},
+        idempotency_key=f"material:{material.id}:ready",
+    )
+
+
+def _emit_failed(db, material: Material, job_id, *, error: str) -> None:
+    user_id, space_id = _event_scope(db, material)
+    activity_service.record_event_committed(
+        db,
+        user_id=user_id,
+        project_id=material.project_id,
+        space_id=space_id,
+        event_type=activity_service.EVENT_MATERIAL_FAILED,
+        entity_type="material",
+        entity_id=material.id,
+        payload={"error": (error or "")[:200]},
+        idempotency_key=f"job:{job_id}:failed",
+    )
 
 
 @celery_app.task(name="process_pdf", bind=True, max_retries=3)
@@ -104,6 +150,7 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 job.status = "failed"
                 job.error = msg
                 db.commit()
+            _emit_failed(db, material, jid, error=msg)
             return {"status": "failed", "error": msg, "material_id": str(mid)}
         except FileNotFoundError as e:
             msg = str(e)[:1000]
@@ -116,6 +163,7 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 job_service.mark_failed(db, jid, msg)
             except Exception:
                 pass
+            _emit_failed(db, material, jid, error=msg)
             return {"status": "failed", "error": msg, "material_id": str(mid)}
         except Exception as e:
             # Transient — retry 3x with backoff, then failed. Count attempts
@@ -129,6 +177,7 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                     job_service.mark_failed(db, jid, msg)
                 except Exception:
                     pass
+                _emit_failed(db, material, jid, error=msg)
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
             raise self.retry(exc=e, countdown=2 ** self.request.retries * 2, max_retries=3)
 
@@ -149,6 +198,7 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 job.status = "completed"
                 db.commit()
 
+        _emit_ready(db, material, page_count=page_count, chars=len(text))
         chained = _chain_downstream(db, material, pages)
         return {
             "status": "completed",

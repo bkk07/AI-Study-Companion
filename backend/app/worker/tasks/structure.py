@@ -5,7 +5,7 @@ import httpx
 
 from app.models.background_job import BackgroundJob
 from app.models.material import Material
-from app.services import job_service
+from app.services import ai_usage_service, job_service
 from app.services.document_extraction_service import extract_pages
 from app.services.structure_extraction_service import (
     StructureExtractionError,
@@ -94,8 +94,17 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
                 pass
             return {"status": "failed", "error": msg, "material_id": str(mid)}
 
+        # Meter Pass 1 (PRD §14). Patched fakes in tests make no provider
+        # calls → the tracker writes nothing.
+        owner_id = ai_usage_service.resolve_owner_user_id(db, project_id=material.project_id)
         try:
-            topic_map = extract_topic_map(pages, page_count)
+            with ai_usage_service.track_llm_call(
+                user_id=owner_id,
+                project_id=material.project_id,
+                feature=ai_usage_service.FEATURE_STRUCTURE_TOPIC_MAP,
+                meta={"pages": page_count},
+            ):
+                topic_map = extract_topic_map(pages, page_count)
         except (StructureExtractionError, ValueError, RuntimeError) as e:
             msg = f"Structure extraction failed: {e}"[:1000]
             try:
@@ -128,13 +137,19 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
                 topic_results.append((topic_span, None))
                 continue
             try:
-                lo_result = extract_learning_objects(
-                    topic_span.title,
-                    [s.title for s in topic_span.subtopics],
-                    source,
-                    topic_span.page_start,
-                    topic_span.page_end,
-                )
+                with ai_usage_service.track_llm_call(
+                    user_id=owner_id,
+                    project_id=material.project_id,
+                    feature=ai_usage_service.FEATURE_STRUCTURE_OBJECTS,
+                    meta={"topic": topic_span.title[:80]},
+                ):
+                    lo_result = extract_learning_objects(
+                        topic_span.title,
+                        [s.title for s in topic_span.subtopics],
+                        source,
+                        topic_span.page_start,
+                        topic_span.page_end,
+                    )
             except (StructureExtractionError, ValueError, RuntimeError) as e:
                 logger.warning("Pass 2 failed for topic %r: %s", topic_span.title, e)
                 failed_topics.append(topic_span.title)

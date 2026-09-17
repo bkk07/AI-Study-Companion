@@ -355,6 +355,55 @@ def test_quiz_rejects_non_core_target():
         db.close()
 
 
+def test_graph_returns_core_nodes_with_mastery_and_scoped_edges():
+    client, engine = _client()
+    try:
+        email, h, pid = _auth_project(client)
+        tag = uuid.uuid4().hex[:8]
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        user = db.query(User).filter(User.email == email).one()
+        project = db.get(Project, uuid.UUID(pid))
+        topic = Topic(project_id=project.id, title=f"T-{tag}")
+        db.add(topic)
+        db.flush()
+        sub = Subtopic(project_id=project.id, topic_id=topic.id, title=f"S-{tag}")
+        db.add(sub)
+        db.flush()
+        a = Concept(project_id=project.id, subtopic_id=sub.id, title=f"A-{tag}", summary="a.")
+        b = Concept(project_id=project.id, subtopic_id=sub.id, title=f"B-{tag}", summary="b.")
+        db.add_all([a, b])
+        db.flush()
+        db.add(ConceptRelationship(from_concept_id=a.id, to_concept_id=b.id,
+                                   relation="PREREQUISITE_OF", created_by="structure"))
+        db.add(MasteryEvidence(user_id=user.id, project_id=project.id, concept_id=a.id,
+                               evidence_type="mcq", raw_score=90))
+        db.commit()
+        aid, bid = str(a.id), str(b.id)
+        db.close()
+        resp = client.get(f"/api/v1/projects/{pid}/knowledge/graph", headers=h)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        by_title = {n["title"]: n for n in body["nodes"]}
+        assert set(by_title) == {f"A-{tag}", f"B-{tag}"}
+        assert by_title[f"A-{tag}"]["status"] == "Mastered"
+        assert by_title[f"B-{tag}"]["status"] == "Not Started"
+        assert len(body["edges"]) == 1
+        edge = body["edges"][0]
+        assert edge["relation"] == "PREREQUISITE_OF"
+        assert {edge["from_id"], edge["to_id"]} == {aid, bid}
+        # isolation: another user cannot see it
+        email2 = f"kn2_{uuid.uuid4().hex[:8]}@example.com"
+        client.post("/api/v1/auth/register", json={"email": email2, "password": "supersecret123"})
+        tok2 = client.post("/api/v1/auth/login",
+                           json={"email": email2, "password": "supersecret123"}).json()["access_token"]
+        assert client.get(f"/api/v1/projects/{pid}/knowledge/graph",
+                          headers={"Authorization": f"Bearer {tok2}"}).status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
 def test_quiz_enriched_source_prefers_page_range_and_adds_context():
     db = _session()
     try:

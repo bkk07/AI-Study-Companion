@@ -29,10 +29,15 @@ router = APIRouter(prefix="/projects/{project_id}/quizzes", tags=["quizzes"])
 def generate_quiz(
     body: QuizGenerateRequest,
     project: Project = Depends(get_authorized_project),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require_llm_budget("quiz-generate")),
 ) -> QuizGenerateResponse:
-    """Generate a validated MCQ quiz for this project (concept or broader scope)."""
+    """Generate a validated MCQ quiz for this project (concept or broader scope).
+
+    Adaptive: scoped generation receives the caller's mastery so weak
+    concepts get more questions and an explicit difficulty plan.
+    """
     try:
         if body.scope == "concept" and body.topic_id is None and body.subtopic_id is None:
             quiz = quiz_generation_service.generate_quiz(
@@ -57,6 +62,7 @@ def generate_quiz(
                 num_questions=body.num_questions,
                 mode=body.mode,
                 difficulty=body.difficulty,
+                user_id=user.id,
             )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

@@ -36,22 +36,32 @@ def get_growth(
                 concept_id=growth.concept_id,
                 points=[
                     GrowthPointRead(at=p.at, evidence_type=p.evidence_type, raw_score=p.raw_score,
-                                    mcq_after=p.mcq_after, applied_after=p.applied_after)
+                                    mcq_after=p.mcq_after, applied_after=p.applied_after,
+                                    quiz_after=p.quiz_after, open_ended_after=p.open_ended_after,
+                                    practice_after=p.practice_after, flashcard_after=p.flashcard_after,
+                                    tutor_after=p.tutor_after, final_after=p.final_after)
                     for p in growth.points
                 ],
                 mcq_trend=growth.mcq_trend,
                 applied_trend=growth.applied_trend,
+                final_trend=growth.final_trend,
+                quiz_trend=growth.quiz_trend,
+                open_ended_trend=growth.open_ended_trend,
+                practice_trend=growth.practice_trend,
+                flashcard_trend=growth.flashcard_trend,
+                tutor_trend=growth.tutor_trend,
                 count=growth.count,
             )
         overview = growth_service.project_growth(db, user_id=user.id, project_id=project.id)
         return ProjectGrowthRead(
             concepts=[
                 ConceptCurrentRead(concept_id=c.concept_id, title=c.title, mcq=c.mcq,
-                                   applied=c.applied, count=c.count)
+                                   applied=c.applied, count=c.count, final=c.final)
                 for c in overview.concepts
             ],
             avg_mcq=overview.avg_mcq,
             avg_applied=overview.avg_applied,
+            avg_final=overview.avg_final,
             evidenced_concepts=overview.evidenced_concepts,
             total_evidence=overview.total_evidence,
             since=overview.since,

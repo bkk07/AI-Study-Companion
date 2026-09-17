@@ -17,6 +17,7 @@ from app.models.tutor_conversation import TutorConversation, TutorMessage
 from app.models.user import User
 from app.schemas.tutor import TutorCitation
 from app.services import tutor_service
+from app.services import ai_usage_service
 from app.services.ai import groq_client
 from app.services.tutor_service import TutorAskResponse
 
@@ -191,7 +192,12 @@ def send_message(
         )
         if first_q is not None and convo.title == _title_for(first_q[0]):
             recent = get_messages(db, convo.id)
-            ai_title = _ai_title(recent)
+            with ai_usage_service.track_llm_call(
+                user_id=convo.user_id,
+                project_id=convo.project_id,
+                feature=ai_usage_service.FEATURE_TUTOR_TITLE,
+            ):
+                ai_title = _ai_title(recent)
             if ai_title:
                 convo.title = ai_title
 
@@ -199,6 +205,24 @@ def send_message(
     db.refresh(user_msg)
     db.refresh(assistant_msg)
     db.refresh(convo)
+    # §12: tutor.message — one row per exchange, keyed on the assistant reply.
+    from app.services import activity_service as _activity
+
+    _activity.record_event_committed(
+        db,
+        user_id=convo.user_id,
+        project_id=convo.project_id,
+        space_id=_activity.resolve_space_id(db, project_id=convo.project_id),
+        event_type=_activity.EVENT_TUTOR_MESSAGE,
+        entity_type="message",
+        entity_id=assistant_msg.id,
+        payload={
+            "supported": bool(response.supported),
+            "citations": len(response.citations),
+            "conversation_id": str(convo.id),
+        },
+        idempotency_key=f"message:{assistant_msg.id}",
+    )
     return user_msg, assistant_msg, response
 
 

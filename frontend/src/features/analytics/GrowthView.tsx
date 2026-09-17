@@ -17,6 +17,7 @@ type ConceptGrowth = {
   points: GrowthPoint[]
   mcq_trend: number | null
   applied_trend: number | null
+  final_trend?: number | null
   count: number
 }
 
@@ -32,6 +33,7 @@ type ProjectGrowth = {
   concepts: ConceptCurrent[]
   avg_mcq: number | null
   avg_applied: number | null
+  avg_final?: number | null
   evidenced_concepts: number
   total_evidence: number
   since: string | null
@@ -155,7 +157,7 @@ export function GrowthView({ projectId }: { projectId: string }) {
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600">MCQ Mastery</span>
@@ -169,6 +171,13 @@ export function GrowthView({ projectId }: { projectId: string }) {
                 <span className="font-mono-data font-semibold text-slate-800">{fmt(overview.avg_applied)}</span>
               </div>
               <ProgressBar value={overview.avg_applied} className="mt-1.5" barClass="bg-emerald-500" />
+            </div>
+            <div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Final Mastery</span>
+                <span className="font-mono-data font-semibold text-slate-800">{fmt(overview.avg_final ?? null)}</span>
+              </div>
+              <ProgressBar value={overview.avg_final ?? null} className="mt-1.5" barClass="bg-sky-500" />
             </div>
           </div>
           <p className="mt-3 text-xs text-slate-500">
@@ -208,6 +217,12 @@ export function GrowthView({ projectId }: { projectId: string }) {
                 <TrendBadge value={series.mcq_trend} />
                 <span className="font-medium text-slate-700">Applied</span>
                 <TrendBadge value={series.applied_trend} />
+                {series.final_trend !== undefined && (
+                  <>
+                    <span className="font-medium text-slate-700">Final</span>
+                    <TrendBadge value={series.final_trend} />
+                  </>
+                )}
               </div>
               <Sparkline points={series.points} />
               {series.points.length === 0 ? (

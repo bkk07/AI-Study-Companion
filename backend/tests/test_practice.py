@@ -132,13 +132,14 @@ def test_fallback_prefers_fresh_then_stalest_mastered_review():
                             mcq_count=4, importance="CORE", days_since_evidence=12.0)
         new = ConceptSignal(concept_id=new_mastered.id, name="NewMastered", mcq=100.0,
                             mcq_count=4, importance="CORE", days_since_evidence=1.0)
-        # fresh target present → neutral fallback wins over any review
+        # fresh target present → curriculum-ordered starters win over any review
         ranked, fallback = recommend_many(
             db, user_id=user.id, project_id=project.id,
             signals=[old, new, _sig(fresh)])
-        assert ranked == []
-        assert fallback is not None and fallback.signal.name == "Fresh"
-        assert fallback.reasoning == NEUTRAL_FALLBACK_REASON
+        assert fallback is None
+        assert [c.signal.name for c in ranked] == ["Fresh"]
+        assert ranked[0].score is None and not ranked[0].fallback
+        assert "foundational" in ranked[0].reasoning.lower() or "curriculum" in ranked[0].reasoning.lower()
         # all mastered → stalest gets an honest review suggestion
         ranked, fallback = recommend_many(db, user_id=user.id, project_id=project.id,
                                           signals=[old, new])
@@ -178,10 +179,9 @@ def test_neutral_fallback_without_evidence_and_empty_without_targets():
         ranked, fallback = recommend_many(
             db, user_id=user.id, project_id=project.id,
             signals=[_sig(fresh)])  # no mastery anywhere
-        assert ranked == []
-        assert fallback is not None and fallback.fallback is True
-        assert fallback.signal.concept_id == fresh.id
-        assert fallback.reasoning == NEUTRAL_FALLBACK_REASON
+        assert fallback is None
+        assert len(ranked) == 1 and ranked[0].signal.concept_id == fresh.id
+        assert ranked[0].score is None and not ranked[0].fallback
         ranked, fallback = recommend_many(db, user_id=user.id, project_id=project.id, signals=[])
         assert ranked == [] and fallback is None
     finally:

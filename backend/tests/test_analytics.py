@@ -79,13 +79,14 @@ def test_aggregates_match_domain_and_growth():
         user, project = _seed(db, uuid.uuid4().hex[:8])
         stats = project_analytics(db, user_id=user.id, project_id=project.id)
         assert stats.materials_total == 3
-        assert stats.materials_by_status == {"ready": 2, "processing": 1}
+        assert stats.materials_by_status == {"pending": 0, "processing": 1, "ready": 2, "failed": 0}
         assert stats.topics_count == 1 and stats.concepts_count == 1
+        assert stats.core_concepts_count == 1
         assert stats.quiz_attempts == 2 and stats.quiz_attempts_completed == 1
         growth = project_growth(db, user_id=user.id, project_id=project.id)
         assert (stats.avg_mcq, stats.avg_applied) == (growth.avg_mcq, growth.avg_applied) == (80.0, None)
         assert stats.evidenced_concepts == 1
-        assert stats.tutor_interactions is None  # untracked — no invented counter
+        assert stats.tutor_interactions == 0
         with pytest.raises(LookupError):
             project_analytics(db, user_id=user.id, project_id=uuid.uuid4())
     finally:
@@ -164,10 +165,14 @@ def test_api_empty_isolation_and_auth():
         resp = client.post(f"/api/v1/spaces/{resp.json()['id']}/projects", json={"name": "P"}, headers=headers["a"])
         pid = resp.json()["id"]
         body = client.get(f"/api/v1/projects/{pid}/analytics", headers=headers["a"]).json()
-        assert body == {"materials_total": 0, "materials_by_status": {}, "topics_count": 0,
-                        "concepts_count": 0, "quiz_attempts": 0, "quiz_attempts_completed": 0,
-                        "avg_mcq": None, "avg_applied": None, "evidenced_concepts": 0,
-                        "streak_days": 0, "tutor_interactions": None}
+        assert body == {"materials_total": 0,
+                        "materials_by_status": {"pending": 0, "processing": 0, "ready": 0, "failed": 0},
+                        "topics_count": 0,
+                        "concepts_count": 0, "core_concepts_count": 0,
+                        "quiz_attempts": 0, "quiz_attempts_completed": 0,
+                        "avg_mcq": None, "avg_applied": None, "avg_final": None,
+                        "evidenced_concepts": 0,
+                        "streak_days": 0, "tutor_interactions": 0}
         assert client.get(f"/api/v1/projects/{pid}/analytics", headers=headers["b"]).status_code == 404
         assert client.get(f"/api/v1/projects/{pid}/analytics").status_code in (401, 403)
         assert client.get(f"/api/v1/projects/{uuid.uuid4()}/analytics", headers=headers["a"]).status_code == 404

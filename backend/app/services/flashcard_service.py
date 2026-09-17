@@ -279,6 +279,23 @@ def review_card(
         db.rollback()
         raise
     db.refresh(card)
+    # §12: mastery.updated — keyed on the review count (stable, idempotent).
+    try:
+        from app.services import activity_service
+
+        activity_service.record_event_committed(
+            db,
+            user_id=user_id,
+            project_id=project.id,
+            space_id=activity_service.resolve_space_id(db, project_id=project.id),
+            event_type=activity_service.EVENT_MASTERY_UPDATED,
+            entity_type="flashcard",
+            entity_id=card.id,
+            payload={"grade": grade, "reviews": card.total_reviews, "source": "flashcard"},
+            idempotency_key=f"card:{card.id}:review:{card.total_reviews}",
+        )
+    except Exception:
+        pass
     # Blueprint §16: recommendation recomputes after mastery-affecting
     # events. Best-effort — evidence is already committed.
     try:

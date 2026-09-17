@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.models.chunk import DocumentChunk
 from app.models.concept import Concept
 from app.models.project import Project
+from app.services import ai_usage_service
 from app.services.ai import groq_client
 
 MAX_SOURCE_CHARS = 6_000
@@ -219,13 +220,20 @@ def grade_open_ended(
     call = client or groq_client.chat_json
     last_error: Exception | None = None
     outline: GradeOutline | None = None
-    for _ in range(2):  # initial + one retry
-        try:
-            outline = GradeOutline.model_validate(call(SYSTEM_PROMPT, user_prompt))
-            break
-        except (ValidationError, ValueError, KeyError, TypeError) as e:
-            last_error = e
-            continue
+    # Injected test fakes make no provider calls → the tracker writes nothing.
+    with ai_usage_service.track_llm_call(
+        user_id=ai_usage_service.resolve_owner_user_id(db, project_id=project_id),
+        project_id=project_id,
+        feature=ai_usage_service.FEATURE_OPEN_ENDED_GRADE,
+        meta={"has_question": question_text is not None},
+    ):
+        for _ in range(2):  # initial + one retry
+            try:
+                outline = GradeOutline.model_validate(call(SYSTEM_PROMPT, user_prompt))
+                break
+            except (ValidationError, ValueError, KeyError, TypeError) as e:
+                last_error = e
+                continue
     if outline is None:
         raise OpenEndedAssessmentError(f"Invalid assessment output after retry: {last_error}")
 
@@ -303,13 +311,20 @@ def generate_open_ended_question(
     call = client or groq_client.chat_json
     last_error: Exception | None = None
     outline: QuestionOutline | None = None
-    for _ in range(2):  # initial + one retry
-        try:
-            outline = QuestionOutline.model_validate(call(QUESTION_SYSTEM_PROMPT, user_prompt))
-            break
-        except (ValidationError, ValueError, KeyError, TypeError) as e:
-            last_error = e
-            continue
+    # Injected test fakes make no provider calls → the tracker writes nothing.
+    with ai_usage_service.track_llm_call(
+        user_id=ai_usage_service.resolve_owner_user_id(db, project_id=project_id),
+        project_id=project_id,
+        feature=ai_usage_service.FEATURE_OPEN_ENDED_GENERATE,
+        meta={"scope": scope, "difficulty": difficulty},
+    ):
+        for _ in range(2):  # initial + one retry
+            try:
+                outline = QuestionOutline.model_validate(call(QUESTION_SYSTEM_PROMPT, user_prompt))
+                break
+            except (ValidationError, ValueError, KeyError, TypeError) as e:
+                last_error = e
+                continue
     if outline is None:
         raise OpenEndedAssessmentError(f"Invalid question output after retry: {last_error}")
 

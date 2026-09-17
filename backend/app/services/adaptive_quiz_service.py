@@ -2,9 +2,11 @@
 
 Confirmed rule (user, 2026-09-16): weakest mastery first, difficulty matched to
 mastery (<34 → easy, 34–66 → medium, >66 → hard), exposure-balanced within a
-concept (unseen → least-asked → least-recent), all ties by ID for full
-determinism. Pure function over explicit inputs — mastery/attempt wiring lands
-with the endpoint and mastery phases; unknown concepts default to 50.0 neutral.
+concept (unseen → least-asked → least-recent), all ties by curriculum order
+then ID for full determinism. Pure functions over explicit inputs — mastery /
+attempt wiring lands with the endpoint and mastery phases; unknown concepts
+default to 50.0 neutral. Also exposes concept-level ordering used by quiz
+generation so the "adaptive" claim is backed by one shared engine.
 """
 
 from __future__ import annotations
@@ -58,11 +60,13 @@ def select_questions(
     candidates: list[CandidateQuestion],
     mastery: dict[str, float],
     count: int,
+    curriculum_order: dict[str, int] | None = None,
 ) -> list[CandidateQuestion]:
     """Pick up to `count` questions, weakest concept first, difficulty-matched."""
     _check_inputs(candidates, mastery, count)
     if not candidates:
         return []
+    order = curriculum_order or {}
 
     by_concept: dict[str, list[CandidateQuestion]] = {}
     for c in candidates:
@@ -71,7 +75,7 @@ def select_questions(
     def concept_key(concept_id: str) -> tuple:
         score = mastery.get(concept_id, UNKNOWN_MASTERY)
         exposure = sum(c.times_asked for c in by_concept[concept_id])
-        return (score, exposure, concept_id)
+        return (score, exposure, order.get(concept_id, 10**9), concept_id)
 
     ordered_concepts = sorted(by_concept, key=concept_key)
 
@@ -102,3 +106,30 @@ def select_questions(
         if not progressed:
             break
     return picked
+
+
+def order_concepts_by_mastery(
+    concept_ids: list[str],
+    mastery: dict[str, float] | None = None,
+    curriculum_order: dict[str, int] | None = None,
+    exposure: dict[str, int] | None = None,
+) -> list[str]:
+    """Shared concept ordering for generation: weakest-first, exposure-aware.
+
+    Used by quiz_generation so selection and generation share one engine
+    instead of generation re-inventing round-robin. Unknown mastery defaults
+    to 50 neutral; ties break by exposure, curriculum position, then id.
+    """
+    mastery = mastery or {}
+    order = curriculum_order or {}
+    exposure = exposure or {}
+
+    def _key(cid: str) -> tuple:
+        return (
+            mastery.get(cid, UNKNOWN_MASTERY),
+            exposure.get(cid, 0),
+            order.get(cid, 10**9),
+            cid,
+        )
+
+    return sorted(concept_ids, key=_key)

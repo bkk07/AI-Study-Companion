@@ -68,3 +68,20 @@ def test_reason_carries_numbers_and_invalid_inputs_rejected():
         ConceptState(concept_id=uuid.uuid4(), mcq_mastery=50, applied_mastery=50, avg_confidence=6)
     with pytest.raises(ValueError):
         detect_mismatches([{"mcq_mastery": 90}])
+
+
+def test_calibration_reason_uses_singular_for_one_record():
+    over = detect_mismatches(
+        [_state(60, 55, avg_confidence=5.0, accuracy=0.0, evaluated_count=1)]
+    ).pop()
+    assert over.mismatch_type == "overconfident"
+    assert "over 1 evaluated answer." in over.reason
+    under = detect_mismatches(
+        [_state(60, 55, avg_confidence=1.0, accuracy=1.0, evaluated_count=1)]
+    ).pop()
+    assert under.mismatch_type == "underconfident"
+    assert "over 1 evaluated answer." in under.reason
+    many = detect_mismatches(
+        [_state(60, 55, avg_confidence=5.0, accuracy=0.0, evaluated_count=4)]
+    ).pop()
+    assert "over 4 evaluated answers." in many.reason

@@ -14,7 +14,7 @@ import {
   MasteryBar,
   SectionHeader,
   StatCard,
-  masteryLevelFor,
+  levelForStatus,
   type MasteryLevel,
 } from "@/components/ui"
 
@@ -39,6 +39,9 @@ type ConceptProgress = {
   avg_confidence: number | null
   accuracy: number | null
   evaluated_count: number
+  final_mastery?: number | null
+  evidence_confidence?: string
+  streams?: Record<string, { value: number | null; count: number }>
 }
 
 type Recommendation = {
@@ -70,7 +73,7 @@ type TopicNode = {
   subtopics: { id: string; title: string; concepts: { id: string; title: string }[] }[]
 }
 
-export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview" | "practice" | "open-ended"
+export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview" | "practice" | "open-ended" | "analytics"
 
 const ACTION_LABELS: Record<string, string> = {
   ask_tutor: "Ask the tutor",
@@ -85,10 +88,7 @@ function actionLabel(action: string): string {
 }
 
 function toMasteryLevel(status: string, value: number | null): MasteryLevel {
-  if (status === "Mastered" || status === "Strong") return "mastered"
-  if (status === "Developing") return "developing"
-  if (status === "Needs Practice") return "weak"
-  return masteryLevelFor(value)
+  return levelForStatus(status, value)
 }
 
 function mismatchLabel(type: string): string {
@@ -96,6 +96,14 @@ function mismatchLabel(type: string): string {
   if (type === "overconfident") return "Overconfident"
   if (type === "underconfident") return "Underconfident"
   return type
+}
+
+/** Correctness words aligned to backend calibration bands (≤0.5 low, ≥0.8 high). */
+function correctnessWord(accuracy: number | null): string {
+  if (accuracy === null) return "unknown"
+  if (accuracy >= 0.8) return "high"
+  if (accuracy <= 0.5) return "low"
+  return "mixed"
 }
 
 function confidenceWord(avg: number | null, fallbackType?: string): string {
@@ -251,10 +259,6 @@ export function Dashboard({
   const underconfident = flagged.filter((c) => c.mismatch?.mismatch_type === "underconfident")
   const attention = flagged.filter((c) => c.mismatch?.mismatch_type !== "underconfident")
 
-  const evidenced = data.concepts.filter((c) => c.applied !== null || c.mcq !== null)
-  const lowestApplied = [...evidenced]
-    .filter((c) => c.applied !== null)
-    .sort((a, b) => (a.applied ?? 0) - (b.applied ?? 0))[0]
   const unassessed = data.concepts.find((c) => c.mcq === null && c.applied === null)
   const [topDueConceptId, topDueCount] = dueByConcept[0] ?? [null, 0]
   const topDueTitle = topDueConceptId ? (conceptMeta.get(topDueConceptId)?.title ?? "Flashcards") : null
@@ -272,7 +276,7 @@ export function Dashboard({
       run: () => go("flashcards"),
     })
   }
-  if (unassessed) {
+  if (unassessed && !featured.has(unassessed.concept_id)) {
     featured.add(unassessed.concept_id)
     secondaries.push({
       key: `new-${unassessed.concept_id}`,
@@ -316,7 +320,15 @@ export function Dashboard({
     topic,
     mcq: avg(list.map((c) => c.mcq)),
     applied: avg(list.map((c) => c.applied)),
+    concepts: list,
   }))
+  const hasAnyMastery = data.concepts.some((c) => c.final_mastery !== null && c.final_mastery !== undefined
+    || c.mcq !== null || c.applied !== null)
+
+  function conceptValue(c: ConceptProgress): number | null {
+    if (typeof c.final_mastery === "number") return c.final_mastery
+    return avg([c.mcq, c.applied])
+  }
 
   const go = (tab: ProjectTab) => onNavigate?.(tab)
   const practice = (conceptId: string) => {
@@ -354,6 +366,9 @@ export function Dashboard({
                   <MasteryBar key={t.topic} value={Math.round(t.mcq)} level={toMasteryLevel("", t.mcq)} label={t.topic} />
                 ),
               )}
+              {topicRows.every((t) => t.mcq === null) && (
+                <p className="py-2 text-sm text-slate-500">No MCQ evidence yet — take a quiz to start building mastery.</p>
+              )}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-6">
@@ -364,8 +379,62 @@ export function Dashboard({
                   <MasteryBar key={t.topic} value={Math.round(t.applied)} level={toMasteryLevel("", t.applied)} label={t.topic} />
                 ),
               )}
+              {topicRows.every((t) => t.applied === null) && (
+                <p className="py-2 text-sm text-slate-500">No applied evidence yet — try flashcards or explain-back practice.</p>
+              )}
             </div>
           </div>
+        </div>
+      )}
+
+      {topicRows.length > 0 && (
+        <div>
+          <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Mastery by Concept
+          </div>
+          <div className="space-y-4">
+            {topicRows.map((t) => (
+              <div key={t.topic} className="rounded-xl border border-slate-200 bg-white p-6">
+                <div className="mb-4 text-sm font-semibold text-slate-800">{t.topic}</div>
+                <div className="space-y-4">
+                  {t.concepts.map((c) => {
+                    const value = conceptValue(c)
+                    const level = toMasteryLevel(c.status, value)
+                    const evidence = c.mcq_count + c.applied_count
+                    return (
+                      <div key={c.concept_id}>
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-slate-800">{c.title}</span>
+                          <span className={`text-xs font-medium ${
+                            level === "mastered" ? "text-green-700"
+                            : level === "strong" ? "text-sky-700"
+                            : level === "developing" ? "text-amber-700"
+                            : level === "weak" ? "text-red-600"
+                            : "text-slate-400"
+                          }`}>
+                            {c.status}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            · {evidence} evidence{c.mismatch ? " · needs attention" : ""}
+                          </span>
+                        </div>
+                        {value === null ? (
+                          <p className="text-xs text-slate-400">Not assessed yet</p>
+                        ) : (
+                          <MasteryBar value={Math.round(value)} level={level} label={c.subtopic} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {!hasAnyMastery && (
+            <p className="mt-3 text-sm text-slate-500">
+              No mastery evidence yet — answer a quiz or review flashcards and per-concept bars will fill in here.
+            </p>
+          )}
         </div>
       )}
 
@@ -394,11 +463,19 @@ export function Dashboard({
                       </span>
                       <span className="text-xs text-slate-400">·</span>
                       <span className="text-xs font-medium text-amber-600">{conf.toLowerCase()}</span>
+                      {c.evidence_confidence === "low" && (
+                        <span
+                          title="Fewer than 3 evidence rows — treat this mastery as an early estimate"
+                          className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                        >
+                          Early estimate
+                        </span>
+                      )}
                     </div>
                     {c.mismatch && <p className="mb-2 text-xs text-slate-500">{c.mismatch.reason}</p>}
                     <div className="text-xs text-slate-400">
                       {rated
-                        ? `Last ${c.evaluated_count} attempt${c.evaluated_count === 1 ? "" : "s"} · ${conf}, ${(c.accuracy ?? 0) >= 0.7 ? "high" : "low"} correctness`
+                        ? `Last ${c.evaluated_count} attempt${c.evaluated_count === 1 ? "" : "s"} · ${conf}, ${correctnessWord(c.accuracy)} correctness`
                         : `${c.mcq_count + c.applied_count} evidence · ${c.mismatch ? mismatchLabel(c.mismatch.mismatch_type) : c.status}`}
                     </div>
                   </div>
@@ -437,7 +514,7 @@ export function Dashboard({
                     onClick={() => practice(c.concept_id)}
                     className="shrink-0 text-xs font-medium text-indigo-600 hover:underline"
                   >
-                    Study →
+                    Study this
                   </button>
                 </div>
               </div>
@@ -497,21 +574,6 @@ export function Dashboard({
               )}
             </div>
           </div>
-        ) : lowestApplied ? (
-          <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
-            <h3 className="mb-1 text-lg font-semibold">Practice {lowestApplied.title}</h3>
-            <p className="mb-4 text-sm text-indigo-200">
-              Your applied mastery ({Math.round(lowestApplied.applied ?? 0)}%) is the lowest among recently practiced topics.
-            </p>
-            <button
-              type="button"
-              onClick={() => practice(lowestApplied.concept_id)}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-            >
-              Study this
-            </button>
-          </div>
         ) : (
           <div className="mb-4 rounded-xl border border-slate-200 bg-white p-6">
             <h3 className="text-base font-semibold text-slate-900">No recommendation yet</h3>
@@ -536,7 +598,7 @@ export function Dashboard({
                 <div className="mb-2 text-sm font-semibold text-slate-800">{s.title}</div>
                 <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{s.body}</p>
                 <button type="button" onClick={s.run} className="text-xs font-medium text-indigo-600 hover:underline">
-                  Go →
+                  Study this
                 </button>
               </div>
             ))}

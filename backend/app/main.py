@@ -14,6 +14,7 @@ from app.api.v1.flashcards import router as flashcards_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.materials import router as materials_router
+from app.api.v1.me import router as me_router
 from app.api.v1.practice import router as practice_router
 from app.api.v1.projects import direct_router as projects_direct_router
 from app.api.v1.projects import router as projects_router
@@ -51,6 +52,7 @@ app.include_router(spaces_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(projects_direct_router, prefix="/api/v1")
 app.include_router(materials_router, prefix="/api/v1")
+app.include_router(me_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(structure_router, prefix="/api/v1")
 app.include_router(tutor_router, prefix="/api/v1")

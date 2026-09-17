@@ -427,6 +427,23 @@ def record_tutor_evidence(
         db.add(row)
         db.commit()
         db.refresh(row)
+        # §12: mastery.updated — graded tutor check banked as evidence.
+        try:
+            from app.services import activity_service
+
+            activity_service.record_event_committed(
+                db,
+                user_id=user_id,
+                project_id=project.id,
+                space_id=activity_service.resolve_space_id(db, project_id=project.id),
+                event_type=activity_service.EVENT_MASTERY_UPDATED,
+                entity_type="evidence",
+                entity_id=row.id,
+                payload={"evidence_rows": 1, "source": "tutor"},
+                idempotency_key=f"evidence:{row.id}:mastery",
+            )
+        except Exception:
+            pass
         return row
     except Exception:
         db.rollback()

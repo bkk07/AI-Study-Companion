@@ -22,7 +22,9 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    project = project_service.create_project(db, current_user.id, space_id, payload.name)
+    project = project_service.create_project(
+        db, current_user.id, space_id, payload.name, payload.description, payload.goal
+    )
     return project
 
 

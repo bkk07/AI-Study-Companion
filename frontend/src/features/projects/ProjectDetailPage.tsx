@@ -11,6 +11,7 @@ import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker, type DirectSession } from "@/features/quiz/QuizTaker"
 import type { Card as FlashCard } from "@/features/flashcards/Flashcards"
 import { TutorChat } from "@/features/tutor/TutorChat"
+import { AnalyticsPage } from "@/features/analytics/AnalyticsPage"
 import { MaterialsPanel } from "@/features/projects/MaterialsPanel"
 import { PracticePage } from "@/features/practice/PracticePage"
 import { OpenEndedAnswersPage } from "@/features/openended/OpenEndedAnswersPage"
@@ -18,9 +19,9 @@ import { cn } from "@/lib/utils"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended" | "analytics"
 
-const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress", "practice", "open-ended"]
+const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress", "practice", "open-ended", "analytics"]
 
 const TAB_LABELS: Record<TabId, string> = {
   overview: "overview",
@@ -32,6 +33,7 @@ const TAB_LABELS: Record<TabId, string> = {
   progress: "progress",
   practice: "practice",
   "open-ended": "Open Ended",
+  analytics: "Analytics",
 }
 
 export function ProjectDetailPage() {
@@ -158,6 +160,16 @@ export function ProjectDetailPage() {
                 {tab === "structure" && projectId && <StructureView projectId={projectId} />}
                 {tab === "progress" && projectId && (
                   <Dashboard
+                    projectId={projectId}
+                    onNavigate={goTab}
+                    onPracticeConcept={(id) => {
+                      setQuizFocus(id)
+                      setTab("quiz")
+                    }}
+                  />
+                )}
+                {tab === "analytics" && projectId && (
+                  <AnalyticsPage
                     projectId={projectId}
                     onNavigate={goTab}
                     onPracticeConcept={(id) => {

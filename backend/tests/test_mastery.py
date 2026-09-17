@@ -82,7 +82,7 @@ def test_gap_boost_and_cap():
 
 
 def test_confidence_cannot_reach_the_engine():
-    assert {f.name for f in dataclasses.fields(EvidenceInput)} == {"evidence_type", "score", "difficulty", "at"}
+    assert {f.name for f in dataclasses.fields(EvidenceInput)} == {"evidence_type", "score", "difficulty", "at", "source"}
     assert list(inspect.signature(compute_mastery).parameters) == ["points"]
     # identical evidence graded with any surrounding confidence yields identical mastery:
     assert compute_mastery([_pt(40), _pt(80)]) == compute_mastery([_pt(40), _pt(80)])

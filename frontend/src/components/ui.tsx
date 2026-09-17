@@ -270,18 +270,31 @@ export function ProgressBar({
 
 /* ---------- Figma design system (adapted, real-data ready) ---------- */
 
-export type MasteryLevel = "mastered" | "developing" | "weak" | "unassessed"
+export type MasteryLevel = "mastered" | "strong" | "developing" | "weak" | "unassessed"
 
+/** Numeric fallback bands — mirrors backend mastery_levels (34 / 66 / 85). */
 export function masteryLevelFor(value: number | null): MasteryLevel {
   if (value === null) return "unassessed"
-  if (value >= 80) return "mastered"
-  if (value >= 55) return "developing"
+  if (value >= 85) return "mastered"
+  if (value > 66) return "strong"
+  if (value >= 34) return "developing"
   return "weak"
+}
+
+/** Prefer the API status string; fall back to numeric bands when unknown. */
+export function levelForStatus(status: string | null, value: number | null): MasteryLevel {
+  if (status === "Mastered") return "mastered"
+  if (status === "Strong") return "strong"
+  if (status === "Developing") return "developing"
+  if (status === "Needs Practice") return "weak"
+  if (status === "Not Started") return "unassessed"
+  return masteryLevelFor(value)
 }
 
 export function MasteryBadge({ level, size = "sm" }: { level: MasteryLevel; size?: "sm" | "md" }) {
   const labels: Record<MasteryLevel, string> = {
     mastered: "Mastered",
+    strong: "Strong",
     developing: "Developing",
     weak: "Weak",
     unassessed: "Not Assessed",
@@ -296,6 +309,7 @@ export function MasteryBadge({ level, size = "sm" }: { level: MasteryLevel; size
 export function MasteryDot({ level }: { level: MasteryLevel }) {
   const colors: Record<MasteryLevel, string> = {
     mastered: "bg-green-500",
+    strong: "bg-sky-500",
     developing: "bg-amber-500",
     weak: "bg-red-500",
     unassessed: "bg-slate-300",
@@ -306,6 +320,7 @@ export function MasteryDot({ level }: { level: MasteryLevel }) {
 export function MasteryBar({ value, level, label }: { value: number; level: MasteryLevel; label: string }) {
   const colors: Record<MasteryLevel, string> = {
     mastered: "bg-green-500",
+    strong: "bg-sky-500",
     developing: "bg-amber-400",
     weak: "bg-red-400",
     unassessed: "bg-slate-300",

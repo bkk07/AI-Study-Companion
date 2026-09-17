@@ -58,6 +58,35 @@ def submit_explanation(
         db.add(evidence)
         db.commit()
         db.refresh(evidence)
+        # §12: assessment.completed + mastery.updated — one durable grade.
+        try:
+            from app.services import activity_service
+
+            _space = activity_service.resolve_space_id(db, project_id=project_id)
+            activity_service.record_event_committed(
+                db,
+                user_id=user_id,
+                project_id=project_id,
+                space_id=_space,
+                event_type=activity_service.EVENT_ASSESSMENT_COMPLETED,
+                entity_type="evidence",
+                entity_id=evidence.id,
+                payload={"score": grade.score, "verdict": grade.verdict},
+                idempotency_key=f"evidence:{evidence.id}:assessment",
+            )
+            activity_service.record_event_committed(
+                db,
+                user_id=user_id,
+                project_id=project_id,
+                space_id=_space,
+                event_type=activity_service.EVENT_MASTERY_UPDATED,
+                entity_type="evidence",
+                entity_id=evidence.id,
+                payload={"evidence_rows": 1, "source": "explain_back"},
+                idempotency_key=f"evidence:{evidence.id}:mastery",
+            )
+        except Exception:
+            pass
         # Blueprint §16: recommendation recomputes after mastery-affecting
         # events. Best-effort — evidence is already committed.
         try:

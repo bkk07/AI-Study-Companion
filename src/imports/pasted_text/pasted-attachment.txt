@@ -1,0 +1,1369 @@
+# FIGMA PROMPT — AI STUDY COMPANION
+
+## Complete Product Design + Learning Intelligence Experience
+
+Design a complete production-quality web application called **“Study Companion”**.
+
+This is NOT a generic LMS, course platform, or ChatGPT wrapper.
+
+It is an **AI-powered personal learning system** where a B.Tech student uploads their own study material, the system converts that material into a structured knowledge map, teaches the student using grounded AI, tests them, measures actual mastery, detects confidence/correctness mismatches, creates flashcards, analyzes growth, and continuously recommends what they should study next.
+
+The product should feel like:
+
+**“A personal AI learning operating system.”**
+
+The core philosophy is:
+
+> **Upload → Understand → Learn → Practice → Explain → Measure → Detect Weakness → Recommend → Improve**
+
+The interface must make this learning loop visually obvious.
+
+---
+
+# 1. PRODUCT EXPERIENCE
+
+The student should always understand:
+
+1. What am I studying?
+2. What concepts exist in my material?
+3. What do I actually know?
+4. What do I only THINK I know?
+5. What should I study next?
+6. Why was this recommended?
+7. What evidence supports my progress?
+8. How has my understanding changed over time?
+
+Do NOT make the application feel like a points/badges/gamification product.
+
+Avoid:
+
+* childish illustrations
+* cartoon mascots
+* excessive gradients
+* meaningless XP
+* leaderboards
+* fake progress
+* generic AI chat UI
+* fake analytics
+* fabricated trends
+
+Make it feel intelligent, calm, trustworthy and academic.
+
+---
+
+# 2. VISUAL DIRECTION
+
+Create a premium modern educational/productivity interface.
+
+Design language:
+
+* Light mode first
+* Dark mode variant
+* Clean white/slate surfaces
+* One primary indigo/blue accent
+* Green = Mastered / Correct
+* Amber = Developing / Needs Attention / Mismatch
+* Red = Weak / Incorrect
+* Gray = Not Yet Assessed
+* Restrained shadows
+* 8–12px radius system
+* Thin borders
+* Generous whitespace
+* Dense enough for serious studying but never cluttered
+
+Typography:
+
+* Inter or equivalent modern sans-serif
+* Strong hierarchy
+* Excellent readability for long study content
+
+Use Lucide-style icons.
+
+---
+
+# 3. CORE INFORMATION ARCHITECTURE
+
+The application hierarchy is:
+
+Workspace
+↓
+Space
+↓
+Project
+↓
+Documents
+↓
+Learning Structure
+↓
+Topics
+↓
+Subtopics
+↓
+Concepts
+↓
+Evidence
+↓
+Mastery
+
+The major project navigation must contain:
+
+* Overview
+* Documents
+* Structure
+* Tutor
+* Flashcards
+* Quiz
+* Assessments
+* Dashboard
+* Analytics
+* Activity
+* Settings
+
+Sidebar:
+
+240px expanded
+64px collapsed
+
+Top navigation:
+
+Space / Project / Current Section
+
+---
+
+# 4. AUTHENTICATION
+
+Create:
+
+### Login
+
+* Email
+* Password
+* Forgot Password
+* Login
+* Register link
+* Loading state
+* Invalid credentials state
+
+### Register
+
+* Name
+* Email
+* Password
+* Confirm Password
+* Create Account
+
+Use a split layout:
+
+Left:
+
+* abstract knowledge/graph visual
+* product statement
+
+Right:
+
+* authentication form
+
+Product statement:
+
+“Turn your own study material into a measurable learning system.”
+
+---
+
+# 5. SPACES
+
+Create a Space management experience.
+
+Screen:
+
+### Your Spaces
+
+Each Space card contains:
+
+* Space name
+* Description
+* Number of projects
+* Last activity
+* Last updated
+* Open button
+
+Example:
+
+Computer Science
+4 Projects
+Updated 2 hours ago
+
+Allow:
+
+* New Space
+* Rename
+* Delete
+* Open
+
+Empty state:
+
+“Create your first space to organize your learning.”
+
+---
+
+# 6. PROJECTS
+
+Inside each Space:
+
+### Projects
+
+Project card:
+
+* Project name
+* Description
+* Document count
+* Topic count
+* Concept count
+* Mastery summary
+* Last activity
+
+Example:
+
+Machine Learning
+
+12 Documents
+48 Topics
+184 Concepts
+
+Mastery:
+
+MCQ: 72%
+Applied: 61%
+
+Do NOT display mastery as 0% when there is no evidence.
+
+Instead:
+
+“Not assessed yet.”
+
+---
+
+# 7. PROJECT OVERVIEW — PERSONAL LEARNING COMMAND CENTER
+
+This should be one of the most impressive screens.
+
+Header:
+
+“Machine Learning”
+
+Subtitle:
+
+“Your personal learning workspace”
+
+Top stat cards:
+
+* Documents
+* Concepts
+* Quiz Attempts
+* Flashcards Reviewed
+* Average Mastery
+
+Then create a large:
+
+## CONTINUE LEARNING
+
+Card containing:
+
+Current concept:
+
+“Logistic Regression”
+
+Status:
+
+Developing
+
+Last activity:
+
+25 minutes ago
+
+Buttons:
+
+* Continue
+* Ask Tutor
+* Practice
+* Review Flashcards
+
+Then:
+
+## YOUR LEARNING MAP
+
+Visual summary:
+
+Topics → Subtopics → Concepts
+
+Show a mini knowledge graph/tree.
+
+Then:
+
+## TODAY'S RECOMMENDED PLAN
+
+Three intelligent cards:
+
+1. Strengthen Logistic Regression
+2. Review Gradient Descent flashcards
+3. Explain Regularization in your own words
+
+Every recommendation MUST display:
+
+### Why?
+
+Example:
+
+“Your confidence is high but your correctness has been low across the last 3 attempts.”
+
+---
+
+# 8. DOCUMENTS
+
+Create a beautiful document ingestion experience.
+
+### Upload
+
+Large drop zone:
+
+“Drop your study material here”
+
+Accept:
+
+PDF
+
+Show:
+
+* filename
+* size
+* pages
+* upload time
+* processing status
+
+Statuses:
+
+Queued
+Processing
+Ready
+Failed
+
+Processing visualization:
+
+Upload
+↓
+Extracting Text
+↓
+Chunking
+↓
+Generating Embeddings
+↓
+Building Knowledge Map
+↓
+Ready
+
+This should visually communicate that the system is doing real processing.
+
+---
+
+# 9. DOCUMENT LIBRARY
+
+Table:
+
+Document
+Pages
+Chunks
+Status
+Uploaded
+Actions
+
+Actions:
+
+* Open
+* View
+* Delete
+* Retry
+
+Document detail screen:
+
+Left:
+document viewer
+
+Right:
+
+### Document Intelligence
+
+Topics detected
+Subtopics detected
+Concepts detected
+Chunks indexed
+
+Button:
+
+“Explore Learning Map”
+
+---
+
+# 10. LEARNING STRUCTURE — KNOWLEDGE MAP
+
+This is a flagship feature.
+
+Create:
+
+## Learning Map
+
+Hierarchy:
+
+Topic
+→ Subtopic
+→ Concept
+
+Example:
+
+Machine Learning
+
+Classification
+Logistic Regression
+Decision Trees
+Naive Bayes
+
+Regression
+Linear Regression
+Ridge Regression
+Lasso Regression
+
+Each concept displays:
+
+* Mastery state
+* MCQ mastery
+* Applied mastery
+* Assessment count
+* Last practiced
+
+Semantic indicator:
+
+Green = Mastered
+Amber = Developing
+Red = Weak
+Gray = Not assessed
+
+---
+
+# 11. CONCEPT DETAIL PAGE
+
+When selecting a concept:
+
+Example:
+
+## Logistic Regression
+
+Description
+
+Source:
+
+Machine Learning Notes.pdf
+Page 42
+
+Mastery:
+
+MCQ: 78%
+Applied: 51%
+
+Confidence:
+
+High
+
+Evidence:
+
+8 quiz attempts
+3 applied assessments
+12 flashcard reviews
+
+Then actions:
+
+* Ask Tutor
+* Quiz Me
+* Practice
+* Flashcards
+* Explain It Back
+
+Below:
+
+### Learning Evidence
+
+Timeline of attempts.
+
+Example:
+
+Quiz → Correct → High confidence
+
+Assessment → Incorrect → High confidence
+
+Flashcard → Correct
+
+This makes mastery feel evidence-based.
+
+---
+
+# 12. AI TUTOR
+
+Create a premium AI tutor experience.
+
+Two-column layout:
+
+70% conversation
+30% Sources
+
+AI answers must be grounded in uploaded material.
+
+AI message:
+
+“Logistic regression estimates the probability of a binary outcome using the logistic function.[1]”
+
+Citation:
+
+[1]
+
+Sources panel:
+
+Machine Learning Notes.pdf
+Page 42
+
+Relevant excerpt
+
+“...logistic regression models the probability...”
+
+Allow:
+
+* Ask follow-up
+* Explain simpler
+* Give example
+* Compare concepts
+* Summarize
+* Quiz me on this
+
+Input caption:
+
+“Answers are generated only from your uploaded study material.”
+
+Unsupported question state:
+
+“I can't answer that from your uploaded material yet.”
+
+Do NOT provide hallucinated fallback answers.
+
+---
+
+# 13. FLASHCARDS — IMPORTANT FEATURE
+
+Create a complete Flashcards experience.
+
+Navigation:
+
+## Flashcards
+
+Dashboard:
+
+* Total cards
+* Due today
+* New cards
+* Learning
+* Mastered
+
+Large:
+
+### Continue Review
+
+“12 cards due”
+
+Button:
+
+Start Review
+
+---
+
+## FLASHCARD STUDY SCREEN
+
+Minimal distraction-free interface.
+
+Top:
+
+Machine Learning
+Card 7 / 20
+
+Center:
+
+Front:
+
+“What is the purpose of the sigmoid function in logistic regression?”
+
+Large card.
+
+Button:
+
+“Show Answer”
+
+After flipping:
+
+Answer:
+
+“It maps any real-valued input into a probability-like value between 0 and 1.”
+
+Source:
+
+Machine Learning Notes.pdf — Page 42
+
+Then confidence/recall buttons:
+
+* Again
+* Hard
+* Good
+* Easy
+
+These should NOT be confused with quiz correctness.
+
+---
+
+# 14. FLASHCARD GENERATION
+
+Create:
+
+### Generate Flashcards
+
+Options:
+
+Scope:
+
+* Entire Project
+* Topic
+* Subtopic
+* Concept
+* Specific Document
+
+Number:
+
+5 / 10 / 20 / Custom
+
+Difficulty:
+
+Basic
+Intermediate
+Advanced
+
+Button:
+
+Generate
+
+After generation:
+
+Preview cards before saving.
+
+Each card shows:
+
+Front
+Back
+Source concept
+Source document
+
+Allow:
+
+* Edit
+* Delete
+* Save
+
+---
+
+# 15. FLASHCARD LIBRARY
+
+Filters:
+
+* All
+* Due
+* New
+* Learning
+* Mastered
+
+Search:
+
+“Search flashcards...”
+
+Each card shows:
+
+Concept
+Question
+Review state
+Last reviewed
+Next review
+
+Provide:
+
+* Review
+* Edit
+* Delete
+
+---
+
+# 16. QUIZ SYSTEM
+
+Create a complete adaptive quiz flow.
+
+### Quiz Setup
+
+Scope:
+
+* Entire Project
+* Topic
+* Subtopic
+* Concept
+
+Question count:
+
+5 / 10 / 20
+
+Difficulty:
+
+Adaptive
+
+Estimated time.
+
+Primary:
+
+Start Quiz
+
+---
+
+# 17. QUIZ QUESTION
+
+One question at a time.
+
+Top:
+
+Question 4 / 10
+
+Progress bar.
+
+Question:
+
+large readable stem.
+
+Options:
+
+large selectable cards.
+
+Then a completely separate section:
+
+## How confident are you?
+
+Low
+Medium
+High
+
+Important:
+
+Confidence MUST visually look like a separate input from answer selection.
+
+Next is disabled until:
+
+Answer + Confidence
+
+are both selected.
+
+---
+
+# 18. QUIZ RESULTS
+
+Create an insightful results page.
+
+Top:
+
+Score
+
+Correct
+Incorrect
+Confidence patterns
+
+Then:
+
+### Confidence vs Correctness
+
+Visualize four states:
+
+Correct + High Confidence
+Correct + Low Confidence
+Incorrect + High Confidence
+Incorrect + Low Confidence
+
+Highlight:
+
+### Mismatch Detected
+
+Example:
+
+“You answered incorrectly with High confidence.”
+
+This is not simply a wrong-answer screen.
+
+It is a learning diagnostic.
+
+---
+
+# 19. ADAPTIVE QUIZ EXPERIENCE
+
+Create a screen explaining:
+
+### Why this question?
+
+Example:
+
+“Selected because Logistic Regression is currently in the Developing mastery range.”
+
+Another:
+
+“Selected because your confidence/correctness mismatch is high.”
+
+The UI should communicate that the quiz adapts to evidence.
+
+---
+
+# 20. OPEN-ENDED ASSESSMENT
+
+Create a separate assessment mode.
+
+Screen:
+
+## Explain It Back
+
+Prompt:
+
+“Explain gradient descent as if you were teaching it to another student.”
+
+Large text area.
+
+Student submits explanation.
+
+AI evaluates against source material.
+
+Result:
+
+### Understanding Analysis
+
+* Correct concepts
+* Missing concepts
+* Misconceptions
+* Explanation quality
+* Source evidence
+
+Example:
+
+Covered:
+✓ Iterative optimization
+
+Missing:
+! Learning rate
+
+Misconception:
+! Direction of gradient
+
+Then:
+
+### Suggested Next Step
+
+“Review learning rate and try explaining gradient descent again.”
+
+---
+
+# 21. CONFIDENCE CHECK
+
+Before or after an open-ended assessment:
+
+“How confident are you in your explanation?”
+
+Low
+Medium
+High
+
+Compare confidence with evaluation.
+
+Show:
+
+Confidence:
+High
+
+Understanding:
+Developing
+
+Diagnostic:
+
+“Your confidence appears higher than your demonstrated understanding.”
+
+---
+
+# 22. MISMATCH CENTER
+
+Create a dedicated:
+
+## Confidence Mismatch
+
+screen.
+
+This is one of the unique product differentiators.
+
+Visualize:
+
+Confidence
+vs
+Correctness
+
+Each concept becomes a point/card.
+
+Examples:
+
+High confidence + Low correctness
+→ Critical mismatch
+
+Low confidence + High correctness
+→ Underconfidence
+
+High confidence + High correctness
+→ Strong understanding
+
+Low confidence + Low correctness
+→ Needs practice
+
+Explain every mismatch using actual evidence.
+
+---
+
+# 23. CONCEPT MASTERY
+
+Create a detailed mastery interface.
+
+Mastery MUST remain split into:
+
+### MCQ Mastery
+
+and
+
+### Applied Mastery
+
+Never combine these into one generic progress score.
+
+Example:
+
+Logistic Regression
+
+MCQ Mastery
+78%
+
+Applied Mastery
+51%
+
+Interpretation:
+
+“You can recognize the concept but need more practice applying it.”
+
+This should be one of the strongest visual insights in the product.
+
+---
+
+# 24. DASHBOARD
+
+Flagship analytics dashboard.
+
+Top:
+
+## Your Learning Health
+
+Cards:
+
+* Concepts Mastered
+* Concepts Developing
+* Concepts Weak
+* Confidence Mismatches
+* Current Learning Streak
+
+Then:
+
+### Mastery Overview
+
+Two separate groups:
+
+MCQ Mastery
+
+Topic A ███████
+Topic B █████
+Topic C ███
+
+Applied Mastery
+
+Topic A █████
+Topic B ████
+Topic C ██
+
+Use semantic mastery colors.
+
+---
+
+# 25. FLAGGED MISMATCHES
+
+Section:
+
+## Concepts That Need Attention
+
+Example:
+
+Logistic Regression
+
+High confidence
+40% correctness
+
+Last 5 attempts
+
+Button:
+
+Study this
+
+Another:
+
+Decision Trees
+
+Low confidence
+82% correctness
+
+Insight:
+
+“You may understand this concept better than you think.”
+
+---
+
+# 26. RECOMMENDED NEXT
+
+Create a large recommendation engine card.
+
+## Recommended Next
+
+Primary recommendation:
+
+“Practice Logistic Regression”
+
+Reason:
+
+“Your applied mastery is the lowest among recently practiced topics.”
+
+CTA:
+
+Study this
+
+Secondary:
+
+* Review Gradient Descent
+* Explain Regularization
+* Review 8 due flashcards
+
+Recommendations MUST always show a reason.
+
+---
+
+# 27. GROWTH ANALYSIS
+
+Create:
+
+## Your Growth
+
+Mastery-over-time visualization.
+
+Allow filters:
+
+* Project
+* Topic
+* Concept
+* MCQ
+* Applied
+
+Show actual evidence points.
+
+If insufficient history:
+
+DO NOT fabricate a smooth graph.
+
+Instead:
+
+few dots + incomplete/dashed trend
+
+Message:
+
+“Keep studying — more sessions are needed to reveal a reliable trend.”
+
+Also show:
+
+### Before vs Now
+
+Concept:
+
+Gradient Descent
+
+Earlier:
+MCQ 42%
+Applied 25%
+
+Current:
+MCQ 78%
+Applied 61%
+
+---
+
+# 28. ANALYTICS
+
+Create:
+
+Stat cards:
+
+* Materials
+* Concepts
+* Quiz Attempts
+* Flashcard Reviews
+* Tutor Questions
+* Assessments
+
+Charts:
+
+* Mastery over time
+* MCQ vs Applied
+* Quiz performance
+* Confidence vs correctness
+* Flashcard review activity
+* Concept distribution
+
+Every visualization must be evidence-based.
+
+---
+
+# 29. ACTIVITY
+
+Create:
+
+## Learning Activity
+
+Timeline:
+
+Today
+
+✓ Completed quiz
+✓ Reviewed 15 flashcards
+✓ Asked tutor about recursion
+✓ Completed Explain-It-Back assessment
+
+Yesterday
+
+✓ Studied Dynamic Programming
+
+Filters:
+
+All
+Quiz
+Flashcards
+Tutor
+Assessments
+Documents
+
+Each event links back to the relevant concept.
+
+---
+
+# 30. STUDY SESSION MODE
+
+Create a focused study-session experience.
+
+When user clicks:
+
+“Study this”
+
+the application creates a mini learning session:
+
+1. Review concept
+2. Ask tutor
+3. Review flashcards
+4. Take MCQ
+5. Explain concept
+6. Receive feedback
+
+Top progress:
+
+Step 3 of 6
+
+At the end:
+
+### Session Summary
+
+Concept:
+Logistic Regression
+
+Before:
+MCQ 62%
+Applied 41%
+
+After:
+MCQ 74%
+Applied 55%
+
+Cards reviewed:
+8
+
+Quiz:
+5 questions
+
+Assessment:
+1
+
+Next recommendation:
+
+“Continue with regularization.”
+
+This should feel like an intelligent study workflow rather than navigating separate pages.
+
+---
+
+# 31. SEARCH / GLOBAL COMMAND
+
+Create a global search.
+
+Search:
+
+“logistic regression”
+
+Results:
+
+Concepts
+Documents
+Flashcards
+Quiz Questions
+Tutor Conversations
+
+Also create a command-style search:
+
+⌘ / Ctrl + K
+
+Actions:
+
+* Ask Tutor
+* Start Quiz
+* Review Flashcards
+* Find Concept
+* Upload Document
+* View Dashboard
+
+---
+
+# 32. NOTIFICATION / ATTENTION CENTER
+
+Create subtle notification states.
+
+Examples:
+
+“8 flashcards are due.”
+
+“Your confidence/correctness mismatch increased for Logistic Regression.”
+
+“New learning map generated from Machine Learning Notes.pdf.”
+
+“Your Applied Mastery improved.”
+
+Do NOT make notifications noisy.
+
+---
+
+# 33. SETTINGS
+
+Sections:
+
+Profile
+
+Learning preferences
+
+AI preferences
+
+Notification preferences
+
+Appearance
+
+Data management
+
+Project settings
+
+Danger zone
+
+---
+
+# 34. ADMIN AREA
+
+Create a visually separate admin experience.
+
+Header:
+
+ADMIN
+
+System overview:
+
+* Users
+* Projects
+* Documents
+* Quiz Attempts
+* Flashcard Reviews
+* Tutor Questions
+
+User table:
+
+Name
+Email
+Join Date
+Projects
+Activity
+Admin status
+
+Admin area must visually feel separate from student workflows.
+
+---
+
+# 35. EMPTY STATES
+
+Create reusable empty states for:
+
+* No Spaces
+* No Projects
+* No Documents
+* No Learning Map
+* No Flashcards
+* No Quiz Attempts
+* No Assessments
+* No Analytics History
+* No Activity
+* No Recommendations
+
+Never use meaningless blank screens.
+
+Each empty state should explain:
+
+What is missing
+Why it matters
+What the user should do next
+
+---
+
+# 36. LOADING STATES
+
+Create skeleton states for:
+
+* Dashboard
+* Documents
+* Learning Map
+* Tutor
+* Flashcards
+* Quiz
+* Analytics
+* Activity
+
+Skeletons must resemble the actual content.
+
+---
+
+# 37. ERROR STATES
+
+Create intentional e

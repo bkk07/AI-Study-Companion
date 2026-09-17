@@ -138,6 +138,7 @@ def write_mcq_evidence(db: Session, attempt: QuizAttempt, project_id: uuid.UUID)
             evidence_type="mcq",
             source=source,
             raw_score=Decimal("100") if answer.is_correct else Decimal("0"),
+            difficulty=question.difficulty,
         ))
         count += 1
     return count

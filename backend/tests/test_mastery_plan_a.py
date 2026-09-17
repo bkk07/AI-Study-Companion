@@ -31,6 +31,7 @@ from app.services.mastery_service import (
     EVIDENCE_LOW,
     EVIDENCE_NONE,
     EVIDENCE_OK,
+    FORMATIVE_ONLY_CAP,
     STREAM_WEIGHTS,
     TUTOR_ONLY_CAP,
     TUTOR_WEIGHT,
@@ -542,3 +543,29 @@ def test_legacy_rows_without_difficulty_keep_default_weight():
         assert scores.quiz.value == pytest.approx(0 + 0.3 * 100)
     finally:
         db.close()
+
+
+def test_formative_only_final_capped_no_summative():
+    assert FORMATIVE_ONLY_CAP == 70.0
+    # practice-only perfect history caps instead of mastering
+    perfect_practice = compute_mastery([_pt(100, "practice"), _pt(100, "practice"), _pt(100, "practice")])
+    assert perfect_practice.practice.value == pytest.approx(100.0)
+    assert perfect_practice.final == pytest.approx(70.0)
+    # flashcard-only likewise
+    perfect_cards = compute_mastery([_pt(100, "flashcard", etype="flashcard"),
+                                     _pt(100, "flashcard", etype="flashcard")])
+    assert perfect_cards.final == pytest.approx(70.0)
+    # below-cap values pass through untouched
+    mid = compute_mastery([_pt(60, "practice"), _pt(60, "practice")])
+    assert mid.final == pytest.approx(60.0)
+    # a summative stream lifts the cap
+    with_quiz = compute_mastery([_pt(100, "practice"), _pt(100, "practice"),
+                                 _pt(100, "quiz")])
+    assert with_quiz.final == pytest.approx(100.0)
+    with_open = compute_mastery([_pt(100, "practice"),
+                                 _pt(100, "open_ended", etype="open_ended")])
+    assert with_open.final == pytest.approx(100.0)
+    # tutor-only keeps its stricter cap
+    tutor_only = compute_mastery([_pt(100, "tutor", etype="tutor"),
+                                  _pt(100, "tutor", etype="tutor")])
+    assert tutor_only.final == pytest.approx(40.0)

@@ -39,6 +39,9 @@ Final-mastery rules:
 - fewer than 3 total evidence rows -> evidence_confidence "low",
 - tutor-only evidence -> final capped at 40 (chatting alone can never
   master a concept),
+- formative-only evidence (practice/flashcard/tutor, no quiz or
+  open-ended stream) -> final capped at 70 (drills alone can build
+  Strong recognition but never Mastered; a summative grade lifts the cap),
 - missing streams renormalized (see formula above).
 
 Backward compatibility: legacy rows have `source` NULL and are routed by
@@ -80,6 +83,11 @@ GAP_THRESHOLD = timedelta(days=7)
 TUTOR_WEIGHT = 0.15
 # Tutor-only concepts can never exceed this final mastery.
 TUTOR_ONLY_CAP = 40.0
+# Formative-only concepts (practice/flashcard/tutor streams, no summative
+# quiz or graded open-ended evidence) can never exceed this final mastery.
+# Practice with hints and flashcard recall must not grind a concept to
+# Mastered on their own; a quiz or open-ended grade lifts the cap.
+FORMATIVE_ONLY_CAP = 70.0
 # Fewer total rows than this -> evidence_confidence "low".
 LOW_CONFIDENCE_MIN_ROWS = 3
 
@@ -98,6 +106,8 @@ STREAM_WEIGHTS = {
     FLASHCARD_STREAM: 0.15,
     TUTOR_STREAM: 0.05,
 }
+# Streams whose evidence is summative enough to lift the formative-only cap.
+SUMMATIVE_STREAMS = frozenset({QUIZ_STREAM, OPEN_ENDED_STREAM})
 
 MCQ_TYPE = "mcq"
 OPEN_ENDED_TYPE = "open_ended"
@@ -253,7 +263,9 @@ def _run_tutor_stream(points: list[EvidenceInput]) -> StreamMastery:
 def compute_final(streams: dict[str, StreamMastery]) -> float | None:
     """Plan A weighted final over streams that have evidence (renormalized).
 
-    Tutor-only input is capped at TUTOR_ONLY_CAP. No evidence -> None.
+    Tutor-only input is capped at TUTOR_ONLY_CAP; formative-only input
+    (practice/flashcard/tutor with no summative quiz or open-ended stream)
+    is capped at FORMATIVE_ONLY_CAP. No evidence -> None.
     """
     present = {name: s for name, s in streams.items() if s.value is not None}
     if not present:
@@ -265,6 +277,8 @@ def compute_final(streams: dict[str, StreamMastery]) -> float | None:
     final = sum(STREAM_WEIGHTS[name] * float(s.value) for name, s in present.items()) / total_w
     if set(present) == {TUTOR_STREAM}:
         final = min(final, TUTOR_ONLY_CAP)
+    elif not (set(present) & SUMMATIVE_STREAMS):
+        final = min(final, FORMATIVE_ONLY_CAP)
     return min(100.0, max(0.0, final))
 
 

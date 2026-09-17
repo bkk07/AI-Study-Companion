@@ -96,10 +96,26 @@ const THINKING_STEPS = [
 const FOLLOWUP_PREFIX =
   /^(give (me )?(an? )?example|explain simpl|explain deep|explain more|tell me more|compare|contrast|summar|why |how does (it|this|that) work|another example)/i
 
+/** Strip trailing "— in the context of: ..." chains back to the original question. */
+function stripContext(text: string): string {
+  let t = text.trim()
+  for (let i = 0; i < 6; i++) {
+    const m = t.match(/^(.*) — in the context of: "([\s\S]*)"$/)
+    if (!m) break
+    t = (m[2] || m[1]).trim()
+    if (!t) {
+      t = text.trim()
+      break
+    }
+  }
+  return t
+}
+
 function expandFollowUp(draft: string, lastQuestion: string | null): string {
   const q = draft.trim()
-  if (lastQuestion && FOLLOWUP_PREFIX.test(q) && q.toLowerCase() !== lastQuestion.toLowerCase()) {
-    return `${q} — in the context of: "${lastQuestion}"`
+  const base = lastQuestion ? stripContext(lastQuestion) : null
+  if (base && FOLLOWUP_PREFIX.test(q) && q.toLowerCase() !== base.toLowerCase()) {
+    return `${q} — in the context of: "${base}"`
   }
   return q
 }
@@ -627,15 +643,15 @@ export function TutorChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
-  async function ask(rawQuestion: string) {
-    const expanded = expandFollowUp(rawQuestion, lastUserQuestion)
+  async function ask(rawQuestion: string, opts?: { display?: string; preExpanded?: boolean }) {
+    const expanded = opts?.preExpanded ? rawQuestion : expandFollowUp(rawQuestion, lastUserQuestion)
     const q = expanded.trim()
     if (!q || pending) return
     setPending(true)
     setDraft("")
     setThinkStep(0)
     thinkTimer.current = setInterval(() => setThinkStep((s) => Math.min(s + 1, THINKING_STEPS.length - 1)), 1400)
-    setMessages((m) => [...m, { kind: "user", text: rawQuestion.trim(), time: now() }])
+    setMessages((m) => [...m, { kind: "user", text: (opts?.display ?? rawQuestion).trim(), time: now() }])
     try {
       let cid = activeId
       if (!cid) {
@@ -687,20 +703,24 @@ export function TutorChat({
     for (let k = idx - 1; k >= 0; k--) {
       const prev = messages[k]
       if (prev?.kind === "user") {
-        void ask(prev.text)
+        const earlier =
+          [...messages.slice(0, k)].reverse().find((m) => m.kind === "user")?.text ?? null
+        const q = expandFollowUp(prev.text, earlier)
+        void ask(q, { preExpanded: true, display: prev.text })
         return
       }
     }
   }
 
+  const contextOf = lastUserQuestion ? stripContext(lastUserQuestion) : null
   const studyActions = [
     { label: "Quiz me", run: () => void startPlan("quiz") },
     { label: "Practice", run: () => void startPlan("practice") },
     { label: "Flashcards", run: () => void startPlan("flashcards") },
-    { label: "Explain simply", run: () => lastUserQuestion && void ask(`Explain simply: ${lastUserQuestion}`) },
-    { label: "Explain deeply", run: () => lastUserQuestion && void ask(`Explain in depth: ${lastUserQuestion}`) },
-    { label: "Give example", run: () => lastUserQuestion && void ask(`Give an example — in the context of: "${lastUserQuestion}"`) },
-    { label: "Summarize", run: () => lastUserQuestion && void ask(`Summarize — in the context of: "${lastUserQuestion}"`) },
+    { label: "Explain simply", run: () => contextOf && void ask(`Explain simply: ${contextOf}`, { display: "Explain simply" }) },
+    { label: "Explain deeply", run: () => contextOf && void ask(`Explain in depth: ${contextOf}`, { display: "Explain deeply" }) },
+    { label: "Give example", run: () => contextOf && void ask(`Give an example — in the context of: "${contextOf}"`, { display: "Give an example" }) },
+    { label: "Summarize", run: () => contextOf && void ask(`Summarize — in the context of: "${contextOf}"`, { display: "Summarize" }) },
   ]
 
   const lastAssistant = [...messages].reverse().find((m) => m.kind === "assistant") as
@@ -938,7 +958,7 @@ export function TutorChat({
                   <p className="mt-0.5 text-xs text-red-500">I couldn&apos;t generate an answer right now.</p>
                   <button
                     type="button"
-                    onClick={() => void ask(msg.question)}
+                    onClick={() => void ask(msg.question, { preExpanded: true, display: stripContext(msg.question) })}
                     disabled={pending}
                     className="mt-1 text-sm font-medium text-indigo-600 hover:underline disabled:opacity-50"
                   >
@@ -1169,7 +1189,8 @@ export function TutorChat({
         </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto px-4 py-2 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+        <div className="flex gap-2 overflow-x-auto py-2">
           {studyActions.map((a) => (
             <button
               key={a.label}
@@ -1183,7 +1204,7 @@ export function TutorChat({
           ))}
         </div>
 
-        <div className="px-4 pb-4 pt-1 sm:px-6 sm:pb-6">
+        <div className="pb-4 pt-1 sm:pb-6">
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -1213,6 +1234,7 @@ export function TutorChat({
           <p className="mt-2 text-center text-xs text-slate-400">
             Answers are generated only from your uploaded study material.
           </p>
+        </div>
         </div>
       </div>
 

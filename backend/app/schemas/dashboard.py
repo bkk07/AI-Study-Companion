@@ -12,6 +12,13 @@ class MismatchRead(BaseModel):
     reason: str
 
 
+class StreamMasteryRead(BaseModel):
+    """One Plan A activity stream — value None means no evidence yet."""
+
+    value: float | None = None
+    count: int = 0
+
+
 class ConceptProgressRead(BaseModel):
     """Per-concept derived state — mastery null means no evidence yet."""
 
@@ -29,6 +36,12 @@ class ConceptProgressRead(BaseModel):
     avg_confidence: float | None = None
     accuracy: float | None = None
     evaluated_count: int = 0
+    # Plan A: weighted final + per-stream breakdown + evidence-amount flag
+    # ("none" / "low" / "ok"). Additive — legacy mcq/applied fields above
+    # are unchanged.
+    final_mastery: float | None = None
+    evidence_confidence: str = "none"
+    streams: dict[str, StreamMasteryRead] = Field(default_factory=dict)
 
 
 class RecommendationRead(BaseModel):
@@ -41,6 +54,11 @@ class RecommendationRead(BaseModel):
     score: float
     reasoning: str
     status: str
+    # Blueprint §16 breadcrumb: Topic > Subtopic > Concept path for the
+    # recommended concept. Additive defaults keep old clients/tests working.
+    topic: str = ""
+    subtopic: str = ""
+    concept_path: str = ""
 
 
 class DashboardResponse(BaseModel):

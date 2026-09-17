@@ -271,6 +271,7 @@ def review_card(
             project_id=project.id,
             concept_id=card.concept_id,
             evidence_type="flashcard",
+            source="flashcard",
             raw_score=Decimal(str(quality * 20)),
         ))
         db.commit()
@@ -278,4 +279,12 @@ def review_card(
         db.rollback()
         raise
     db.refresh(card)
+    # Blueprint §16: recommendation recomputes after mastery-affecting
+    # events. Best-effort — evidence is already committed.
+    try:
+        from app.worker.tasks.recommendations import refresh_best_effort
+
+        refresh_best_effort(user_id, project.id)
+    except Exception:
+        pass
     return card

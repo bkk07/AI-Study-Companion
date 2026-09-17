@@ -49,6 +49,9 @@ type Recommendation = {
   score: number
   reasoning: string
   status: string
+  topic?: string
+  subtopic?: string
+  concept_path?: string
 }
 
 type DashboardData = {
@@ -446,27 +449,15 @@ export function Dashboard({
 
       <div>
         <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Recommended Next</div>
-        {lowestApplied ? (
-          <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
-            <h3 className="mb-1 text-lg font-semibold">Practice {lowestApplied.title}</h3>
-            <p className="mb-4 text-sm text-indigo-200">
-              Your applied mastery ({Math.round(lowestApplied.applied ?? 0)}%) is the lowest among recently practiced topics.
-            </p>
-            <button
-              type="button"
-              onClick={() => practice(lowestApplied.concept_id)}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-            >
-              Study this
-            </button>
-          </div>
-        ) : rec ? (
+        {rec ? (
           <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
             <h3 className="mb-1 text-lg font-semibold">
               {actionLabel(rec.action_type)}: {rec.concept_name}
             </h3>
+            {rec.concept_path ? (
+              <div className="mb-2 text-xs text-indigo-300">{rec.concept_path}</div>
+            ) : null}
             <p className="mb-4 text-sm text-indigo-200">{rec.reasoning}</p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -505,6 +496,21 @@ export function Dashboard({
                 </>
               )}
             </div>
+          </div>
+        ) : lowestApplied ? (
+          <div className="mb-4 rounded-xl bg-indigo-600 p-6 text-white">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Primary Recommendation</div>
+            <h3 className="mb-1 text-lg font-semibold">Practice {lowestApplied.title}</h3>
+            <p className="mb-4 text-sm text-indigo-200">
+              Your applied mastery ({Math.round(lowestApplied.applied ?? 0)}%) is the lowest among recently practiced topics.
+            </p>
+            <button
+              type="button"
+              onClick={() => practice(lowestApplied.concept_id)}
+              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+            >
+              Study this
+            </button>
           </div>
         ) : (
           <div className="mb-4 rounded-xl border border-slate-200 bg-white p-6">

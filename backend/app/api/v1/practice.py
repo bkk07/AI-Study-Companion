@@ -30,7 +30,8 @@ def get_recommendations(
     _, signals = dashboard_service.build_dashboard(db, user_id=user.id, project_id=project.id)
     try:
         ranked, fallback = recommendation_service.recommend_many(
-            db, user_id=user.id, project_id=project.id, signals=signals, limit=limit
+            db, user_id=user.id, project_id=project.id, signals=signals, limit=limit,
+            goal_keywords=recommendation_service.goal_keywords_for_project(project.name),
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

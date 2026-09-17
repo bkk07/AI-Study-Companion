@@ -15,6 +15,7 @@ from app.schemas.dashboard import (
     DashboardResponse,
     MismatchRead,
     RecommendationRead,
+    StreamMasteryRead,
 )
 from app.services import dashboard_service, recommendation_service
 from app.services.mastery_levels import status_for
@@ -31,12 +32,40 @@ def _concept_names(db: Session, concept_ids: set[uuid.UUID]) -> dict[uuid.UUID, 
     )
 
 
+def _concept_breadcrumb(db: Session, concept_id: uuid.UUID) -> tuple[str, str, str, str]:
+    """Return (name, topic, subtopic, path) for one concept.
+
+    Path format is Blueprint §16 breadcrumb: "Topic > Subtopic > Concept".
+    Missing links degrade to name-only rather than 404 — the recommendation
+    row itself is still valid history even if structure rows were removed.
+    """
+    from app.models.subtopic import Subtopic
+    from app.models.topic import Topic
+
+    concept = db.get(Concept, concept_id)
+    if concept is None:
+        return "", "", "", ""
+    subtopic = db.get(Subtopic, concept.subtopic_id) if concept.subtopic_id else None
+    topic = db.get(Topic, subtopic.topic_id) if subtopic is not None else None
+    topic_title = topic.title if topic is not None else ""
+    subtopic_title = subtopic.title if subtopic is not None else ""
+    if topic_title and subtopic_title:
+        path = f"{topic_title} > {subtopic_title} > {concept.title}"
+    else:
+        path = concept.title
+    return concept.title, topic_title, subtopic_title, path
+
+
 def _to_response(
     db: Session,
     progress: list[dashboard_service.ConceptProgress],
     recommendation,
 ) -> DashboardResponse:
     names = _concept_names(db, ({recommendation.concept_id} if recommendation else set()))
+    if recommendation is not None:
+        _, rec_topic, rec_subtopic, rec_path = _concept_breadcrumb(db, recommendation.concept_id)
+    else:
+        rec_topic, rec_subtopic, rec_path = "", "", ""
     return DashboardResponse(
         concepts=[
             ConceptProgressRead(
@@ -49,13 +78,23 @@ def _to_response(
                 mcq_count=p.scores.mcq.count,
                 applied_count=p.scores.applied.count,
                 last_evidence_at=max(
-                    [s.last_at for s in (p.scores.mcq, p.scores.applied) if s.last_at is not None],
+                    [s.last_at for s in (p.scores.quiz, p.scores.open_ended, p.scores.practice,
+                                         p.scores.flashcard, p.scores.tutor) if s.last_at is not None],
                     default=None,
                 ),
                 status=status_for(display_mastery(p.scores)),
                 avg_confidence=p.avg_confidence,
                 accuracy=p.accuracy,
                 evaluated_count=p.evaluated_count,
+                final_mastery=p.scores.final,
+                evidence_confidence=p.scores.evidence_confidence,
+                streams={
+                    name: StreamMasteryRead(
+                        value=getattr(p.scores, name).value,
+                        count=getattr(p.scores, name).count,
+                    )
+                    for name in ("quiz", "open_ended", "practice", "flashcard", "tutor")
+                },
                 mismatch=(
                     MismatchRead(mismatch_type=p.mismatch.mismatch_type, gap=p.mismatch.gap,
                                  reason=p.mismatch.reason)
@@ -74,6 +113,9 @@ def _to_response(
                 score=float(recommendation.score),
                 reasoning=recommendation.reasoning,
                 status=recommendation.status,
+                topic=rec_topic,
+                subtopic=rec_subtopic,
+                concept_path=rec_path,
             )
             if recommendation is not None
             else None
@@ -102,7 +144,11 @@ def refresh_recommendation(
     """Persist a fresh recommendation (previous active expires)."""
     try:
         _, signals = dashboard_service.build_dashboard(db, user_id=user.id, project_id=project.id)
-        row = recommendation_service.recommend(db, user_id=user.id, project_id=project.id, signals=signals)
+        goal_keywords = recommendation_service.goal_keywords_for_project(project.name)
+        row = recommendation_service.recommend(
+            db, user_id=user.id, project_id=project.id, signals=signals,
+            goal_keywords=goal_keywords,
+        )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
@@ -111,10 +157,12 @@ def refresh_recommendation(
         raise HTTPException(status_code=502, detail="Recommendation provider unavailable") from e
     if row is None:
         raise HTTPException(status_code=404, detail="no scorable concepts yet")
+    _, rec_topic, rec_subtopic, rec_path = _concept_breadcrumb(db, row.concept_id)
     concept = db.get(Concept, row.concept_id)
     return RecommendationRead(
         id=row.id, concept_id=row.concept_id, concept_name=concept.title if concept else "",
         action_type=row.action_type, score=float(row.score), reasoning=row.reasoning, status=row.status,
+        topic=rec_topic, subtopic=rec_subtopic, concept_path=rec_path,
     )
 
 
@@ -127,11 +175,13 @@ def _transition(
     current.status = to_status
     db.commit()
     db.refresh(current)
+    _, rec_topic, rec_subtopic, rec_path = _concept_breadcrumb(db, current.concept_id)
     concept = db.get(Concept, current.concept_id)
     return RecommendationRead(
         id=current.id, concept_id=current.concept_id, concept_name=concept.title if concept else "",
         action_type=current.action_type, score=float(current.score),
         reasoning=current.reasoning, status=current.status,
+        topic=rec_topic, subtopic=rec_subtopic, concept_path=rec_path,
     )
 
 

@@ -26,4 +26,5 @@ def add(self, a: int, b: int) -> int:
 # Ensure worker tasks are registered when tasks package is included
 import app.worker.tasks.embeddings  # noqa: F401,E402
 import app.worker.tasks.extraction  # noqa: F401,E402
+import app.worker.tasks.recommendations  # noqa: F401,E402
 import app.worker.tasks.structure  # noqa: F401,E402

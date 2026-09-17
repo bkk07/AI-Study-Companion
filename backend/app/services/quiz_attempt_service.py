@@ -111,14 +111,18 @@ def attempt_score(db: Session, attempt_id: uuid.UUID) -> tuple[int, int]:
 def write_mcq_evidence(db: Session, attempt: QuizAttempt, project_id: uuid.UUID) -> int:
     """Persist one `mcq` evidence row per answered question of the attempt.
 
-    Score is 100/0 per answer on the question's own concept — the model's
-    "one row per graded learning action". Returns the row count. Caller
-    commits; on error the caller rolls back. Unanswered questions are
-    skipped; re-running for the same attempt would duplicate, so callers
-    must gate on completion state (complete_attempt rejects re-completion
-    before reaching here).
+    The Plan A stream follows the quiz mode: `exam` rows feed the `quiz`
+    stream, `practice` rows feed the `practice` stream. Score is 100/0 per
+    answer on the question's own concept — the model's "one row per graded
+    learning action". Returns the row count. Caller commits; on error the
+    caller rolls back. Unanswered questions are skipped; re-running for the
+    same attempt would duplicate, so callers must gate on completion state
+    (complete_attempt rejects re-completion before reaching here).
     """
+    from app.services.mastery_service import PRACTICE_STREAM, QUIZ_STREAM
+
     quiz = _get_quiz_in_project(db, attempt.quiz_id, project_id)
+    source = QUIZ_STREAM if quiz.mode == "exam" else PRACTICE_STREAM
     answers = (
         db.query(QuizAnswer, QuizQuestion)
         .join(QuizQuestion, QuizAnswer.question_id == QuizQuestion.id)
@@ -132,6 +136,7 @@ def write_mcq_evidence(db: Session, attempt: QuizAttempt, project_id: uuid.UUID)
             project_id=quiz.project_id,
             concept_id=question.concept_id,
             evidence_type="mcq",
+            source=source,
             raw_score=Decimal("100") if answer.is_correct else Decimal("0"),
         ))
         count += 1
@@ -153,4 +158,13 @@ def complete_attempt(
         db.rollback()
         raise
     db.refresh(attempt)
+    # Blueprint §16: recommendation recomputes after mastery-affecting
+    # events. Best-effort — evidence is already committed; a broker outage
+    # must not fail the completion response.
+    try:
+        from app.worker.tasks.recommendations import refresh_best_effort
+
+        refresh_best_effort(user_id, project_id)
+    except Exception:
+        pass
     return attempt

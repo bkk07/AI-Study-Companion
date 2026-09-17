@@ -2,9 +2,15 @@
 
 No new formulas here: mastery comes from `mastery_service`, mismatches
 from `mismatch_service`, recommendations from `recommendation_service`.
-Calibration aggregates rated quiz answers only (confidence present;
-accuracy over that same set — one consistent evaluated set for the
-mismatch bands; unrated answers are excluded).
+Calibration aggregates rated quiz/practice answers only (QuizAnswer rows
+with confidence present; accuracy over that same set — one consistent
+evaluated set for the mismatch bands; unrated answers are excluded).
+Open-ended / Explain-It-Back carry no confidence input yet (no API field,
+no storage column), so concepts with only applied evidence correctly yield
+avg_confidence=None / evaluated_count=0 and earn no uncertainty bonus —
+absence of signal, not negative signal. When confidence capture is added
+to those flows, extend the `rated` query below and keep the
+evaluated-only contract.
 """
 
 from __future__ import annotations
@@ -71,6 +77,11 @@ def build_dashboard(
         scores = mastery_service.mastery_for_concept(
             db, user_id=user_id, project_id=project.id, concept_id=concept.id
         )
+        # Rated quiz/practice answers only: both modes persist QuizAnswer
+        # rows with optional confidence, so this one query covers both
+        # streams. Open-ended / explain-back have no confidence column —
+        # see module docstring — and are deliberately excluded rather than
+        # defaulted, so applied-only concepts yield None / 0 below.
         rated = (
             db.query(QuizAnswer.confidence, QuizAnswer.is_correct)
             .join(QuizAttempt, QuizAnswer.attempt_id == QuizAttempt.id)
@@ -86,8 +97,15 @@ def build_dashboard(
         )
         avg_conf = sum(c for c, _ in rated) / len(rated) if rated else None
         accuracy = sum(1 for _, ok in rated if ok) / len(rated) if rated else None
-        lasts = [s.last_at for s in (scores.mcq, scores.applied) if s.last_at is not None]
-        days = (moment - max(lasts)).total_seconds() / 86400 if lasts else None
+        lasts = [
+            s.last_at
+            for s in (scores.quiz, scores.open_ended, scores.practice,
+                      scores.flashcard, scores.tutor)
+            if s.last_at is not None
+        ]
+        # Clamp tiny negatives to 0: DB now() can run milliseconds ahead of
+        # app now(), which would otherwise fail ConceptSignal validation.
+        days = max(0.0, (moment - max(lasts)).total_seconds() / 86400) if lasts else None
         state = ConceptState(
             concept_id=concept.id,
             mcq_mastery=scores.mcq.value,
@@ -97,6 +115,10 @@ def build_dashboard(
             avg_confidence=avg_conf,
             accuracy=accuracy,
             evaluated_count=len(rated),
+            quiz_mastery=scores.quiz.value,
+            open_ended_mastery=scores.open_ended.value,
+            quiz_count=scores.quiz.count,
+            open_ended_count=scores.open_ended.count,
         )
         states.append(state)
         per_concept.append((concept, topic_title, subtopic_title, scores, state, days))
@@ -130,6 +152,12 @@ def build_dashboard(
             accuracy=state.accuracy,
             evaluated_count=state.evaluated_count,
             days_since_evidence=days,
+            quiz=scores.quiz.value,
+            open_ended=scores.open_ended.value,
+            practice=scores.practice.value,
+            flashcard=scores.flashcard.value,
+            tutor=scores.tutor.value,
+            final=scores.final,
         )
         for concept, _, _, scores, state, days in per_concept
     ]

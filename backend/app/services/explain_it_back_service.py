@@ -51,12 +51,21 @@ def submit_explanation(
             project_id=project_id,
             concept_id=concept_id,
             evidence_type="explain_back",
+            source="open_ended",
             raw_score=grade.score,
             feedback=grade.feedback,
         )
         db.add(evidence)
         db.commit()
         db.refresh(evidence)
+        # Blueprint §16: recommendation recomputes after mastery-affecting
+        # events. Best-effort — evidence is already committed.
+        try:
+            from app.worker.tasks.recommendations import refresh_best_effort
+
+            refresh_best_effort(user_id, project_id)
+        except Exception:
+            pass
         return evidence, grade
     except Exception:
         db.rollback()

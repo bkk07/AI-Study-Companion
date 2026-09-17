@@ -9,7 +9,10 @@ Per (concept, action):
 - uncertainty = +25 when overconfident (avg conf >= 4 with accuracy <= 0.5
   over evaluated records),
 - recency = +15 when days since last evidence strictly exceeds 5,
-- goal = +10 on a (case-insensitive) concept-name / goal-keyword match,
+- goal = +10 on a goal-keyword match against the concept name
+  (case-insensitive token overlap or phrase substring — e.g. project goal
+  "learn gradient descent" matches concept "Gradient Descent"; exact
+  whole-name equality is the special case, not the only case),
 - base = ask_tutor 10 / targeted_quiz 15 / explain_back 20 /
   review_material 5 / exam_mode 8,
 - repetition = 25 x same (concept, action) recommendations in the last 7 days,
@@ -25,6 +28,7 @@ Reasoning names the nonzero drivers with numbers — never LLM-written.
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -64,6 +68,50 @@ MISMATCH_QUIZ_PENALTY = 20.0
 MIN_EVIDENCED_CONCEPTS_FOR_EXAM = 3
 
 
+def _tokenize(text: str) -> set[str]:
+    """Lowercase alphanumeric tokens of length >= 2 (drops "a"/"of"/punct)."""
+    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if len(t) >= 2}
+
+
+def _goal_matched(concept_name: str, goal_keywords: tuple[str, ...]) -> bool:
+    """True when any goal keyword/phrase matches the concept name.
+
+    Matches on (a) exact whole-name equality (legacy behavior), (b) token
+    overlap between keyword tokens and concept-name tokens, or (c) phrase
+    substring either direction. All comparisons are case-insensitive.
+    Empty/blank keywords never match.
+    """
+    name = concept_name.strip().lower()
+    if not name:
+        return False
+    name_tokens = _tokenize(concept_name)
+    for raw in goal_keywords:
+        kw = raw.strip().lower()
+        if not kw:
+            continue
+        if name == kw:
+            return True
+        if kw in name or name in kw:
+            return True
+        if name_tokens & _tokenize(raw):
+            return True
+    return False
+
+
+def goal_keywords_for_project(project_name: str | None) -> tuple[str, ...]:
+    """Derive goal keywords from a project name (no goal column exists yet).
+
+    Returns the raw name plus its tokens so `score_action` can match either
+    a whole phrase ("Gradient Descent") or individual words ("gradient").
+    Empty names yield () — no bonus, never an error. Callers that gain a
+    real goal/objective field later should pass its text here instead.
+    """
+    if not project_name or not project_name.strip():
+        return ()
+    text = project_name.strip()
+    return (text, *sorted(_tokenize(text)))
+
+
 @dataclass(frozen=True)
 class ConceptSignal:
     """Scorable snapshot of one concept. Unknown mastery is None.
@@ -87,11 +135,19 @@ class ConceptSignal:
     days_since_evidence: float | None = None
     importance: str | None = None
     lo_type: str | None = None
+    # Plan A per-stream mastery (optional; scoring still uses the mcq /
+    # applied compat aggregates, which already include all five streams).
+    quiz: float | None = None
+    open_ended: float | None = None
+    practice: float | None = None
+    flashcard: float | None = None
+    tutor: float | None = None
+    final: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError("name must be a non-empty string")
-        for attr in ("mcq", "applied"):
+        for attr in ("mcq", "applied", "quiz", "open_ended", "practice", "flashcard", "tutor", "final"):
             value = getattr(self, attr)
             if value is not None and (
                 isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100
@@ -153,8 +209,8 @@ def score_action(
         score += UNCERTAINTY_BONUS
     if signal.days_since_evidence is not None and signal.days_since_evidence > RECENCY_DAYS:
         score += RECENCY_BONUS
-    wanted = {k.strip().lower() for k in goal_keywords if k.strip()}
-    if signal.name.strip().lower() in wanted:
+    goal_hit = _goal_matched(signal.name, goal_keywords)
+    if goal_hit:
         score += GOAL_BONUS
     score += ACTION_BASE[action]
     if signal.mismatch_type is not None:
@@ -184,7 +240,14 @@ _ACTION_LEAD = {
 }
 
 
-def _explain(signal: ConceptSignal, action: str, score: float, times_recommended: int) -> str:
+def _explain(
+    signal: ConceptSignal,
+    action: str,
+    score: float,
+    times_recommended: int,
+    *,
+    goal_keywords: tuple[str, ...] = (),
+) -> str:
     parts = [f"{_ACTION_LEAD[action]} {signal.name} (score {score:.1f})."]
     known = [(label, m) for label, m in (("recognition", signal.mcq), ("applied", signal.applied)) if m is not None]
     parts.append("Mastery is " + " and ".join(f"{label} {m:.1f}" for label, m in known) + ".")
@@ -203,6 +266,9 @@ def _explain(signal: ConceptSignal, action: str, score: float, times_recommended
         )
     if signal.days_since_evidence is not None and signal.days_since_evidence > RECENCY_DAYS:
         parts.append(f"No evidence for {signal.days_since_evidence:.0f} days, so it is due for review.")
+    if _goal_matched(signal.name, goal_keywords):
+        parts.append("This matches your project goal (+10).")
+    parts.append(f"Action base value is {ACTION_BASE[action]:.0f} for {action}.")
     if times_recommended:
         parts.append(
             f"Recommended {times_recommended} time(s) recently, but it still scores highest."
@@ -296,7 +362,7 @@ def recommend_many(
                              times_recommended=times)
         ranked.append(PracticeCandidate(
             signal=signal, score=score,
-            reasoning=_explain(signal, TARGETED_QUIZ, score, times)))
+            reasoning=_explain(signal, TARGETED_QUIZ, score, times, goal_keywords=goal_keywords)))
     ranked.sort(key=lambda c: (-c.score, str(c.signal.concept_id)))
     fallback = None
     if not ranked and eligible:
@@ -356,6 +422,9 @@ def recommend(
 
     Expires the previous `active` row so exactly one current recommendation
     remains. Returns None (persisting nothing) when no concept is scorable.
+    Mastered concepts (min-known >= MASTERED_FROM) are never served
+    TARGETED_QUIZ — more quizzes add nothing there — but stay eligible for
+    review/exam/tutor actions, matching `recommend_many`'s quiz-only skip.
     """
     if any(not isinstance(s, ConceptSignal) for s in signals):
         raise ValueError("signals must all be ConceptSignal")
@@ -389,9 +458,13 @@ def recommend(
     for signal in ordered:
         if signal.mcq is None and signal.applied is None:
             continue
+        known = [m for m in (signal.mcq, signal.applied) if m is not None]
+        mastered = bool(known) and min(float(m) for m in known) >= MASTERED_FROM
         for action in ACTIONS:
             if not is_eligible(action, evidenced):
                 continue
+            if mastered and action == TARGETED_QUIZ:
+                continue  # aligned with recommend_many: quizzes never top-rank mastered
             times = counts.get((signal.concept_id, action), 0)
             score = score_action(signal, action, goal_keywords=goal_keywords, times_recommended=times)
             if best is None or score > best[2]:
@@ -411,7 +484,7 @@ def recommend(
             concept_id=signal.concept_id,
             action_type=action,
             score=score,
-            reasoning=_explain(signal, action, score, times),
+            reasoning=_explain(signal, action, score, times, goal_keywords=goal_keywords),
             status="active",
         )
         db.add(row)

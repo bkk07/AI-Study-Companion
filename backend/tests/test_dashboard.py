@@ -21,6 +21,7 @@ from app.models.quiz_attempt import QuizAnswer, QuizAttempt
 from app.models.space import Space
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
+from app.models.user import User
 
 T0 = datetime(2026, 9, 1, tzinfo=timezone.utc)
 
@@ -197,5 +198,36 @@ def test_dashboard_isolation_and_auth():
         assert client.get(base).status_code in (401, 403)
         assert client.post(f"{base}/refresh", headers=headers["b"]).status_code == 404
         assert client.get(f"/api/v1/projects/{uuid.uuid4()}/dashboard", headers=headers["a"]).status_code == 404
+    finally:
+        _teardown(engine)
+
+
+def test_dashboard_status_follows_capped_final_not_stream_mean():
+    """Regression: badge and bar must agree — status comes from the capped
+    headline final, so practice-only 100s read Strong (70), never Mastered."""
+    client, engine = _setup()
+    try:
+        ids, headers = _users(client, engine)
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        try:
+            me = db.query(User).filter(User.email.like("dash-a-%")).order_by(User.created_at.desc()).first()
+            project = db.get(Project, uuid.UUID(ids["pid"]))
+            sub = db.query(Subtopic).filter(Subtopic.project_id == project.id).one()
+            drill = Concept(project_id=project.id, subtopic_id=sub.id, title="Drill",
+                            summary="Practice only.", created_at=T0)
+            db.add(drill)
+            db.flush()
+            for i in range(4):
+                db.add(MasteryEvidence(user_id=me.id, project_id=project.id, concept_id=drill.id,
+                                       evidence_type="mcq", source="practice", raw_score=100,
+                                       created_at=T0 + timedelta(days=10 + i)))
+            db.commit()
+        finally:
+            db.close()
+        body = client.get(f"/api/v1/projects/{ids['pid']}/dashboard", headers=headers["a"]).json()
+        drill_out = {c["title"]: c for c in body["concepts"]}["Drill"]
+        assert drill_out["final_mastery"] == pytest.approx(70.0)
+        assert drill_out["status"] == "Strong"
     finally:
         _teardown(engine)

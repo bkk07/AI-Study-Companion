@@ -19,7 +19,6 @@ from app.schemas.dashboard import (
 )
 from app.services import dashboard_service, recommendation_service
 from app.services.mastery_levels import status_for
-from app.services.rollup_service import display_mastery
 
 router = APIRouter(prefix="/projects/{project_id}/dashboard", tags=["dashboard"])
 
@@ -82,7 +81,10 @@ def _to_response(
                                          p.scores.flashcard, p.scores.tutor) if s.last_at is not None],
                     default=None,
                 ),
-                status=status_for(display_mastery(p.scores)),
+                # Status follows the capped headline final (same number as
+                # the bars) — never the uncapped stream mean, which could
+                # read Mastered while the bar shows 70.
+                status=status_for(p.scores.final),
                 avg_confidence=p.avg_confidence,
                 accuracy=p.accuracy,
                 evaluated_count=p.evaluated_count,
@@ -144,7 +146,7 @@ def refresh_recommendation(
     """Persist a fresh recommendation (previous active expires)."""
     try:
         _, signals = dashboard_service.build_dashboard(db, user_id=user.id, project_id=project.id)
-        goal_keywords = recommendation_service.goal_keywords_for_project(project.name)
+        goal_keywords = recommendation_service.goal_keywords_for_project(project.name, project.goal)
         row = recommendation_service.recommend(
             db, user_id=user.id, project_id=project.id, signals=signals,
             goal_keywords=goal_keywords,

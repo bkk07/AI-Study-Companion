@@ -9,7 +9,6 @@ from app.models.user import User
 from app.schemas.practice import PracticeCandidateRead, PracticeRecommendationsRead
 from app.services import dashboard_service, recommendation_service
 from app.services.mastery_levels import status_for
-from app.services.rollup_service import display_mastery
 from app.services.mastery_service import mastery_for_concept
 
 router = APIRouter(prefix="/projects/{project_id}/practice", tags=["practice"])
@@ -31,7 +30,7 @@ def get_recommendations(
     try:
         ranked, fallback = recommendation_service.recommend_many(
             db, user_id=user.id, project_id=project.id, signals=signals, limit=limit,
-            goal_keywords=recommendation_service.goal_keywords_for_project(project.name),
+            goal_keywords=recommendation_service.goal_keywords_for_project(project.name, project.goal),
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -42,7 +41,8 @@ def get_recommendations(
         scores = mastery_for_concept(
             db, user_id=user.id, project_id=project.id, concept_id=candidate.signal.concept_id
         )
-        mastery = display_mastery(scores)
+        # Headline final (capped), same definition as dashboard bars/badges.
+        mastery = scores.final
         return PracticeCandidateRead(
             concept_id=candidate.signal.concept_id,
             name=candidate.signal.name,

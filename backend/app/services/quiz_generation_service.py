@@ -336,6 +336,62 @@ def _resolve_scope_concepts(
     return targets, "Entire project"
 
 
+def _resolve_practice_concepts(
+    db: Session,
+    project: Project,
+    *,
+    topic_ids=None,
+    subtopic_ids=None,
+    concept_ids=None,
+) -> tuple[list[Concept], str]:
+    """Resolve the Practice picker's explicit multi-select to target concepts.
+
+    Union of: every concept under each topic, every concept in each subtopic,
+    plus each concept directly. Only CORE, non-obsolete concepts are eligible
+    (same gate as every other scope). Raises LookupError for out-of-scope ids
+    and QuizGenerationError when nothing is practicable.
+    """
+    seen: dict[uuid.UUID, Concept] = {}
+
+    for tid in topic_ids or []:
+        topic = db.get(Topic, tid)
+        if topic is None or topic.project_id != project.id:
+            raise LookupError("topic not found in this project")
+        sub_ids = [s.id for s in db.query(Subtopic).filter(Subtopic.topic_id == topic.id).all()]
+        if sub_ids:
+            for c in (
+                db.query(Concept)
+                .filter(Concept.project_id == project.id, Concept.subtopic_id.in_(sub_ids))
+                .order_by(Concept.created_at.asc())
+                .all()
+            ):
+                seen[c.id] = c
+
+    for sid in subtopic_ids or []:
+        sub = db.get(Subtopic, sid)
+        if sub is None or sub.project_id != project.id:
+            raise LookupError("subtopic not found in this project")
+        for c in (
+            db.query(Concept)
+            .filter(Concept.project_id == project.id, Concept.subtopic_id == sub.id)
+            .order_by(Concept.created_at.asc())
+            .all()
+        ):
+            seen[c.id] = c
+
+    for cid in concept_ids or []:
+        concept = db.get(Concept, cid)
+        if concept is None or concept.project_id != project.id:
+            raise LookupError("project or concept not found in scope")
+        seen[concept.id] = concept
+
+    targets = [c for c in seen.values() if is_mastery_target(c)]
+    if not targets:
+        raise QuizGenerationError("Practice selection has no practicable concepts yet")
+    targets.sort(key=lambda c: (c.created_at, str(c.id)))
+    return targets, f"Practice selection ({len(targets)} concepts)"
+
+
 def _scoped_source(db: Session, project_id, concepts: list[Concept]) -> str:
     """Combined project-local source for a scoped quiz (single LLM call)."""
     ids = [c.id for c in concepts]
@@ -366,6 +422,9 @@ def generate_scoped_quiz(
     topic_id=None,
     subtopic_id=None,
     concept_id=None,
+    topic_ids=None,
+    subtopic_ids=None,
+    concept_ids=None,
     num_questions: int = 5,
     mode: str = "practice",
     difficulty: str | None = None,
@@ -384,12 +443,56 @@ def generate_scoped_quiz(
         raise ValueError("mode must be 'practice' or 'exam'")
     if difficulty is not None and difficulty not in ("easy", "medium", "hard"):
         raise ValueError("difficulty must be easy, medium, or hard")
-    if scope not in ("project", "topic", "subtopic", "concept"):
-        raise ValueError("scope must be project, topic, subtopic, or concept")
+    if scope not in ("project", "topic", "subtopic", "concept", "practice"):
+        raise ValueError("scope must be project, topic, subtopic, concept, or practice")
 
     project = db.get(Project, project_id)
     if project is None:
         raise LookupError("project not found in scope")
+
+    if scope == "practice":
+        concepts, focus = _resolve_practice_concepts(
+            db, project, topic_ids=topic_ids,
+            subtopic_ids=subtopic_ids, concept_ids=concept_ids,
+        )
+        source = _scoped_source(db, project.id, concepts)
+
+        user_prompt = _build_user_prompt(source, num_questions, difficulty, focus, None, None)
+        call = client or groq_client.chat_json
+        last_error: Exception | None = None
+        outline: MCQOutline | None = None
+        for _ in range(2):  # initial + one retry
+            try:
+                outline = _validate_outline(call(SYSTEM_PROMPT, user_prompt), num_questions)
+                break
+            except (ValidationError, ValueError, KeyError, TypeError) as e:
+                last_error = e
+                continue
+        if outline is None:
+            raise QuizGenerationError(f"Invalid quiz output after retry: {last_error}")
+
+        try:
+            quiz = Quiz(project_id=project.id, mode=mode, question_count=len(outline.questions))
+            db.add(quiz)
+            db.flush()
+            for i, item in enumerate(outline.questions):
+                db.add(
+                    QuizQuestion(
+                        quiz_id=quiz.id,
+                        concept_id=concepts[i % len(concepts)].id,
+                        question_text=item.question_text,
+                        options=item.options,
+                        correct_index=item.correct_index,
+                        difficulty=item.difficulty,
+                        source_chunk_id=None,
+                    )
+                )
+            db.commit()
+            db.refresh(quiz)
+            return quiz
+        except Exception:
+            db.rollback()
+            raise
 
     if scope == "concept":
         if concept_id is None:

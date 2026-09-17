@@ -67,14 +67,14 @@ type TopicNode = {
   subtopics: { id: string; title: string; concepts: { id: string; title: string }[] }[]
 }
 
-export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview" | "assessments"
+export type ProjectTab = "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "overview" | "practice" | "open-ended"
 
 const ACTION_LABELS: Record<string, string> = {
   ask_tutor: "Ask the tutor",
   targeted_quiz: "Take a targeted quiz",
   explain_back: "Explain it back",
   review_material: "Review the material",
-  exam_mode: "Run an exam-mode session",
+  exam_mode: "Run a practice session",
 }
 
 function actionLabel(action: string): string {

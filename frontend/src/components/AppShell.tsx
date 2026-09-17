@@ -6,9 +6,9 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   Command,
   CreditCard,
+  Dumbbell,
   FileText,
   HelpCircle,
   Layers,
@@ -16,6 +16,7 @@ import {
   LogOut,
   Map,
   MessageCircle,
+  PenLine,
   Search,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
@@ -23,7 +24,7 @@ import { Logo } from "@/components/ui"
 import { cn } from "@/lib/utils"
 import apiClient from "@/lib/axios"
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "assessments"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended"
 
 const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <LayoutDashboard size={16} /> },
@@ -32,7 +33,8 @@ const PROJECT_NAV: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "tutor", label: "Tutor", icon: <MessageCircle size={16} /> },
   { id: "flashcards", label: "Flashcards", icon: <CreditCard size={16} /> },
   { id: "quiz", label: "Quiz", icon: <HelpCircle size={16} /> },
-  { id: "assessments", label: "Assessments", icon: <ClipboardCheck size={16} /> },
+  { id: "practice", label: "Practice", icon: <Dumbbell size={16} /> },
+  { id: "open-ended", label: "Open Ended Answers", icon: <PenLine size={16} /> },
   { id: "progress", label: "Dashboard", icon: <BarChart2 size={16} /> },
 ]
 
@@ -84,6 +86,8 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     ? [
         { label: "Ask Tutor", hint: "Grounded Q&A", tab: "tutor" as TabId },
         { label: "Start Quiz", hint: "Practice mode", tab: "quiz" as TabId },
+        { label: "Start Practice", hint: "MCQs + open-ended", tab: "practice" as TabId },
+        { label: "Open-Ended Answers", hint: "Explain + evaluate", tab: "open-ended" as TabId },
         { label: "Review Flashcards", hint: "Due cards", tab: "flashcards" as TabId },
         { label: "View Knowledge Map", hint: "Topic tree", tab: "structure" as TabId },
         { label: "Upload Document", hint: "PDF library", tab: "materials" as TabId },

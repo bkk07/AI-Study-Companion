@@ -11,6 +11,8 @@ from app.models.user import User
 from app.schemas.assessment import (
     ExplainBackRequest,
     ExplainBackResponse,
+    OpenEndedGenerateRequest,
+    OpenEndedGenerateResponse,
     OpenEndedGradeRequest,
     OpenEndedGradeResponse,
 )
@@ -18,6 +20,45 @@ from app.services import explain_it_back_service, open_ended_assessment_service
 from app.services.open_ended_assessment_service import OpenEndedAssessmentError
 
 router = APIRouter(prefix="/projects/{project_id}/assessment", tags=["assessment"])
+
+
+@router.post("/open-ended/generate", response_model=OpenEndedGenerateResponse, status_code=201)
+def generate_open_ended_question(
+    body: OpenEndedGenerateRequest,
+    project: Project = Depends(get_authorized_project),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("assessment")),
+) -> OpenEndedGenerateResponse:
+    """Generate one open-ended question for a topic/subtopic/concept scope."""
+    try:
+        question = open_ended_assessment_service.generate_open_ended_question(
+            db,
+            project_id=project.id,
+            scope=body.scope,
+            topic_id=body.topic_id,
+            subtopic_id=body.subtopic_id,
+            concept_id=body.concept_id,
+            topic_ids=body.topic_ids,
+            subtopic_ids=body.subtopic_ids,
+            concept_ids=body.concept_ids,
+            difficulty=body.difficulty,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except OpenEndedAssessmentError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail="Assessment AI provider unavailable") from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return OpenEndedGenerateResponse(
+        question_text=question.question_text,
+        concept_id=question.concept_id,
+        scope_label=question.scope_label,
+        difficulty=question.difficulty,
+    )
 
 
 @router.post("/open-ended", response_model=OpenEndedGradeResponse)
@@ -34,6 +75,7 @@ def grade_open_ended(
             project_id=project.id,
             concept_id=body.concept_id,
             answer_text=body.answer_text,
+            question_text=body.question_text,
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -50,6 +92,9 @@ def grade_open_ended(
         score=grade.score,
         verdict=grade.verdict,
         feedback=grade.feedback,
+        strengths=list(grade.strengths),
+        missing_points=list(grade.missing_points),
+        suggestions=list(grade.suggestions),
     )
 
 

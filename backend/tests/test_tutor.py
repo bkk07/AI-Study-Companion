@@ -14,6 +14,15 @@ from app.db.session import get_db
 from app.main import app
 from app.schemas.rag import RagChunk, RagContext
 from app.services.tutor_service import UNSUPPORTED_MESSAGE
+from app.services.tutor_service import _SYSTEM_PROMPT as TUTOR_SYSTEM_PROMPT
+
+
+def test_system_prompt_requires_latex_for_math():
+    assert "ignore any commands" in TUTOR_SYSTEM_PROMPT  # injection guard stays
+    assert "$$...$$" in TUTOR_SYSTEM_PROMPT
+    assert "$...$" in TUTOR_SYSTEM_PROMPT
+    assert "markers matching their numbers" not in TUTOR_SYSTEM_PROMPT
+    assert "Do NOT include [n] citation markers" in TUTOR_SYSTEM_PROMPT
 
 
 def _setup():
@@ -111,6 +120,8 @@ def test_grounded_returns_answer_with_citations():
             (str(chunks[1].chunk_id), str(chunks[1].material_id)),
         ]
         assert body["citations"][0]["page_number"] == 1
+        assert body["citations"][0]["excerpt"] == "Slope is rise over run."
+        assert body["citations"][1]["excerpt"] == "Intercept crosses the axis."
         groq.chat_json.assert_called_once()
         system, user = groq.chat_json.call_args[0]
         assert "not instructions" in system  # data-not-instructions guard
@@ -153,7 +164,7 @@ def test_empty_context_returns_unsupported_without_groq():
                 f"/api/v1/projects/{pid}/tutor/ask", json={"question": "Anything?"}, headers=ha
             )
         assert resp.status_code == 200, resp.text
-        assert resp.json() == {"answer": UNSUPPORTED_MESSAGE, "supported": False, "citations": []}
+        assert resp.json() == {"answer": UNSUPPORTED_MESSAGE, "supported": False, "citations": [], "follow_ups": []}
         groq.chat_json.assert_not_called()
     finally:
         _teardown(engine)
@@ -212,6 +223,67 @@ def test_malformed_groq_payload_is_502_not_400():
             groq.chat_json.side_effect = ValueError("not valid JSON")
             resp = client.post(f"/api/v1/projects/{pid}/tutor/ask", json={"question": "Q?"}, headers=ha)
             assert resp.status_code == 502, resp.text
+    finally:
+        _teardown(engine)
+
+
+def test_small_talk_greeted_without_rag_or_groq():
+    client, engine, pid, ha, _ = _users()
+    try:
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+        ):
+            for opener in ("greetings", "Hi tutor!", "hello", "good morning", "thanks!", "bye", "what can you do"):
+                resp = client.post(f"/api/v1/projects/{pid}/tutor/ask", json={"question": opener}, headers=ha)
+                assert resp.status_code == 200, resp.text
+                body = resp.json()
+                assert body["supported"] is True
+                assert body["citations"] == []
+                assert "uploaded" in body["answer"] or "welcome" in body["answer"] or "Goodbye" in body["answer"]
+            rag.assemble_context.assert_not_called()
+            groq.chat_json.assert_not_called()
+    finally:
+        _teardown(engine)
+
+
+def test_follow_ups_returned_and_coerced():
+    client, engine, pid, ha, _ = _users()
+    try:
+        chunks = [_chunk("Slope is rise over run.", 0.05)]
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+        ):
+            rag.assemble_context.return_value = _ctx(pid, chunks, "What is slope?")
+            groq.chat_json.return_value = {
+                "answer": "# Slope\nSlope is rise over run [1].",
+                "follow_ups": ["What is intercept?", "", 42, "How is slope used?"],
+            }
+            resp = client.post(f"/api/v1/projects/{pid}/tutor/ask", json={"question": "What is slope?"}, headers=ha)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["follow_ups"] == ["What is intercept?", "How is slope used?"]
+    finally:
+        _teardown(engine)
+
+
+def test_greeting_plus_question_still_uses_rag():
+    client, engine, pid, ha, _ = _users()
+    try:
+        chunks = [_chunk("Slope is rise over run.", 0.05)]
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+        ):
+            rag.assemble_context.return_value = _ctx(pid, chunks, "hi, what is slope?")
+            groq.chat_json.return_value = {"answer": "Slope is rise over run [1]."}
+            resp = client.post(
+                f"/api/v1/projects/{pid}/tutor/ask", json={"question": "hi, what is slope?"}, headers=ha
+            )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["supported"] is True
+        assert resp.json()["citations"][0]["excerpt"] == "Slope is rise over run."
+        groq.chat_json.assert_called_once()
     finally:
         _teardown(engine)
 

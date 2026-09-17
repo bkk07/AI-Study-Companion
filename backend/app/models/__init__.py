@@ -13,6 +13,7 @@ from app.models.quiz_attempt import QuizAnswer, QuizAttempt  # noqa: F401
 from app.models.space import Space  # noqa: F401
 from app.models.subtopic import Subtopic  # noqa: F401
 from app.models.topic import Topic  # noqa: F401
+from app.models.tutor_conversation import TutorConversation, TutorMessage  # noqa: F401
 from app.models.user import User  # noqa: F401
 
-__all__ = ["User", "Space", "Project", "Material", "BackgroundJob", "Topic", "Subtopic", "Concept", "ConceptRelationship", "Flashcard", "DocumentChunk", "Embedding", "Quiz", "QuizQuestion", "QuizAttempt", "QuizAnswer", "MasteryEvidence", "Recommendation"]
+__all__ = ["User", "Space", "Project", "Material", "BackgroundJob", "Topic", "Subtopic", "Concept", "ConceptRelationship", "Flashcard", "DocumentChunk", "Embedding", "Quiz", "QuizQuestion", "QuizAttempt", "QuizAnswer", "MasteryEvidence", "Recommendation", "TutorConversation", "TutorMessage"]

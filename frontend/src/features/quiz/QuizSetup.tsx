@@ -1,118 +1,37 @@
-import { useEffect, useMemo, useState } from "react"
-import { Check, Info, Play, Search, Sparkles } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Loader2, Search, Sparkles } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { EmptyState, LoadingState, SectionHeader } from "@/components/ui"
+import {
+  KnowledgeTreeSelector,
+  minimalCover,
+  selectionCounts,
+  type TreeTopic,
+} from "@/components/knowledge/KnowledgeTreeSelector"
+import { QuestionCountStepper } from "@/components/knowledge/QuestionCountStepper"
 import { cn } from "@/lib/utils"
 
-export type QuizScope = "project" | "topic" | "subtopic" | "concept"
-
-export type QuizMode = "practice" | "exam"
-
 export type QuizStartPayload = {
-  scope: QuizScope
-  topicId?: string
-  subtopicId?: string
-  conceptId?: string
+  scope: "practice"
+  topicIds: string[]
+  subtopicIds: string[]
+  conceptIds: string[]
+  selectedConceptCount: number
   numQuestions: number
-  mode: QuizMode
 }
-
-type Leaf = { id: string; title: string }
-type SubNode = { id: string; title: string; concepts: Leaf[] }
-type TopicNode = { id: string; title: string; subtopics: SubNode[] }
 
 type Candidate = {
   concept_id: string
   name: string
   reasoning: string
+  mastery?: number | null
 }
 
 type Recommendations = { items: Candidate[]; fallback: Candidate | null }
 
-const SCOPES: { id: QuizScope; label: string }[] = [
-  { id: "project", label: "Entire Project" },
-  { id: "topic", label: "Topic" },
-  { id: "subtopic", label: "Subtopic" },
-  { id: "concept", label: "Concept" },
-]
-
-const COUNTS = [5, 10, 20]
-
-function ScopePicker({
-  label,
-  searchPlaceholder,
-  items,
-  selectedId,
-  onSelect,
-}: {
-  label: string
-  searchPlaceholder: string
-  items: { id: string; title: string; hint?: string }[]
-  selectedId: string | null
-  onSelect: (id: string) => void
-}) {
-  const [q, setQ] = useState("")
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter(
-      (i) =>
-        i.title.toLowerCase().includes(needle) ||
-        (i.hint ?? "").toLowerCase().includes(needle),
-    )
-  }, [q, items])
-
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
-      <div className="relative mb-2">
-        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={`Search ${label.toLowerCase()}`}
-          className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
-      </div>
-      <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-        {filtered.length === 0 && (
-          <p className="px-2 py-4 text-center text-xs text-slate-400">
-            No matches for “{q.trim()}” — try a different term.
-          </p>
-        )}
-        {filtered.map((item) => {
-          const active = selectedId === item.id
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                active
-                  ? "border-indigo-500 bg-indigo-50 text-indigo-800"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
-                  active ? "bg-indigo-600 text-white" : "bg-slate-100 text-transparent",
-                )}
-              >
-                <Check size={12} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{item.title}</span>
-                {item.hint && <span className="block truncate text-xs opacity-70">{item.hint}</span>}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
+function estimateMinutes(n: number): string {
+  const mins = Math.max(1, Math.round(n * 1.5))
+  return `~${mins} minute${mins === 1 ? "" : "s"}`
 }
 
 export function QuizSetup({
@@ -128,21 +47,19 @@ export function QuizSetup({
   initialConceptId?: string | null
   onConsumed?: () => void
 }) {
-  const [scope, setScope] = useState<QuizScope>("project")
-  const [qCount, setQCount] = useState(5)
-  const [quizMode, setQuizMode] = useState<QuizMode>("practice")
-  const [topics, setTopics] = useState<TopicNode[] | null>(null)
+  const [qCount, setQCount] = useState(10)
+  const [topics, setTopics] = useState<TreeTopic[] | null>(null)
   const [treeFailed, setTreeFailed] = useState(false)
-  const [topicId, setTopicId] = useState<string | null>(null)
-  const [subId, setSubId] = useState<string | null>(null)
-  const [conceptId, setConceptId] = useState<string | null>(null)
+  const [checked, setChecked] = useState<Set<string>>(new Set())
   const [recs, setRecs] = useState<Recommendations | null>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const settingsRef = useRef<HTMLDivElement>(null)
 
-  // Deep link from Dashboard ("Study this"): preselect the concept scope.
+  // Deep link from Dashboard ("Study this"): preselect the concept in the tree.
   useEffect(() => {
     if (initialConceptId) {
-      setScope("concept")
-      setConceptId(initialConceptId)
+      setChecked(new Set([initialConceptId]))
+      setFocusId(initialConceptId)
       onConsumed?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,7 +68,7 @@ export function QuizSetup({
   useEffect(() => {
     let cancelled = false
     apiClient
-      .get<{ topics: TopicNode[] }>(`/projects/${projectId}/knowledge/tree`)
+      .get<{ topics: TreeTopic[] }>(`/projects/${projectId}/knowledge/tree`)
       .then((res) => {
         if (!cancelled) setTopics(res.data.topics)
       })
@@ -171,224 +88,193 @@ export function QuizSetup({
     }
   }, [projectId])
 
-  const topicItems = useMemo(
-    () =>
-      (topics ?? []).map((t) => ({
-        id: t.id,
-        title: t.title,
-        hint: `${t.subtopics.length} subtopics`,
-      })),
-    [topics],
-  )
-  const subItems = useMemo(
-    () =>
-      (topics ?? []).flatMap((t) =>
-        t.subtopics.map((s) => ({ id: s.id, title: s.title, hint: t.title })),
-      ),
-    [topics],
-  )
-  const conceptItems = useMemo(() => {
-    const out: { id: string; title: string; hint?: string }[] = []
-    for (const t of topics ?? []) {
-      for (const s of t.subtopics) {
-        for (const c of s.concepts) {
-          out.push({ id: c.id, title: c.title, hint: `${t.title} → ${s.title}` })
-        }
-      }
-    }
-    return out
-  }, [topics])
-
-  const valid =
-    scope === "project" ||
-    (scope === "topic" && topicId !== null) ||
-    (scope === "subtopic" && subId !== null) ||
-    (scope === "concept" && conceptId !== null)
+  const counts = useMemo(() => selectionCounts(topics ?? [], checked), [topics, checked])
+  const valid = counts.concepts > 0
 
   const start = () => {
-    if (!valid || busy) return
-    onStart({ scope, topicId: topicId ?? undefined, subtopicId: subId ?? undefined, conceptId: conceptId ?? undefined, numQuestions: qCount, mode: quizMode })
+    if (!valid || busy || !topics) return
+    const cover = minimalCover(topics, checked)
+    onStart({
+      scope: "practice",
+      topicIds: cover.topicIds,
+      subtopicIds: cover.subtopicIds,
+      conceptIds: cover.conceptIds,
+      selectedConceptCount: counts.concepts,
+      numQuestions: qCount,
+    })
   }
 
-  const recommended = recs ? [...recs.items.slice(0, 2), ...(recs.fallback ? [recs.fallback] : [])].slice(0, 3) : null
+  const hero = recs?.items[0] ?? recs?.fallback ?? null
 
   return (
-    <div className="mx-auto max-w-2xl px-8 py-10">
-      <SectionHeader title="Adaptive Quiz" subtitle="Questions are selected based on your mastery evidence" />
+    <div className="mx-auto max-w-2xl px-8 py-10 pb-28 lg:pb-10">
+      <SectionHeader title="Adaptive Quiz" subtitle="Questions are selected based on your mastery evidence." />
 
-      {recommended && recommended.length > 0 && (
-        <div className="mb-5 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+      {hero && (
+        <div className="mb-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-5 shadow-sm">
           <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-500">
             <Sparkles size={12} /> Recommended
           </p>
-          <div className="space-y-2">
-            {recommended.map((c) => (
-              <div key={c.concept_id} className="flex items-center gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">{c.name}</p>
-                  <p className="line-clamp-2 text-xs text-slate-500">{c.reasoning}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    onStart({ scope: "concept", conceptId: c.concept_id, numQuestions: qCount, mode: quizMode })
-                  }
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  <Play size={12} /> Quiz me
-                </button>
-              </div>
-            ))}
-          </div>
+          <p className="text-base font-semibold text-slate-900">{hero.name}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+            Take a targeted quiz based on your mastery evidence. {hero.reasoning}
+          </p>
+          {typeof hero.mastery === "number" && (
+            <p className="mt-2 text-xs text-slate-500">
+              Mastery <strong className="font-mono-data text-slate-800">{Math.round(hero.mastery)}%</strong>
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              onStart({
+                scope: "practice",
+                topicIds: [],
+                subtopicIds: [],
+                conceptIds: [hero.concept_id],
+                selectedConceptCount: 1,
+                numQuestions: qCount,
+              })
+            }
+            className="mt-3 inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+          >
+            Quiz me →
+          </button>
         </div>
       )}
 
-      <div className="space-y-6 rounded-xl border border-slate-200 bg-white p-8">
-        <div>
-          <label className="mb-2.5 block text-sm font-medium text-slate-700">Quiz scope</label>
-          <div className="flex flex-wrap gap-2">
-            {SCOPES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setScope(s.id)}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm capitalize transition-colors",
-                  scope === s.id
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                    : "border-slate-200 text-slate-600 hover:border-slate-300",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <h3 className="text-base font-semibold text-slate-900">Quiz configuration</h3>
+        <p className="mt-1 text-sm font-medium text-slate-700">What do you want to practice?</p>
+
+        <div className="mt-4">
+          {topics === null && !treeFailed && <LoadingState text="Loading your knowledge…" />}
+          {treeFailed && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+              Could not load topics — upload material first, then come back.
+            </p>
+          )}
+          {topics !== null && topics.length === 0 && (
+            <EmptyState
+              icon={<Search size={20} />}
+              title="No topics yet"
+              hint="Upload a PDF and adaptive quizzes unlock once it's processed."
+            />
+          )}
+          {topics !== null && topics.length > 0 && (
+            <KnowledgeTreeSelector
+              topics={topics}
+              checked={checked}
+              onChange={setChecked}
+              expandConceptId={focusId}
+            />
+          )}
         </div>
 
-        {scope !== "project" && (
-          <div>
-            {topics === null && !treeFailed && <LoadingState text="Loading topics…" />}
-            {treeFailed && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-                Could not load topics — upload material first, or try the Entire Project scope.
-              </p>
-            )}
-            {topics !== null && topics.length === 0 && (
-              <EmptyState
-                icon={<Search size={20} />}
-                title="No topics yet"
-                hint="Upload a PDF and scoped quizzes unlock once it's processed."
-              />
-            )}
-            {topics !== null && topics.length > 0 && scope === "topic" && (
-              <ScopePicker
-                label="Topic"
-                searchPlaceholder="Search topics…"
-                items={topicItems}
-                selectedId={topicId}
-                onSelect={setTopicId}
-              />
-            )}
-            {topics !== null && topics.length > 0 && scope === "subtopic" && (
-              <ScopePicker
-                label="Subtopic"
-                searchPlaceholder="Search subtopics…"
-                items={subItems}
-                selectedId={subId}
-                onSelect={setSubId}
-              />
-            )}
-            {topics !== null && topics.length > 0 && scope === "concept" && (
-              <ScopePicker
-                label="Concept"
-                searchPlaceholder="Search concepts…"
-                items={conceptItems}
-                selectedId={conceptId}
-                onSelect={setConceptId}
-              />
-            )}
-          </div>
-        )}
-
-        <div>
-          <label className="mb-2.5 block text-sm font-medium text-slate-700">Number of questions</label>
-          <div className="flex gap-2">
-            {COUNTS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setQCount(n)}
-                className={cn(
-                  "rounded-lg border px-5 py-1.5 text-sm transition-colors",
-                  qCount === n
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                    : "border-slate-200 text-slate-600 hover:border-slate-300",
-                )}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+        <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3" aria-live="polite">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Selected knowledge</p>
+          <p className="mt-1 text-sm font-medium text-slate-800">
+            {counts.concepts} concept{counts.concepts === 1 ? "" : "s"} · {counts.subtopics} subtopic{counts.subtopics === 1 ? "" : "s"} · {counts.topics} topic{counts.topics === 1 ? "" : "s"}
+          </p>
         </div>
 
-        <div>
-          <label className="mb-2.5 block text-sm font-medium text-slate-700">Mode</label>
-          <div className="flex gap-2">
-            {(
-              [
-                { id: "practice", label: "Practice", hint: "Learn as you go" },
-                { id: "exam", label: "Exam", hint: "Test conditions" },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setQuizMode(m.id)}
-                className={cn(
-                  "flex-1 rounded-lg border px-4 py-2 text-left transition-colors",
-                  quizMode === m.id
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-slate-200 hover:border-slate-300",
-                )}
-              >
-                <span className={cn("block text-sm font-medium", quizMode === m.id ? "text-indigo-700" : "text-slate-600")}>
-                  {m.label}
-                </span>
-                <span className="block text-xs text-slate-400">{m.hint}</span>
-              </button>
-            ))}
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setChecked(new Set())}
+            className="text-xs font-medium text-slate-400 transition-colors hover:text-red-600 hover:underline"
+          >
+            Clear selection
+          </button>
+          <button
+            type="button"
+            onClick={() => settingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="text-sm font-semibold text-indigo-600 hover:underline"
+          >
+            Continue →
+          </button>
+        </div>
+      </div>
+
+      <div ref={settingsRef} className="mt-6 scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <h3 className="text-base font-semibold text-slate-900">Quiz settings</h3>
+
+        <div className="mt-4">
+          <QuestionCountStepper
+            label="Number of questions"
+            hint="5 to 20 adaptive questions"
+            value={qCount}
+            onChange={setQCount}
+            min={5}
+            max={20}
+            step={5}
+          />
+        </div>
+
+        <div className="mt-4">
+          <p className="mb-1 text-sm font-semibold text-slate-800">Difficulty</p>
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700">
+            Adaptive
           </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+            Questions are chosen based on mastery evidence and detected mismatches.
+          </p>
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Difficulty</label>
-          <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-slate-500">
-            Adaptive — questions are chosen based on mastery evidence and detected mismatches
-          </div>
-        </div>
+        <p className="mt-4 text-xs text-slate-400">
+          Estimated time <strong className="font-medium text-slate-600">{estimateMinutes(qCount)}</strong>
+        </p>
+      </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-          <Info size={12} />
-          Estimated time: {(qCount * 1.5).toFixed(1).replace(/\.0$/, "")} minutes
-        </div>
-
+      <div className="mt-6 hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:block sm:p-8">
+        <h3 className="text-base font-semibold text-slate-900">Ready to practice?</h3>
+        <ul className="mt-2 space-y-1 text-sm text-slate-600">
+          <li>{counts.concepts} concept{counts.concepts === 1 ? "" : "s"} selected</li>
+          <li>{qCount} questions</li>
+          <li>Adaptive difficulty</li>
+          <li>{estimateMinutes(qCount)}</li>
+        </ul>
         {!valid && (
-          <p className="text-xs text-slate-400">
-            {scope === "topic" && "Pick a topic above to start."}
-            {scope === "subtopic" && "Pick a subtopic above to start."}
-            {scope === "concept" && "Pick a concept above — or use a Recommended quiz."}
+          <p className="mt-3 text-sm text-slate-500">
+            Select what you want to practice — choose a project, topic, subtopic, or individual concepts from your knowledge base.
           </p>
         )}
-
         <button
           type="button"
           onClick={start}
           disabled={!valid || busy}
-          className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {busy ? "Preparing quiz…" : "Start Quiz"}
+          {busy && <Loader2 size={17} className="animate-spin" />}
+          {busy ? "Preparing your quiz..." : "Start Quiz"}
         </button>
+      </div>
+
+      {/* Mobile sticky action bar */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 truncate text-sm text-slate-600" aria-live="polite">
+            <strong className={cn("font-semibold", valid ? "text-slate-900" : "text-slate-400")}>
+              {counts.concepts} concept{counts.concepts === 1 ? "" : "s"}
+            </strong>{" "}
+            selected
+          </span>
+          <button
+            type="button"
+            onClick={start}
+            disabled={!valid || busy}
+            className="flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy && <Loader2 size={15} className="animate-spin" />}
+            {busy ? "Preparing..." : "Start Quiz"}
+          </button>
+        </div>
+        {!valid && (
+          <p className="mt-1 truncate text-center text-[11px] text-slate-400">
+            Select topics, subtopics, or concepts above to begin.
+          </p>
+        )}
       </div>
     </div>
   )

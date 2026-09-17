@@ -50,20 +50,19 @@ export function QuizTaker({
   const [reveal, setReveal] = useState<Reveal | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [quizMode, setQuizMode] = useState<"practice" | "exam">("practice")
 
   async function generate(payload: QuizStartPayload) {
-    setQuizMode(payload.mode)
     setStage({ name: "busy", label: "Generating quiz…" })
     const run = async () => {
       try {
         const gen = await apiClient.post<{ quiz_id: string }>(`/projects/${projectId}/quizzes/generate`, {
-          scope: payload.scope,
-          topic_id: payload.topicId ?? null,
-          subtopic_id: payload.subtopicId ?? null,
-          concept_id: payload.conceptId ?? null,
+          scope: "practice",
+          topic_ids: payload.topicIds,
+          subtopic_ids: payload.subtopicIds,
+          concept_ids: payload.conceptIds,
           num_questions: payload.numQuestions,
-          mode: payload.mode,
+          mode: "practice",
+          difficulty: null,
         })
         setStage({ name: "busy", label: "Starting attempt…" })
         const start = await apiClient.post<{ attempt_id: string; questions: Question[] }>(
@@ -182,7 +181,7 @@ export function QuizTaker({
           Question {index + 1} <span className="font-normal text-slate-500">of {questions.length}</span>
         </p>
         <span className="flex items-center gap-1.5">
-          <Badge tint="muted">{quizMode === "exam" ? "Exam" : "Practice"}</Badge>
+          <Badge tint="muted">Practice</Badge>
           <Badge tint={difficultyTint(q.difficulty)}>{q.difficulty}</Badge>
         </span>
       </div>

@@ -35,18 +35,23 @@ class MCQOutline(BaseModel):
 
 
 class QuizGenerateRequest(BaseModel):
-    """Generate a quiz scoped to project/topic/subtopic/concept — project from path.
+    """Generate a quiz scoped to project/topic/subtopic/concept/practice — project from path.
 
     Backward compatible: legacy clients send only ``concept_id`` (scope
     defaults to ``"concept"``). New clients send ``scope`` plus the matching
     id (``topic_id`` / ``subtopic_id`` / ``concept_id``; nothing extra for
-    ``"project"``).
+    ``"project"``). The ``"practice"`` scope carries an explicit multi-select
+    (``topic_ids`` / ``subtopic_ids`` / ``concept_ids`` union) from the
+    Practice picker — selecting a topic implies all of its subtopics/concepts.
     """
 
     concept_id: uuid.UUID | None = None
-    scope: str = Field(default="concept", pattern="^(project|topic|subtopic|concept)$")
+    scope: str = Field(default="concept", pattern="^(project|topic|subtopic|concept|practice)$")
     topic_id: uuid.UUID | None = None
     subtopic_id: uuid.UUID | None = None
+    topic_ids: list[uuid.UUID] | None = None
+    subtopic_ids: list[uuid.UUID] | None = None
+    concept_ids: list[uuid.UUID] | None = None
     num_questions: int = Field(default=5, ge=1, le=20)
     mode: str = Field(default="practice", pattern="^(practice|exam)$")
     difficulty: str | None = Field(default=None, pattern="^(easy|medium|hard)$")
@@ -59,6 +64,10 @@ class QuizGenerateRequest(BaseModel):
             raise ValueError("topic_id is required when scope is 'topic'")
         if self.scope == "subtopic" and self.subtopic_id is None:
             raise ValueError("subtopic_id is required when scope is 'subtopic'")
+        if self.scope == "practice" and not any([self.topic_ids, self.subtopic_ids, self.concept_ids]):
+            raise ValueError(
+                "at least one of topic_ids, subtopic_ids, concept_ids is required when scope is 'practice'"
+            )
         return self
 
 

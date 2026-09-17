@@ -11,14 +11,27 @@ import { StructureView } from "@/features/structure/StructureView"
 import { QuizTaker } from "@/features/quiz/QuizTaker"
 import { TutorChat } from "@/features/tutor/TutorChat"
 import { MaterialsPanel } from "@/features/projects/MaterialsPanel"
-import { Assessments } from "@/features/assessment/Assessments"
+import { PracticePage } from "@/features/practice/PracticePage"
+import { OpenEndedAnswersPage } from "@/features/openended/OpenEndedAnswersPage"
 import { cn } from "@/lib/utils"
 
 type Project = { id: string; name: string; space_id: string; created_at: string }
 
-type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "assessments"
+type TabId = "overview" | "tutor" | "quiz" | "flashcards" | "materials" | "structure" | "progress" | "practice" | "open-ended"
 
-const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress", "assessments"]
+const VALID_TABS: TabId[] = ["overview", "tutor", "quiz", "flashcards", "materials", "structure", "progress", "practice", "open-ended"]
+
+const TAB_LABELS: Record<TabId, string> = {
+  overview: "overview",
+  tutor: "tutor",
+  quiz: "quiz",
+  flashcards: "flashcards",
+  materials: "Documents",
+  structure: "Structure",
+  progress: "progress",
+  practice: "practice",
+  "open-ended": "Open Ended",
+}
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ spaceId: string; projectId: string }>()
@@ -75,7 +88,7 @@ export function ProjectDetailPage() {
                       tab === t ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100",
                     )}
                   >
-                    {t === "materials" ? "Documents" : t === "structure" ? "Structure" : t}
+                    {TAB_LABELS[t]}
                   </button>
                 ))}
               </div>
@@ -91,7 +104,9 @@ export function ProjectDetailPage() {
                     }}
                   />
                 )}
-                {tab === "tutor" && projectId && <TutorChat projectId={projectId} />}
+                {tab === "tutor" && projectId && (
+                  <TutorChat projectId={projectId} onQuizMe={() => setTab("quiz")} onFlashcards={() => setTab("flashcards")} />
+                )}
                 {tab === "quiz" && projectId && (
                   <QuizTaker
                     projectId={projectId}
@@ -99,15 +114,11 @@ export function ProjectDetailPage() {
                     onFocusConsumed={() => setQuizFocus(null)}
                   />
                 )}
-                {tab === "assessments" && projectId && (
-                  <Assessments
-                    projectId={projectId}
-                    onNavigate={goTab}
-                    onPracticeConcept={(id) => {
-                      setQuizFocus(id)
-                      setTab("quiz")
-                    }}
-                  />
+                {tab === "practice" && projectId && (
+                  <PracticePage projectId={projectId} onNavigate={goTab} />
+                )}
+                {tab === "open-ended" && projectId && (
+                  <OpenEndedAnswersPage projectId={projectId} onNavigate={goTab} />
                 )}
                 {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
                 {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}

@@ -212,4 +212,26 @@
   .stagger {
     animation-delay: var(--d, 0ms);
   }
+  /* Tutor LaTeX (KaTeX) — match the answer surface */
+  .tutor-math .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.75rem 1rem;
+    margin: 0;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .tutor-math .katex-display > .katex {
+    white-space: normal;
+  }
+  .tutor-math .katex {
+    font-size: 1.02em;
+    color: #1e293b;
+  }
+  .tutor-math .katex-error {
+    color: #b45309;
+    font-family: ui-monospace, monospace;
+    font-size: 0.8125rem;
+  }
 }

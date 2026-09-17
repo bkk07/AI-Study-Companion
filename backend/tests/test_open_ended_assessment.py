@@ -255,14 +255,17 @@ def test_api_grades_and_maps_errors():
     try:
         ids, headers = _users(client, engine)
         url = f"/api/v1/projects/{ids['pid']}/assessment/open-ended"
-        fake = SimpleNamespace(score=88, verdict="pass", feedback="Well explained.")
+        fake = SimpleNamespace(score=88, verdict="pass", feedback="Well explained.",
+                               strengths=["Clear definition"], missing_points=[], suggestions=["Add an example"])
         with patch("app.api.v1.assessment.open_ended_assessment_service") as svc:
             svc.grade_open_ended.return_value = fake
             resp = client.post(url, json={"concept_id": ids["cid"], "answer_text": "Rise over run."},
                                headers=headers["a"])
             assert resp.status_code == 200, resp.text
             assert resp.json() == {"concept_id": ids["cid"], "score": 88,
-                                   "verdict": "pass", "feedback": "Well explained."}
+                                   "verdict": "pass", "feedback": "Well explained.",
+                                   "strengths": ["Clear definition"], "missing_points": [],
+                                   "suggestions": ["Add an example"]}
             svc.OpenEndedAssessmentError = OpenEndedAssessmentError
             svc.grade_open_ended.side_effect = OpenEndedAssessmentError("bad output")
             assert client.post(url, json={"concept_id": ids["cid"], "answer_text": "x"},

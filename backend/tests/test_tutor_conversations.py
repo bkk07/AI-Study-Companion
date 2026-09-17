@@ -166,6 +166,64 @@ def test_isolation_across_users_and_projects():
         _teardown(engine)
 
 
+def test_ai_title_after_few_prompts():
+    client, engine, pid, ha, _ = _users()
+    try:
+        base = f"/api/v1/projects/{pid}/tutor"
+        cid = client.post(f"{base}/conversations", json={}, headers=ha).json()["id"]
+        chunks = [_chunk()]
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+            patch("app.services.tutor_conversation_service.groq_client") as title_client,
+        ):
+            rag.assemble_context.return_value = _ctx(pid, chunks)
+            groq.chat_json.return_value = {"answer": "Slope is rise over run.", "follow_ups": []}
+            title_client.chat_json.return_value = {"title": "Gradient Descent Basics"}
+            for i in range(2):
+                resp = client.post(f"{base}/conversations/{cid}/messages",
+                                   json={"question": f"What is slope part {i}?"}, headers=ha)
+                assert resp.status_code == 200, resp.text
+            # still question-derived after two exchanges
+            assert client.get(f"{base}/conversations", headers=ha).json()[0]["title"] == "What is slope part 0?"
+            resp = client.post(f"{base}/conversations/{cid}/messages",
+                               json={"question": "What is slope part 2?"}, headers=ha)
+            assert resp.status_code == 200, resp.text
+            title_client.chat_json.assert_called_once()
+            assert client.get(f"{base}/conversations", headers=ha).json()[0]["title"] == "Gradient Descent Basics"
+    finally:
+        _teardown(engine)
+
+
+def test_ai_title_failure_and_custom_title_keep_existing():
+    client, engine, pid, ha, _ = _users()
+    try:
+        base = f"/api/v1/projects/{pid}/tutor"
+        chunks = [_chunk()]
+        # custom-titled thread is never renamed
+        custom = client.post(f"{base}/conversations", json={"title": "My Chat"}, headers=ha).json()["id"]
+        # title-LLM failure keeps the question-derived title
+        plain = client.post(f"{base}/conversations", json={}, headers=ha).json()["id"]
+        with (
+            patch("app.services.tutor_service.rag_service") as rag,
+            patch("app.services.tutor_service.groq_client") as groq,
+            patch("app.services.tutor_conversation_service.groq_client") as title_client,
+        ):
+            rag.assemble_context.return_value = _ctx(pid, chunks)
+            groq.chat_json.return_value = {"answer": "Slope is rise over run.", "follow_ups": []}
+            title_client.chat_json.side_effect = ValueError("provider down")
+            for i in range(3):
+                for cid in (custom, plain):
+                    resp = client.post(f"{base}/conversations/{cid}/messages",
+                                       json={"question": f"Question number {i} here?"}, headers=ha)
+                    assert resp.status_code == 200, resp.text
+        listing = {c["id"]: c["title"] for c in client.get(f"{base}/conversations", headers=ha).json()}
+        assert listing[custom] == "My Chat"
+        assert listing[plain] == "Question number 0 here?"
+    finally:
+        _teardown(engine)
+
+
 def test_empty_message_rejected():
     client, engine, pid, ha, _ = _users()
     try:

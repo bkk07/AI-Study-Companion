@@ -102,8 +102,11 @@ def test_weighted_final_renormalizes_missing_streams():
 
 
 def test_single_stream_final_equals_stream_value():
-    assert compute_mastery([_pt(73, "quiz")]).final == pytest.approx(73.0)
+    # thin evidence caps the headline final (streams keep raw values)
+    assert compute_mastery([_pt(73, "quiz")]).final == pytest.approx(60.0)
     assert compute_mastery([_pt(42, "practice")]).final == pytest.approx(42.0)
+    assert compute_mastery([_pt(73, "quiz"), _pt(73, "quiz")]).final == pytest.approx(73.0)
+    assert compute_mastery([_pt(73, "quiz"), _pt(73, "quiz"), _pt(73, "quiz")]).final == pytest.approx(73.0)
 
 
 def test_all_five_streams_weighted():
@@ -388,7 +391,8 @@ def test_quiz_mode_routes_practice_vs_quiz_streams():
         exam_scores = mastery_for_concept(db, user_id=user.id, project_id=project.id,
                                           concept_id=concepts[0].id)
         assert exam_scores.quiz.value == pytest.approx(100.0)
-        assert exam_scores.practice.value is None and exam_scores.final == pytest.approx(100.0)
+        # single row seeds the stream at 100 but the headline final caps at 60
+        assert exam_scores.practice.value is None and exam_scores.final == pytest.approx(60.0)
         prac_scores = mastery_for_concept(db, user_id=user.id, project_id=project.id,
                                           concept_id=concepts[1].id)
         assert prac_scores.practice.value == pytest.approx(100.0)
@@ -564,7 +568,8 @@ def test_formative_only_final_capped_no_summative():
     assert with_quiz.final == pytest.approx(100.0)
     with_open = compute_mastery([_pt(100, "practice"),
                                  _pt(100, "open_ended", etype="open_ended")])
-    assert with_open.final == pytest.approx(100.0)
+    # open-ended lifts the formative cap, but 2 rows still hit the thin cap
+    assert with_open.final == pytest.approx(75.0)
     # tutor-only keeps its stricter cap
     tutor_only = compute_mastery([_pt(100, "tutor", etype="tutor"),
                                   _pt(100, "tutor", etype="tutor")])

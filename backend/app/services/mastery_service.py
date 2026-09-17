@@ -42,6 +42,9 @@ Final-mastery rules:
 - formative-only evidence (practice/flashcard/tutor, no quiz or
   open-ended stream) -> final capped at 70 (drills alone can build
   Strong recognition but never Mastered; a summative grade lifts the cap),
+- a single evidence row caps final at 60, two rows at 75 (one answer is
+  never mastery, however perfect; streams keep raw values, only the
+  headline final is capped),
 - missing streams renormalized (see formula above).
 
 Backward compatibility: legacy rows have `source` NULL and are routed by
@@ -88,6 +91,12 @@ TUTOR_ONLY_CAP = 40.0
 # Practice with hints and flashcard recall must not grind a concept to
 # Mastered on their own; a quiz or open-ended grade lifts the cap.
 FORMATIVE_ONLY_CAP = 70.0
+# Thin-evidence guard: one lucky/careless answer must not read as mastery.
+# A single data point seeds the stream at its face value, so the headline
+# final is capped until evidence accumulates (streams keep raw values for
+# transparency; only the final shown to learners is capped).
+THIN_EVIDENCE_CAP_1 = 60.0
+THIN_EVIDENCE_CAP_2 = 75.0
 # Fewer total rows than this -> evidence_confidence "low".
 LOW_CONFIDENCE_MIN_ROWS = 3
 
@@ -313,6 +322,11 @@ def compute_mastery(points: list[EvidenceInput]) -> MasteryScores:
         by_stream[OPEN_ENDED_STREAM] + by_stream[FLASHCARD_STREAM] + by_stream[TUTOR_STREAM]
     )
     final = compute_final(streams)
+    if final is not None:
+        if len(points) == 1:
+            final = min(final, THIN_EVIDENCE_CAP_1)
+        elif len(points) == 2:
+            final = min(final, THIN_EVIDENCE_CAP_2)
     return MasteryScores(
         quiz=streams[QUIZ_STREAM],
         open_ended=streams[OPEN_ENDED_STREAM],

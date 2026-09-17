@@ -8,7 +8,8 @@ import { Dashboard, type ProjectTab } from "@/features/dashboard/Dashboard"
 import { OverviewView } from "@/features/overview/OverviewView"
 import { Flashcards } from "@/features/flashcards/Flashcards"
 import { StructureView } from "@/features/structure/StructureView"
-import { QuizTaker } from "@/features/quiz/QuizTaker"
+import { QuizTaker, type DirectSession } from "@/features/quiz/QuizTaker"
+import type { Card as FlashCard } from "@/features/flashcards/Flashcards"
 import { TutorChat } from "@/features/tutor/TutorChat"
 import { MaterialsPanel } from "@/features/projects/MaterialsPanel"
 import { PracticePage } from "@/features/practice/PracticePage"
@@ -44,6 +45,9 @@ export function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [quizFocus, setQuizFocus] = useState<string | null>(null)
+  const [quizDirect, setQuizDirect] = useState<DirectSession | null>(null)
+  const [practiceDirect, setPracticeDirect] = useState<{ conceptIds: string[]; mcqCount: number; oeCount: number } | null>(null)
+  const [flashcardsDirect, setFlashcardsDirect] = useState<{ cards: FlashCard[] } | null>(null)
 
   const goTab = (t: ProjectTab) => {
     if (t === "quiz" || VALID_TABS.includes(t as TabId)) setTab(t as TabId)
@@ -68,7 +72,7 @@ export function ProjectDetailPage() {
   return (
     <AppShell wide>
       <div className="min-h-full bg-slate-50">
-        <div className="mx-auto max-w-5xl px-8 py-10">
+        <div className={tab === "tutor" && project ? "px-3 pb-3 pt-3 sm:px-0 sm:pb-0 sm:pt-0" : "mx-auto max-w-5xl px-8 py-10"}>
           {loading ? (
             <LoadingState text="Opening project…" />
           ) : error ? (
@@ -93,7 +97,7 @@ export function ProjectDetailPage() {
                 ))}
               </div>
 
-              <div key={tab} className="mt-6">
+              <div key={tab} className={tab === "tutor" ? "mt-3 sm:mt-0" : "mt-6"}>
                 {tab === "overview" && projectId && (
                   <OverviewView
                     projectId={projectId}
@@ -105,22 +109,51 @@ export function ProjectDetailPage() {
                   />
                 )}
                 {tab === "tutor" && projectId && (
-                  <TutorChat projectId={projectId} onQuizMe={() => setTab("quiz")} onFlashcards={() => setTab("flashcards")} />
+                  <TutorChat
+                    projectId={projectId}
+                    onQuizMe={() => setTab("quiz")}
+                    onFlashcards={() => setTab("flashcards")}
+                    onQuizReady={(s) => {
+                      setQuizDirect(s)
+                      setTab("quiz")
+                    }}
+                    onPracticeReady={(p) => {
+                      setPracticeDirect(p)
+                      setTab("practice")
+                    }}
+                    onFlashcardsReady={(d) => {
+                      setFlashcardsDirect(d)
+                      setTab("flashcards")
+                    }}
+                  />
                 )}
                 {tab === "quiz" && projectId && (
                   <QuizTaker
                     projectId={projectId}
                     focusConceptId={quizFocus}
                     onFocusConsumed={() => setQuizFocus(null)}
+                    initialSession={quizDirect}
+                    onSessionConsumed={() => setQuizDirect(null)}
                   />
                 )}
                 {tab === "practice" && projectId && (
-                  <PracticePage projectId={projectId} onNavigate={goTab} />
+                  <PracticePage
+                    projectId={projectId}
+                    onNavigate={goTab}
+                    initialPlan={practiceDirect}
+                    onPlanConsumed={() => setPracticeDirect(null)}
+                  />
                 )}
                 {tab === "open-ended" && projectId && (
                   <OpenEndedAnswersPage projectId={projectId} onNavigate={goTab} />
                 )}
-                {tab === "flashcards" && projectId && <Flashcards projectId={projectId} />}
+                {tab === "flashcards" && projectId && (
+                  <Flashcards
+                    projectId={projectId}
+                    initialDeck={flashcardsDirect}
+                    onDeckConsumed={() => setFlashcardsDirect(null)}
+                  />
+                )}
                 {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
                 {tab === "structure" && projectId && <StructureView projectId={projectId} />}
                 {tab === "progress" && projectId && (

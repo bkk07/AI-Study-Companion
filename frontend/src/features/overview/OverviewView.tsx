@@ -35,6 +35,14 @@ type PracticeCandidate = {
 type PracticeRecs = { items: PracticeCandidate[]; fallback: PracticeCandidate | null }
 
 type TimelinePoint = { date: string; label: string; mcq: number | null; applied: number | null }
+type BeforeNow = {
+  concept_id: string
+  concept: string
+  early_mcq: number | null
+  early_applied: number | null
+  current_mcq: number | null
+  current_applied: number | null
+}
 type AnalyticsOverview = {
   tutor_interactions: number
   assessments_total: number

@@ -20,8 +20,11 @@ from app.schemas.tutor import (
     QuizPlanResponse,
     TutorAskRequest,
     TutorAskResponse,
+    TutorCheckRequest,
+    TutorCheckResponse,
     TutorMessageRead,
 )
+from app.services.open_ended_assessment_service import OpenEndedAssessmentError
 from app.services import tutor_conversation_service, tutor_service
 from app.services.tutor_conversation_service import citation_models
 from app.services.tutor_service import TutorProviderError
@@ -164,6 +167,50 @@ def delete_conversation(
     convo = _convo_or_404(db, conversation_id, project, user)
     tutor_conversation_service.delete_conversation(db, convo)
     return None
+
+
+@router.post("/conversations/{conversation_id}/checks", response_model=TutorCheckResponse, status_code=201)
+def submit_tutor_check(
+    conversation_id: uuid.UUID,
+    body: TutorCheckRequest,
+    project: Project = Depends(get_authorized_project),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _: None = Depends(require_llm_budget("explain-back")),
+) -> TutorCheckResponse:
+    """Grade a tutor follow-up demonstration and bank `tutor` mastery evidence.
+
+    Production caller for ``mastery_service.record_tutor_evidence``: requires
+    a grounded (supported + cited) assistant answer in this thread plus an
+    explicit in-project concept. Plain chat stays evidence-free; only this
+    graded check writes ``mastery_evidence`` (append-only, 1/day/concept).
+    """
+    convo = _convo_or_404(db, conversation_id, project, user)
+    try:
+        evidence, grade = tutor_conversation_service.submit_tutor_check(
+            db,
+            convo=convo,
+            assistant_message_id=body.assistant_message_id,
+            concept_id=body.concept_id,
+            explanation_text=body.explanation_text,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except OpenEndedAssessmentError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail="Assessment AI provider unavailable") from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return TutorCheckResponse(
+        evidence_id=evidence.id,
+        concept_id=evidence.concept_id,
+        score=grade.score,
+        verdict=grade.verdict,
+        feedback=grade.feedback,
+    )
 
 
 @router.post("/quiz-plan", response_model=QuizPlanResponse)

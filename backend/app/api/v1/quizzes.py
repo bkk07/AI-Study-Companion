@@ -127,8 +127,23 @@ def submit_answer(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     correct, answered = quiz_attempt_service.attempt_score(db, answer.attempt_id)
+    # Answer → Next Question Adaptation: select from CURRENT mastery (the
+    # just-banked per-answer evidence is already committed inside
+    # submit_answer). Best-effort read — a selector failure must never fail
+    # the scored answer response.
+    next_question = None
+    try:
+        nxt = quiz_attempt_service.select_next_question(
+            db, attempt_id=answer.attempt_id, project_id=project.id, user_id=user.id
+        )
+        if nxt is not None:
+            next_question = QuestionRead(id=nxt.id, question_text=nxt.question_text, options=nxt.options,
+                                         difficulty=nxt.difficulty, concept_id=nxt.concept_id)
+    except (LookupError, ValueError):
+        next_question = None
     return AnswerSubmitResponse(is_correct=answer.is_correct, correct_index=correct_index,
-                                answered_count=answered, correct_count=correct)
+                                answered_count=answered, correct_count=correct,
+                                next_question=next_question)
 
 
 @router.post("/attempts/{attempt_id}/complete", response_model=AttemptCompleteResponse)

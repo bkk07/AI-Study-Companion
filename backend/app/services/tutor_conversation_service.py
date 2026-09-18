@@ -3,15 +3,28 @@
 The actual answering stays in :mod:`app.services.tutor_service` (RAG +
 grounded generation); this module only verifies ownership, persists both
 sides of each exchange, and auto-titles new chats from the first question.
+
+Tutor → Mastery Evidence (learning-loop closure): plain chat messages never
+write ``mastery_evidence`` — :func:`send_message` stays evidence-free by
+design (gaming guard, 1/day tutor cap). The ONLY evidence path here is the
+explicit graded check :func:`submit_tutor_check`: after a grounded
+(supported + cited) tutor answer, the student demonstrates understanding in
+their own words; the demonstration is graded with the shared open-ended
+grader (existing LLM usage) and banked via
+``mastery_service.record_tutor_evidence`` (fixed 0.15 weight, tutor-only
+final cap 40, max 1/day/concept). No mastery math lives here.
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.models.concept import Concept
+from app.models.mastery_evidence import MasteryEvidence
 from app.models.project import Project
 from app.models.tutor_conversation import TutorConversation, TutorMessage
 from app.models.user import User
@@ -19,6 +32,7 @@ from app.schemas.tutor import TutorCitation
 from app.services import tutor_service
 from app.services import ai_usage_service
 from app.services.ai import groq_client
+from app.services.open_ended_assessment_service import OpenEndedGrade
 from app.services.tutor_service import TutorAskResponse
 
 TITLE_CHARS = 60
@@ -224,6 +238,92 @@ def send_message(
         idempotency_key=f"message:{assistant_msg.id}",
     )
     return user_msg, assistant_msg, response
+
+
+def submit_tutor_check(
+    db: Session,
+    *,
+    convo: TutorConversation,
+    assistant_message_id: uuid.UUID,
+    concept_id: uuid.UUID,
+    explanation_text: str,
+    client: Callable[[str, str], dict] | None = None,
+) -> tuple[MasteryEvidence, OpenEndedGrade]:
+    """Grade one tutor follow-up demonstration and bank it as `tutor` evidence.
+
+    Production path closing Tutor → Mastery Evidence::
+
+        grounded tutor answer (persisted) → student explanation →
+        shared open-ended grade → record_tutor_evidence → mastery engine
+
+    Meaningful-interaction gate (plain chat stays evidence-free):
+
+    - the referenced assistant message must belong to this conversation,
+      have ``role == 'assistant'`` and be a grounded answer
+      (``supported`` True with at least one citation — small-talk greetings
+      and unsupported refusals carry no citations and are rejected);
+    - ``concept_id`` must be an explicit in-project concept (no cross-project
+      inference; the grounded answer's retrieval context is reused only as
+      the prerequisite that real material grounded this thread);
+    - the explanation is graded with the existing open-ended grader
+      (:func:`open_ended_assessment_service.grade_open_ended` — the allowed
+      LLM grading usage, same prompt/validation/retry as Explain-It-Back),
+      so the score is never invented here;
+    - persistence goes ONLY through ``mastery_service.record_tutor_evidence``
+      (append-only, 1/day/concept, fixed 0.15 weight, tutor-only cap 40).
+
+    Grading failure persists nothing. Duplicate-day ``ValueError`` from the
+    writer propagates (API maps to 400). On success a best-effort
+    recommendation recompute is dispatched like every other evidence writer.
+    """
+    from app.services import mastery_service
+    from app.services.open_ended_assessment_service import grade_open_ended
+
+    if not isinstance(explanation_text, str) or not explanation_text.strip():
+        raise ValueError("explanation_text must be a non-empty string")
+    cleaned = explanation_text.strip()
+    if len(cleaned) > 5000:
+        raise ValueError("explanation_text must be at most 5000 characters")
+
+    assistant_msg = db.get(TutorMessage, assistant_message_id)
+    if (
+        assistant_msg is None
+        or assistant_msg.conversation_id != convo.id
+        or assistant_msg.role != "assistant"
+    ):
+        raise LookupError("assistant message not found in this conversation")
+    if not assistant_msg.supported or not (assistant_msg.citations or []):
+        raise ValueError(
+            "tutor check requires a grounded answer with citations "
+            "(greetings and unsupported answers carry no evidence)"
+        )
+
+    concept = db.get(Concept, concept_id)
+    if concept is None or concept.project_id != convo.project_id:
+        raise LookupError("concept not found in this project")
+
+    grade = grade_open_ended(
+        db,
+        project_id=convo.project_id,
+        concept_id=concept.id,
+        answer_text=cleaned,
+        client=client,
+    )
+    evidence = mastery_service.record_tutor_evidence(
+        db,
+        user_id=convo.user_id,
+        project_id=convo.project_id,
+        concept_id=concept.id,
+        score=grade.score,
+        feedback=grade.feedback,
+    )
+    try:
+        from app.worker.tasks.recommendations import refresh_best_effort
+
+        refresh_best_effort(convo.user_id, convo.project_id)
+    except Exception:
+        pass
+    return evidence, grade
 
 
 def citation_models(rows: list) -> list[TutorCitation]:

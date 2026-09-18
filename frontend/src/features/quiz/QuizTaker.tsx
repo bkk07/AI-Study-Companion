@@ -8,7 +8,7 @@ import { QuizSetup, type QuizStartPayload } from "./QuizSetup"
 
 export type AttemptQuestion = { id: string; question_text: string; options: string[]; difficulty: string; concept_id: string }
 export type DirectSession = { attemptId: string; questions: AttemptQuestion[] }
-type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number }
+type Reveal = { is_correct: boolean; correct_index: number; answered_count: number; correct_count: number; next_question?: AttemptQuestion | null }
 type Stage =
   | { name: "setup" }
   | { name: "busy"; label: string }
@@ -121,6 +121,20 @@ export function QuizTaker({
 
   async function next() {
     if (attemptId == null) return
+    // Answer-time adaptation: the server returns the deterministically
+    // selected next unanswered question (weakest-first, difficulty-matched).
+    // Jump to it when present instead of blindly stepping index+1 — no quiz
+    // restart required. Falls back to sequential order when absent.
+    const adaptiveId = reveal?.next_question?.id
+    if (adaptiveId) {
+      const adaptiveIndex = questions.findIndex((q) => q.id === adaptiveId)
+      if (adaptiveIndex >= 0 && adaptiveIndex !== index) {
+        setIndex(adaptiveIndex)
+        setSelected(null)
+        setReveal(null)
+        return
+      }
+    }
     if (index + 1 < questions.length) {
       setIndex(index + 1)
       setSelected(null)

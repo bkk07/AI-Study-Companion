@@ -67,7 +67,9 @@ def retrieve(
 
     query_vector = embedding_client.embed_one(query.strip())
     if len(query_vector) != EMBEDDING_DIMS:
-        raise ValueError(f"query embedding has {len(query_vector)} dims, expected {EMBEDDING_DIMS}")
+        raise ValueError(
+            f"query embedding has {len(query_vector)} dims, expected {EMBEDDING_DIMS}."
+        )
 
     distance = Embedding.embedding.cosine_distance(query_vector)
     q = (

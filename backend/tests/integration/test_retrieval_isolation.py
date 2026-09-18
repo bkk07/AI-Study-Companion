@@ -1,6 +1,6 @@
 """Phase 30 — retrieval isolation on real Postgres+pgvector (host 5433).
 
-Deterministic one-hot 1536-dim vectors stand in for OpenAI embeddings
+Deterministic one-hot EMBEDDING_DIMS vectors stand in for embeddings
 (`embed_one` is patched — no network). The cross-project test deliberately
 stores the IDENTICAL vector in both projects: any fetch-all-then-filter
 implementation would mix them, so passing proves the scope lives in SQL.

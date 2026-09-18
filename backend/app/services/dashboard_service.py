@@ -77,6 +77,16 @@ def build_dashboard(
     inputs_by_concept = mastery_service.evidence_inputs_by_concept(
         db, user_id=user_id, project_id=project.id
     )
+    # Growth → Recommendation (learning-loop closure): per-concept `final`
+    # trends from growth_service over the SAME batched inputs (zero extra
+    # queries). growth_service provides; recommendation_service consumes via
+    # ConceptSignal.growth_trend → score_action decline bonus.
+    from app.services import growth_service as _growth
+
+    try:
+        growth_trends = _growth.final_trends_from_inputs(inputs_by_concept)
+    except Exception:
+        growth_trends = {}
     rated_rows = (
         db.query(QuizQuestion.concept_id, QuizAnswer.confidence, QuizAnswer.is_correct)
         .join(QuizAttempt, QuizAnswer.attempt_id == QuizAttempt.id)
@@ -165,6 +175,7 @@ def build_dashboard(
             flashcard=scores.flashcard.value,
             tutor=scores.tutor.value,
             final=scores.final,
+            growth_trend=growth_trends.get(concept.id),
         )
         for concept, _, _, scores, state, days in per_concept
     ]

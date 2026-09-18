@@ -7,8 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDTimestampMixin
 
-# Local default is BAAI/bge-small-en-v1.5 (384 dims, no key); the OpenAI path
-# (text-embedding-3-small, 1536) needs a matching column to be re-enabled.
+# Single source of truth for embedding dimensionality.
+# Embeddings are always local BAAI/bge-small-en-v1.5 (384-dim, no API key).
 EMBEDDING_DIMS = 384
 
 
@@ -37,4 +37,4 @@ class Embedding(Base, UUIDTimestampMixin):
         index=True,
     )
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMS), nullable=False)
-    model: Mapped[str] = mapped_column(String(64), nullable=False, server_default="text-embedding-3-small")
+    model: Mapped[str] = mapped_column(String(64), nullable=False, server_default="BAAI/bge-small-en-v1.5")

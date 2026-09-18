@@ -171,6 +171,51 @@ def concept_growth(
     )
 
 
+def final_trends_from_inputs(
+    inputs_by_concept: dict[uuid.UUID, list[EvidenceInput]],
+) -> dict[uuid.UUID, float | None]:
+    """Per-concept `final` mastery trend from pre-fetched evidence inputs.
+
+    Pure helper so callers that already hold one batched evidence query
+    (e.g. ``dashboard_service.build_dashboard``) get growth signals with zero
+    extra queries: replay the Plan A engine over each prefix, take the
+    running ``final`` series, and return last-minus-first (``None`` when the
+    series has fewer than 2 points — sparse histories stay honest, matching
+    :func:`concept_growth`). ``growth_service`` remains the single provider
+    of growth information; ``recommendation_service`` only consumes it.
+    """
+    trends: dict[uuid.UUID, float | None] = {}
+    for concept_id, points in inputs_by_concept.items():
+        run: list[float] = []
+        seen: list[EvidenceInput] = []
+        for point in points:
+            seen.append(point)
+            final = compute_mastery(seen).final
+            if final is not None:
+                run.append(final)
+        trends[concept_id] = _trend(run)
+    return trends
+
+
+def final_trends_for_project(
+    db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID
+) -> dict[uuid.UUID, float | None]:
+    """Per-concept `final` trends for one (user, project) in ONE query.
+
+    Same row filter/ordering as the dashboard's batched reader (delegates to
+    ``mastery_service.evidence_inputs_by_concept``), then the pure replay
+    above. Read-only, per-user, no LLM.
+    """
+    from app.services.mastery_service import evidence_inputs_by_concept
+
+    project = db.get(Project, project_id)
+    if project is None:
+        raise LookupError("project not found")
+    return final_trends_from_inputs(
+        evidence_inputs_by_concept(db, user_id=user_id, project_id=project.id)
+    )
+
+
 def project_growth(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) -> ProjectGrowth:
     """Aggregate current mastery over evidenced concepts. Reads only."""
     project = db.get(Project, project_id)

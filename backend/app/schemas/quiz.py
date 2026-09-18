@@ -103,6 +103,10 @@ class AnswerSubmitResponse(BaseModel):
     correct_index: int
     answered_count: int
     correct_count: int
+    # Answer-time adaptation: the deterministically selected next unanswered
+    # question in this quiz (None when nothing remains). Additive — legacy
+    # clients ignore it and keep stepping through their question list.
+    next_question: QuestionRead | None = None
 
 
 class AttemptCompleteResponse(BaseModel):

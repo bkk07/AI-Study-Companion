@@ -1,35 +1,25 @@
 import uuid
 
-import httpx
-
 from app.models.background_job import BackgroundJob
 from app.models.chunk import DocumentChunk
 from app.models.embedding import EMBEDDING_DIMS, Embedding
 from app.models.material import Material
 from app.services import job_service
 from app.services.ai import embedding_client
+from app.services.ai.embedding_client import LOCAL_MODEL
 from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session
 
 
-def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
-    """429s are per-minute rate windows — wait them out (re-queued, worker not
-    blocked); anything else retries fast."""
-    status = getattr(getattr(exc, "response", None), "status_code", None)
-    if status == 429:
-        return 60 * (retries + 1)
-    return 2 ** retries * 2
-
-
-@celery_app.task(name="generate_embeddings", bind=True, max_retries=3)
-def generate_embeddings(self, job_id: str, material_id: str) -> dict:
+@celery_app.task(name="generate_embeddings")
+def generate_embeddings(job_id: str, material_id: str) -> dict:
     """
-    Phase 29: chunk → embed → store vectors.
+    Phase 29: chunk → embed → store vectors (local fastembed only).
 
     - Reads the material's chunks ordered by chunk_index
     - Embeds contents in one batched client call (mockable)
     - Upserts one Embedding per chunk_id: re-runs never duplicate rows
-    - Job pending→running→completed/failed; transient HTTP errors retry 3x
+    - Job pending→running→completed/failed; validation errors fail fast
     """
     try:
         jid = uuid.UUID(job_id)
@@ -82,21 +72,13 @@ def generate_embeddings(self, job_id: str, material_id: str) -> dict:
                 job.error = msg
                 db.commit()
             return {"status": "failed", "error": msg, "material_id": str(mid)}
-        except httpx.HTTPError as e:
-            # Same guard as build_structure: retry() re-raises the original
-            # error once exhausted, so count attempts explicitly.
-            if self.request.retries >= 3:
-                msg = f"Embedding failed after retries: {e}"[:1000]
-                try:
-                    job_service.mark_failed(db, jid, msg)
-                except Exception:
-                    pass
-                return {"status": "failed", "error": msg, "material_id": str(mid)}
-            raise self.retry(exc=e, countdown=_retry_delay(e, self.request.retries), max_retries=3)
 
         dims = {len(v) for v in vectors}
         if len(vectors) != len(chunks) or dims != {EMBEDDING_DIMS}:
-            msg = f"Embedding client returned {len(vectors)} vectors with dims {sorted(dims)}, expected {len(chunks)}x{EMBEDDING_DIMS}"
+            msg = (
+                f"Embedding client returned {len(vectors)} vectors with dims {sorted(dims)}, "
+                f"expected {len(chunks)}x{EMBEDDING_DIMS}."
+            )
             try:
                 job_service.mark_failed(db, jid, msg)
             except Exception:
@@ -106,6 +88,7 @@ def generate_embeddings(self, job_id: str, material_id: str) -> dict:
             return {"status": "failed", "error": msg, "material_id": str(mid)}
 
         # Upsert one row per exact chunk — retries update, never duplicate.
+        model_name = LOCAL_MODEL
         for chunk, vector in zip(chunks, vectors):
             row = db.query(Embedding).filter(Embedding.chunk_id == chunk.id).first()
             if row is None:
@@ -115,10 +98,12 @@ def generate_embeddings(self, job_id: str, material_id: str) -> dict:
                         material_id=mid,
                         chunk_id=chunk.id,
                         embedding=vector,
+                        model=model_name,
                     )
                 )
             else:
                 row.embedding = vector
+                row.model = model_name
         db.commit()
 
         try:

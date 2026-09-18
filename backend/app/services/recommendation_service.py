@@ -3,7 +3,7 @@
 Formula confirmed by the user 2026-09-16 (blueprint §16), not invented.
 Per (concept, action):
 
-    score = weakness + uncertainty + recency + goal + base - repetition
+    score = weakness + uncertainty + recency + goal + growth + base - repetition
 
 - weakness = 100 - min(known masteries),
 - uncertainty = +25 when overconfident (avg conf >= 4 with accuracy <= 0.5
@@ -13,6 +13,11 @@ Per (concept, action):
   (case-insensitive token overlap or phrase substring — e.g. project goal
   "learn gradient descent" matches concept "Gradient Descent"; exact
   whole-name equality is the special case, not the only case),
+- growth = +15 when the concept's `final` mastery trend (provided by
+  `growth_service`, last-minus-first running final, None when <2 points)
+  is declining at or below -10 — the blueprint §17 declining threshold.
+  Improving/stable/thin histories add nothing (weakness already captures
+  need; a fast-improving but still-weak concept must not be deprioritized),
 - base = ask_tutor 10 / targeted_quiz 15 / explain_back 20 /
   review_material 5 / exam_mode 8,
 - repetition = 25 x same (concept, action) recommendations in the last 7 days,
@@ -69,6 +74,12 @@ REPETITION_WINDOW = timedelta(days=7)
 MISMATCH_APPLIED_BONUS = 40.0
 MISMATCH_QUIZ_PENALTY = 20.0
 MIN_EVIDENCED_CONCEPTS_FOR_EXAM = 3
+# Growth → Recommendation (learning-loop closure): declining concepts need
+# attention even when raw weakness ties. Threshold reuses blueprint §17's
+# declining boundary (delta <= -10); magnitude matches the recency bonus
+# (secondary signal, well below the mismatch pull of 40).
+GROWTH_DECLINE_THRESHOLD = -10.0
+GROWTH_DECLINE_BONUS = 15.0
 
 
 def _tokenize(text: str) -> set[str]:
@@ -149,6 +160,11 @@ class ConceptSignal:
     flashcard: float | None = None
     tutor: float | None = None
     final: float | None = None
+    # Growth signal consumed from growth_service (final_trend per concept:
+    # last-minus-first running final, None when <2 points). None = no
+    # adjustment — thin histories and improving/stable concepts score
+    # exactly as before, so existing callers are behavior-preserving.
+    growth_trend: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -159,6 +175,12 @@ class ConceptSignal:
                 isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100
             ):
                 raise ValueError(f"{attr} must be None or 0..100")
+        if self.growth_trend is not None and (
+            isinstance(self.growth_trend, bool)
+            or not isinstance(self.growth_trend, (int, float))
+            or not -100 <= self.growth_trend <= 100
+        ):
+            raise ValueError("growth_trend must be None or -100..100")
         for attr in ("mcq_count", "applied_count", "evaluated_count"):
             value = getattr(self, attr)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -195,6 +217,21 @@ def _overconfident(signal: ConceptSignal) -> bool:
     )
 
 
+def _declining(signal: ConceptSignal) -> bool:
+    """True when growth reports a declining `final` trend (<= -10).
+
+    The trend comes from `growth_service` (last-minus-first running final;
+    None when fewer than 2 points). Threshold reuses blueprint §17's
+    declining boundary — not an invented cutoff.
+    """
+    return (
+        signal.growth_trend is not None
+        and not isinstance(signal.growth_trend, bool)
+        and isinstance(signal.growth_trend, (int, float))
+        and float(signal.growth_trend) <= GROWTH_DECLINE_THRESHOLD
+    )
+
+
 def score_action(
     signal: ConceptSignal,
     action: str,
@@ -218,6 +255,8 @@ def score_action(
     goal_hit = _goal_matched(signal.name, goal_keywords)
     if goal_hit:
         score += GOAL_BONUS
+    if _declining(signal):
+        score += GROWTH_DECLINE_BONUS
     score += ACTION_BASE[action]
     if signal.mismatch_type is not None:
         if action in (EXPLAIN_BACK, REVIEW_MATERIAL):
@@ -272,6 +311,11 @@ def _explain(
         )
     if signal.days_since_evidence is not None and signal.days_since_evidence > RECENCY_DAYS:
         parts.append(f"No evidence for {signal.days_since_evidence:.0f} days, so it is due for review.")
+    if _declining(signal):
+        parts.append(
+            f"Mastery is declining ({float(signal.growth_trend):+.1f} points), "
+            "so it is prioritized for review."
+        )
     if _goal_matched(signal.name, goal_keywords):
         parts.append("This matches your project goal (+10).")
     parts.append(f"Action base value is {ACTION_BASE[action]:.0f} for {action}.")

@@ -264,12 +264,17 @@ def test_mismatch_quiz_high_open_low_rule():
 
 
 def test_normal_tutor_chat_code_cannot_write_evidence():
-    import pathlib
+    import inspect
 
-    path = pathlib.Path("app/services/tutor_conversation_service.py")
-    text = path.read_text()
-    assert "MasteryEvidence" not in text
-    assert "record_tutor_evidence" not in text
+    from app.services import tutor_conversation_service as tcs
+
+    # Plain chat stays evidence-free by design: only the explicit graded
+    # check may bank tutor evidence. Guard the function source (not the
+    # whole file) so submit_tutor_check remains the single writer.
+    assert "MasteryEvidence" not in inspect.getsource(tcs.send_message)
+    assert "record_tutor_evidence" not in inspect.getsource(tcs.send_message)
+    assert hasattr(tcs, "submit_tutor_check")
+    assert "record_tutor_evidence" in inspect.getsource(tcs.submit_tutor_check)
 
 
 # --- DB-backed behavior ------------------------------------------------------

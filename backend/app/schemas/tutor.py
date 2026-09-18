@@ -94,6 +94,37 @@ class ChatSendResponse(BaseModel):
     follow_ups: list[str] = Field(default_factory=list)
 
 
+class TutorCheckRequest(BaseModel):
+    """Bank one graded tutor follow-up as `tutor` evidence — project from path.
+
+    The referenced assistant message must be a grounded (supported + cited)
+    answer in this conversation; the explanation is the student's own-words
+    demonstration, graded with the shared open-ended grader.
+    """
+
+    assistant_message_id: uuid.UUID
+    concept_id: uuid.UUID
+    explanation_text: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("explanation_text")
+    @classmethod
+    def _strip_explanation(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("explanation_text must be non-empty")
+        return v
+
+
+class TutorCheckResponse(BaseModel):
+    """Graded tutor demonstration plus its append-only evidence id."""
+
+    evidence_id: uuid.UUID
+    concept_id: uuid.UUID
+    score: int = Field(ge=0, le=100)
+    verdict: str
+    feedback: str
+
+
 class QuizPlanRequest(BaseModel):
     """Recent prompts to map onto quiz concepts — project comes from the path."""
 

@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Compass,
   CreditCard,
   Dumbbell,
   FileText,
@@ -160,9 +161,11 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
         .join(" / ")
     : location.pathname.startsWith("/admin")
       ? "Admin"
-      : location.pathname.startsWith("/spaces/")
-        ? `${spaceName ?? "Space"} / Projects`
-        : "Spaces"
+      : location.pathname.startsWith("/recommendations")
+        ? "Recommendations"
+        : location.pathname.startsWith("/spaces/")
+          ? `${spaceName ?? "Space"} / Projects`
+          : "Spaces"
 
   const initials = user?.email
     ? user.email.trim()[0]?.toUpperCase() ?? "U"
@@ -209,6 +212,14 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
                   {!collapsed && <span>{spaceName ?? "Projects"}</span>}
                 </div>
               )}
+              <div
+                className={cn("sidebar-item", location.pathname.startsWith("/recommendations") && "active")}
+                onClick={() => nav("/recommendations")}
+                title={collapsed ? "Recommendations" : undefined}
+              >
+                <Compass size={16} className="shrink-0" />
+                {!collapsed && <span>Recommendations</span>}
+              </div>
             </div>
           ) : (
             <>

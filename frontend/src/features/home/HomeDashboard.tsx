@@ -249,8 +249,11 @@ export function HomeDashboard() {
         {/* Next actions */}
         {home.next_actions.length > 0 && (
           <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h2 className="text-sm font-semibold text-slate-800">What should you do next?</h2>
+              <Link to="/recommendations" className="text-sm font-medium text-indigo-600 hover:underline">
+                View all
+              </Link>
             </div>
             <ul>
               {home.next_actions.map((a) => (

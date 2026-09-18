@@ -120,11 +120,28 @@ Blueprint v2 provisional values are logged in `docs/00-blueprint-analysis.md §1
 
 ---
 
+## ADR-010 — AI Stack Amendment (embeddings, chat models, vision)
+
+**Amends:** ADR-001 (Frozen Stack) — embeddings row, AI row. Freezes nothing new; records what implementation reviews verified.
+
+**Decision:**
+- Embeddings: local FastEmbed `BAAI/bge-small-en-v1.5`, 384 dimensions, `Vector(384)` column — **not** OpenAI `text-embedding-3-small` / `VECTOR(1536)` as ADR-001 stated. The OpenAI label survives only as the `EMBEDDING_PROVIDER=openai` alternative, which additionally requires resizing the column (the two widths cannot mix in one column).
+- Chat: Groq (`openai/gpt-oss-20b` default) or Inception Mercury 2.5 via the `LLM_PROVIDER` switch (Mercury temperatures clamped to 0.5–1) — not an unnamed "Groq" backend.
+- Vision: NaraRouter OpenAI-compatible endpoint (`stepfun-3.7-flash`) with cropped-OCR/placeholder fallback that never fails the document.
+- JWT expiry is 60 minutes (`JWT_EXPIRE_MINUTES=60`), per Blueprint §22.
+
+**Rationale:** ADR-001 was written before the retrieval phases; the phases above verified the local stack (dim checks enforced in code, model baked into the image). Amending beats silently drifting from the freeze.
+
+**Status:** Accepted (post-Phase 49 review, 2026-09-18). ADR-001's remaining rows (frontend, backend, DB, authn, documents, background, runtime) stand unchanged.
+
+---
+
 ## Log
 
 | Date | Phase | Change |
 |------|-------|--------|
 | 2026-09-15 | 01 | Initial freeze: ADRs 001–009 accepted; no product code. |
+| 2026-09-18 | review | ADR-010 amends ADR-001 (embeddings 384-d local, chat models, vision, JWT 60m). |
 
 ---
 

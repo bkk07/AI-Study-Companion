@@ -8,6 +8,7 @@ import { LandingPage } from "@/features/landing/LandingPage"
 import { Login } from "@/features/auth/Login"
 import { Register } from "@/features/auth/Register"
 import { AdminPage } from "@/features/admin/AdminPage"
+import { RecommendationsPage } from "@/features/recommendations/RecommendationsPage"
 import { SpacesPage } from "@/features/spaces/SpacesPage"
 import { SpaceProjectsPage } from "@/features/projects/SpaceProjectsPage"
 import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage"
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/spaces" element={<SpacesPage />} />
         <Route path="/spaces/:spaceId" element={<SpaceProjectsPage />} />
         <Route path="/spaces/:spaceId/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/recommendations" element={<RecommendationsPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />

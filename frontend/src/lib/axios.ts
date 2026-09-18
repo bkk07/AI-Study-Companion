@@ -12,6 +12,16 @@ import { notifyUnauthorized } from "@/lib/auth-events"
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
 const apiPrefix = import.meta.env.VITE_API_V1_PREFIX ?? "/api/v1"
 
+if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL) {
+  // Production build with no backend configured: every request would hit
+  // localhost and fail confusingly. Surface it loudly instead (M6).
+  console.warn(
+    "[api] VITE_API_BASE_URL is not set — falling back to http://localhost:8000, "
+    + "which only works for local dev. Set it to the hosted FastAPI URL in the "
+    + "Vercel project environment and redeploy.",
+  )
+}
+
 // Ensure no double slash: baseURL = "http://localhost:8000/api/v1"
 const baseURL = `${apiBaseUrl.replace(/\/$/, "")}${apiPrefix}`
 

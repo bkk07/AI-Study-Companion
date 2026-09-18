@@ -1,5 +1,11 @@
 # 00 — Blueprint Analysis — AI Study Companion
 
+> Amendment 2026-09-18 (frozen analysis below is otherwise untouched): the
+> mandated-stack rows citing OpenAI `text-embedding-3-small` / `VECTOR(1536)`
+> were superseded during implementation — the runtime uses local FastEmbed
+> `BAAI/bge-small-en-v1.5` (384-d, `Vector(384)` column). See ADR-010 and
+> `README.md` Tech Stack for the current stack.
+
 **Blueprint:** `ai-study-companion-blueprint.md` — Revised Blueprint v2 (Prototype scope: 3–4 day Full Stack AI Engineer candidate challenge)
 **Detailed roadmap:** `ai-study-companion-detailed-opencode-roadmap.md` (58 phases, architecture-freeze contract)
 **Date:** 2026-09-15

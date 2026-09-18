@@ -475,7 +475,7 @@ Full diagrams (ingestion, RAG, quiz, mastery, growth/mismatch, recommendations, 
 │   │   ├── components/       # shared UI (AppShell, ProtectedRoute, …)
 │   │   ├── context/          # AuthContext
 │   │   ├── lib/              # apiClient (axios + JWT interceptor)
-│   │   └── App.tsx           # routes: /, /login, /register, /spaces, /admin
+│   │   └── App.tsx           # routes: /, /login, /register, /spaces, /recommendations, /admin
 │   ├── Dockerfile            # multi-stage build → nginx
 │   └── .env.example          # VITE_API_BASE_URL, VITE_API_V1_PREFIX
 ├── backend/                  # FastAPI app
@@ -599,7 +599,7 @@ Backend (`backend/.env`, see `.env.example` for full comments):
 | Variable | Purpose / Default |
 |----------|-------------------|
 | `DATABASE_URL` | SQLAlchemy URL, psycopg3 scheme (`postgresql+psycopg://…`). Compose: `@postgres:5432/…`; local: `@localhost:5433/…`; Neon: `?sslmode=require` |
-| `JWT_SECRET` / `JWT_ALGORITHM` / `JWT_EXPIRE_MINUTES` | Auth signing (`HS256`, default expiry `2880` min). Use a long random secret |
+| `JWT_SECRET` / `JWT_ALGORITHM` / `JWT_EXPIRE_MINUTES` | Auth signing (`HS256`, default expiry `60` min per Blueprint §22). Production must export a real secret (`openssl rand -hex 32`) with `ENVIRONMENT=production` — booting otherwise is refused at startup |
 | `LLM_PROVIDER` | `groq` or `inception` (Mercury temps are clamped to `0.5–1` automatically) |
 | `GROQ_API_KEY` / `GROQ_MODEL` | e.g. `openai/gpt-oss-20b` |
 | `INCEPTION_API_KEY` / `INCEPTION_MODEL` | e.g. `mercury-2.5` |
@@ -723,9 +723,12 @@ alembic current                # confirm head revision
 
 | Target | How |
 |--------|-----|
-| **Frontend (live)** | Vercel → https://aistudycompanion-alpha.vercel.app/ (build: `tsc -b && vite build`; env: `VITE_API_BASE_URL` = hosted API) |
+| **Frontend (live)** | Vercel → https://aistudycompanion-alpha.vercel.app/ (build: `tsc -b && vite build`; env: `VITE_API_BASE_URL` = hosted API; `frontend/vercel.json` rewrites all routes to `index.html` so deep links work) |
+| **Backend API (production)** | Railway service URL (e.g. `https://<service>.up.railway.app`) — **not stored in this repo**. Set it as `VITE_API_BASE_URL` in the Vercel project environment and redeploy the frontend. The app logs a console warning if a production build lacks it. |
 | **Local full stack** | `docker compose up --build` — `api` (uvicorn) + `worker` (Celery) + `web` (nginx) + `postgres` (pgvector) + `redis` |
-| **Railway backend** | Single container from `backend/Dockerfile` via `railway.toml` (`DOCKERFILE` builder, healthcheck `/api/v1/health`), Supervisor runs API + worker + Redis client against managed Postgres/Redis |
+| **Railway backend** | Single container from `backend/Dockerfile` via `railway.toml` (`DOCKERFILE` builder, healthcheck `/api/v1/health`), Supervisor runs API + worker + Redis client against managed Postgres/Redis. Required Railway env: `DATABASE_URL`, `JWT_SECRET` (long random), `ENVIRONMENT=production`, `GROQ_API_KEY` and/or `INCEPTION_API_KEY` |
+
+Migrations run automatically: every backend container executes `alembic upgrade head` via `backend/docker-entrypoint.py` before serving (idempotent — safe on every boot in every topology). Manual equivalent: `cd backend && alembic upgrade head`.
 
 Docker vs Railway topologies differ intentionally (separate Compose services vs one Supervised container) — see `Architecture.md §10.4`.
 
@@ -738,7 +741,7 @@ Docker vs Railway topologies differ intentionally (separate Compose services vs 
 | [`Architecture.md`](./Architecture.md) | System architecture, Mermaid diagrams, flows, trade-offs, current boundaries |
 | [`AI_USAGE.md`](./AI_USAGE.md) | Dev-AI vs product-AI transparency, models, what AI does/doesn't do |
 | [`docs/00-blueprint-analysis.md`](./docs/00-blueprint-analysis.md) | Frozen blueprint contract (scope, stack, exclusions, hard rules) |
-| [`docs/architecture-decisions.md`](./docs/architecture-decisions.md) | ADRs 001–009 |
+| [`docs/architecture-decisions.md`](./docs/architecture-decisions.md) | ADRs 001–010 (010 amends the AI stack) |
 | [`docs/implementation-status.md`](./docs/implementation-status.md) | Phase-by-phase build log |
 | [`docs/opencode-prompts.md`](./docs/opencode-prompts.md) | Per-phase prompt log |
 | [`docs/learning-model-design.md`](./docs/learning-model-design.md) | Mastery/growth/mismatch math |

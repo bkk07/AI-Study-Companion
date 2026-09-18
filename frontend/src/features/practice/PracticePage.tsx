@@ -4,12 +4,13 @@ import { Dumbbell, Loader2 } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { estimateMinutes } from "@/lib/estimate"
-import { Button, EmptyState, ErrorBox, LoadingState, PageHeader } from "@/components/ui"
+import { Button, EmptyState, ErrorBox, PageHeader } from "@/components/ui"
 import {
   AnimatedNumber,
   KnowledgeTreeSelector,
   minimalCover,
   selectionCounts,
+  TreeSkeleton,
   type TreeTopic,
 } from "@/components/knowledge/KnowledgeTreeSelector"
 import { QuestionCountStepper } from "@/components/knowledge/QuestionCountStepper"
@@ -46,6 +47,7 @@ export function PracticePage({
 }) {
   const [topics, setTopics] = useState<TreeTopic[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [level, setLevel] = useState<PracticeLevel>("adaptive")
   const [mcqCount, setMcqCount] = useState(10)
@@ -63,6 +65,8 @@ export function PracticePage({
 
   useEffect(() => {
     let cancelled = false
+    setFailed(false)
+    setTopics(null)
     apiClient
       .get<{ topics: TreeTopic[] }>(`/projects/${projectId}/knowledge/tree`)
       .then((res) => {
@@ -74,7 +78,7 @@ export function PracticePage({
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [projectId, retryKey])
 
   const meta: ConceptMeta = useMemo(() => {    const m: ConceptMeta = new Map()
     for (const t of topics ?? []) {
@@ -190,13 +194,13 @@ export function PracticePage({
         />
 
         {topics === null && !failed && (
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-6 shadow-sm">
-            <LoadingState text="Loading your knowledge…" />
+          <div className="mt-6">
+            <TreeSkeleton />
           </div>
         )}
         {failed && (
           <div className="mt-6">
-            <ErrorBox message="Could not load your knowledge tree." onRetry={() => window.location.reload()} />
+            <ErrorBox message="Could not load your knowledge tree." onRetry={() => setRetryKey((k) => k + 1)} />
           </div>
         )}
         {topics !== null && topics.length === 0 && stage === "select" && (

@@ -372,6 +372,31 @@ def mastery_for_concept(
     return compute_mastery([_row_to_input(r) for r in rows])
 
 
+def mastery_for_concepts(
+    db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID
+) -> dict[uuid.UUID, MasteryScores]:
+    """Batch derivation for every concept of (user, project) in ONE evidence query.
+
+    Identical math to calling mastery_for_concept per concept: same row filter,
+    same pure compute_mastery. Concepts without evidence map to the empty score.
+    Exists so read-heavy endpoints (knowledge tree) don't pay N sequential
+    round-trips against remote Postgres.
+    """
+    rows = (
+        db.query(MasteryEvidence)
+        .filter(
+            MasteryEvidence.user_id == user_id,
+            MasteryEvidence.project_id == project_id,
+        )
+        .order_by(MasteryEvidence.created_at.asc())
+        .all()
+    )
+    by_concept: dict[uuid.UUID, list[EvidenceInput]] = {}
+    for row in rows:
+        by_concept.setdefault(row.concept_id, []).append(_row_to_input(row))
+    return {concept_id: compute_mastery(points) for concept_id, points in by_concept.items()}
+
+
 def record_tutor_evidence(
     db: Session,
     *,

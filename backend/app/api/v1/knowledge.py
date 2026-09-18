@@ -28,13 +28,11 @@ from app.schemas.knowledge import (
     StreamRead,
 )
 from app.services import dashboard_service, relationship_service
-from app.services.mastery_levels import is_mastery_target, status_for
-from app.services.mastery_service import mastery_for_concept
+from app.services.mastery_levels import is_mastery_target, mastery_target_criterion, status_for
+from app.services.mastery_service import mastery_for_concept, mastery_for_concepts
 from app.services.rollup_service import (
     display_mastery,
-    rollup_for_project,
-    rollup_for_subtopic,
-    rollup_for_topic,
+    evidence_total,
 )
 
 router = APIRouter(prefix="/projects/{project_id}/knowledge", tags=["knowledge"])
@@ -76,6 +74,32 @@ def _hit(db: Session, concept: Concept, user_id: uuid.UUID) -> SearchHitRead:
     )
 
 
+def _rollup_members(
+    members: list[Concept], scores_by_id: dict[uuid.UUID, object]
+) -> tuple[float | None, int, int]:
+    """In-memory twin of rollup_service.rollup_concepts over precomputed scores.
+
+    Same semantics (practiced = evidence rows > 0; mastery = mean of known
+    display values over practiced members; total = target members) with zero
+    queries, so the tree no longer re-scores every concept per scope.
+    """
+    from app.services.mastery_service import MasteryScores
+
+    values: list[float] = []
+    practiced = 0
+    for concept in sorted(members, key=lambda c: str(c.id)):
+        scores = scores_by_id.get(concept.id)
+        if not isinstance(scores, MasteryScores):
+            continue
+        if evidence_total(scores) > 0:
+            practiced += 1
+            value = display_mastery(scores)
+            if value is not None:
+                values.append(value)
+    mastery = sum(values) / len(values) if values else None
+    return mastery, practiced, len(members)
+
+
 @router.get("/tree", response_model=KnowledgeTreeRead)
 def get_tree(
     project: Project = Depends(get_authorized_project),
@@ -86,57 +110,69 @@ def get_tree(
 
     Composes the gated dashboard progress (same numbers as the dashboard) over
     the topic tree. SUPPORTING/REFERENCE/obsolete rows never appear here.
+
+    Performance: evidence is read ONCE for the whole project and every scope
+    rolls up in memory — the previous per-scope re-scoring issued ~13 queries
+    per concept and timed out on real projects (frontend 15s budget).
     """
-    progress, _ = dashboard_service.build_dashboard(db, user_id=user.id, project_id=project.id)
-    by_id = {p.concept_id: p for p in progress}
+    concepts = (
+        db.query(Concept)
+        .filter(Concept.project_id == project.id, mastery_target_criterion())
+        .order_by(Concept.created_at.asc())
+        .all()
+    )
+    concepts = [c for c in concepts if is_mastery_target(c)]
+    scores_by_id = mastery_for_concepts(db, user_id=user.id, project_id=project.id)
     topics = (
         db.query(Topic).filter(Topic.project_id == project.id)
         .order_by(Topic.created_at.asc()).all()
     )
+    subs = (
+        db.query(Subtopic).filter(Subtopic.project_id == project.id)
+        .order_by(Subtopic.created_at.asc()).all()
+    )
+    subs_by_topic: dict[uuid.UUID, list[Subtopic]] = {}
+    for sub in subs:
+        subs_by_topic.setdefault(sub.topic_id, []).append(sub)
+    concepts_by_sub: dict[uuid.UUID, list[Concept]] = {}
+    for concept in concepts:
+        concepts_by_sub.setdefault(concept.subtopic_id, []).append(concept)
     out: list[BrowseTopicRead] = []
     for topic in topics:
-        subs = (
-            db.query(Subtopic).filter(Subtopic.topic_id == topic.id)
-            .order_by(Subtopic.created_at.asc()).all()
-        )
         sub_reads: list[BrowseSubtopicRead] = []
-        for sub in subs:
-            rows = (
-                db.query(Concept).filter(Concept.subtopic_id == sub.id)
-                .order_by(Concept.created_at.asc()).all()
-            )
+        for sub in subs_by_topic.get(topic.id, []):
             leaves: list[BrowseConceptRead] = []
-            for row in rows:
-                prog = by_id.get(row.id)
-                if prog is None:
-                    continue  # non-target (or obsolete): not a browse leaf
-                mastery = display_mastery(prog.scores)
-                practiced = prog.scores.mcq.count + prog.scores.applied.count > 0
+            for row in concepts_by_sub.get(sub.id, []):
+                scores = scores_by_id.get(row.id)
+                if scores is None:
+                    continue  # target without derivable scores: not a browse leaf
+                mastery = display_mastery(scores)
+                practiced = evidence_total(scores) > 0
                 leaves.append(BrowseConceptRead(
                     id=row.id, title=row.title, lo_type=row.type or "CONCEPT",
                     mastery=mastery, status=status_for(mastery), practiced=practiced,
                 ))
-            roll = rollup_for_subtopic(db, user_id=user.id, project_id=project.id,
-                                       subtopic_id=sub.id)
+            mastery, practiced, total = _rollup_members(
+                concepts_by_sub.get(sub.id, []), scores_by_id
+            )
             sub_reads.append(BrowseSubtopicRead(
                 id=sub.id, title=sub.title, core_count=len(leaves),
-                coverage=CoverageRead(mastery=roll.mastery, practiced=roll.practiced,
-                                      total=roll.total),
+                coverage=CoverageRead(mastery=mastery, practiced=practiced, total=total),
                 concepts=leaves,
             ))
-        troll = rollup_for_topic(db, user_id=user.id, project_id=project.id, topic_id=topic.id)
+        members = [c for sub in subs_by_topic.get(topic.id, []) for c in concepts_by_sub.get(sub.id, [])]
+        mastery, practiced, total = _rollup_members(members, scores_by_id)
         out.append(BrowseTopicRead(
             id=topic.id, title=topic.title,
             core_count=sum(s.core_count for s in sub_reads),
-            coverage=CoverageRead(mastery=troll.mastery, practiced=troll.practiced,
-                                  total=troll.total),
+            coverage=CoverageRead(mastery=mastery, practiced=practiced, total=total),
             subtopics=sub_reads,
         ))
-    overall = rollup_for_project(db, user_id=user.id, project_id=project.id)
+    all_members = list(concepts)
+    mastery, practiced, total = _rollup_members(all_members, scores_by_id)
     return KnowledgeTreeRead(
         topics=out,
-        overall=CoverageRead(mastery=overall.mastery, practiced=overall.practiced,
-                             total=overall.total),
+        overall=CoverageRead(mastery=mastery, practiced=practiced, total=total),
     )
 
 

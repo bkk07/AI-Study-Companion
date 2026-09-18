@@ -3,12 +3,13 @@ import { motion, useReducedMotion } from "framer-motion"
 import { Loader2, Search, Sparkles } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { estimateMinutes } from "@/lib/estimate"
-import { EmptyState, LoadingState, SectionHeader } from "@/components/ui"
+import { EmptyState, SectionHeader } from "@/components/ui"
 import {
   AnimatedNumber,
   KnowledgeTreeSelector,
   minimalCover,
   selectionCounts,
+  TreeSkeleton,
   type TreeTopic,
 } from "@/components/knowledge/KnowledgeTreeSelector"
 import { QuestionCountStepper } from "@/components/knowledge/QuestionCountStepper"
@@ -49,6 +50,7 @@ export function QuizSetup({
   const [qCount, setQCount] = useState(10)
   const [topics, setTopics] = useState<TreeTopic[] | null>(null)
   const [treeFailed, setTreeFailed] = useState(false)
+  const [treeRetryKey, setTreeRetryKey] = useState(0)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [recs, setRecs] = useState<Recommendations | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
@@ -66,6 +68,8 @@ export function QuizSetup({
 
   useEffect(() => {
     let cancelled = false
+    setTreeFailed(false)
+    setTopics(null)
     apiClient
       .get<{ topics: TreeTopic[] }>(`/projects/${projectId}/knowledge/tree`)
       .then((res) => {
@@ -85,7 +89,7 @@ export function QuizSetup({
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [projectId, treeRetryKey])
 
   const counts = useMemo(() => selectionCounts(topics ?? [], checked), [topics, checked])
   const valid = counts.concepts > 0
@@ -175,11 +179,20 @@ export function QuizSetup({
             Select topics, subtopics, or individual concepts from your knowledge base.
           </p>
           <div className="mt-4">
-            {topics === null && !treeFailed && <LoadingState text="Loading your knowledge…" />}
+            {topics === null && !treeFailed && <TreeSkeleton rows={3} />}
             {treeFailed && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-                Could not load topics — upload material first, then come back.
-              </p>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-xs text-red-600">
+                  Could not load your knowledge tree — check your connection, then try again.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTreeRetryKey((k) => k + 1)}
+                  className="mt-2 rounded-lg bg-white px-3.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-100"
+                >
+                  Try again
+                </button>
+              </div>
             )}
             {topics !== null && topics.length === 0 && (
               <EmptyState

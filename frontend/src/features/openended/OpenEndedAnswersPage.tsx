@@ -4,12 +4,13 @@ import { ArrowLeft, ArrowRight, Loader2, PenLine, RotateCcw } from "lucide-react
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { estimateMinutes } from "@/lib/estimate"
-import { Button, EmptyState, ErrorBox, LoadingState, PageHeader, ProgressBar } from "@/components/ui"
+import { Button, EmptyState, ErrorBox, PageHeader, ProgressBar } from "@/components/ui"
 import {
   AnimatedNumber,
   KnowledgeTreeSelector,
   minimalCover,
   selectionCounts,
+  TreeSkeleton,
   type TreeTopic,
 } from "@/components/knowledge/KnowledgeTreeSelector"
 import { QuestionCountStepper } from "@/components/knowledge/QuestionCountStepper"
@@ -56,6 +57,7 @@ export function OpenEndedAnswersPage({
 }) {
   const [topics, setTopics] = useState<TreeTopic[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [count, setCount] = useState(5)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [stage, setStage] = useState<Stage>("setup")
@@ -69,6 +71,8 @@ export function OpenEndedAnswersPage({
 
   useEffect(() => {
     let cancelled = false
+    setFailed(false)
+    setTopics(null)
     apiClient
       .get<{ topics: TreeTopic[] }>(`/projects/${projectId}/knowledge/tree`)
       .then((res) => {
@@ -80,7 +84,7 @@ export function OpenEndedAnswersPage({
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [projectId, retryKey])
 
   useEffect(() => () => {
     if (stepTimer.current) clearInterval(stepTimer.current)
@@ -204,13 +208,13 @@ export function OpenEndedAnswersPage({
         />
 
         {topics === null && !failed && (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6">
-            <LoadingState text="Loading your knowledge…" />
+          <div className="mt-6">
+            <TreeSkeleton />
           </div>
         )}
         {failed && (
           <div className="mt-6">
-            <ErrorBox message="Could not load your knowledge tree." onRetry={() => window.location.reload()} />
+            <ErrorBox message="Could not load your knowledge tree." onRetry={() => setRetryKey((k) => k + 1)} />
           </div>
         )}
         {topics !== null && topics.length === 0 && stage === "setup" && (

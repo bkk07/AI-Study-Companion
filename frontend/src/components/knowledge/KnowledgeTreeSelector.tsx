@@ -171,6 +171,38 @@ export function SelectionSummary({ counts }: { counts: SelectionCounts }) {
   )
 }
 
+/** Shimmer placeholder while the knowledge tree loads — same silhouette as the
+ * real tree (root bar + topic rows + indented subtopic rows) so the layout
+ * doesn't jump when data arrives. */
+export function TreeSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div aria-label="Loading knowledge tree" aria-busy="true" className="animate-pulse">
+      <div className="mb-2 h-10 rounded-xl border border-slate-200 bg-slate-100" />
+      <div className="space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="h-12 rounded-xl bg-indigo-100/70" />
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i}>
+            <div className="flex items-center gap-2.5 rounded-xl px-3 py-2">
+              <div className="h-5 w-5 shrink-0 rounded-md bg-slate-200" />
+              <div
+                className="h-3.5 rounded-full bg-slate-200"
+                style={{ width: `${62 - (i % 3) * 12}%` }}
+              />
+              <div className="ml-auto h-5 w-12 shrink-0 rounded-full bg-slate-100" />
+            </div>
+            {i < 2 && (
+              <div className="ml-5 space-y-0.5 border-l-2 border-slate-100 py-1 pl-2">
+                <div className="h-7 rounded-lg bg-slate-100" style={{ width: "82%" }} />
+                <div className="ml-5 h-6 rounded-lg bg-slate-50" style={{ width: "64%" }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function KnowledgeTreeSelector({
   topics,
   checked,

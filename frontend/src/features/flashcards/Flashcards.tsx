@@ -12,12 +12,13 @@ import {
   Star,
 } from "lucide-react"
 import apiClient from "@/lib/axios"
-import { Button, EmptyState, ErrorBox, LoadingState, SectionHeader, Tag } from "@/components/ui"
+import { Button, EmptyState, ErrorBox, SectionHeader, Tag } from "@/components/ui"
 import {
   AnimatedNumber,
   checkedConceptIds,
   KnowledgeTreeSelector,
   selectionCounts,
+  TreeSkeleton,
 } from "@/components/knowledge/KnowledgeTreeSelector"
 import { cn } from "@/lib/utils"
 
@@ -353,7 +354,16 @@ export function Flashcards({
   }
 
   if (failed) return <ErrorBox message="Could not load flashcards." onRetry={() => void load()} />
-  if (!topics) return <LoadingState text="Loading decks…" />
+  if (!topics) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6">
+          <SectionHeader title="Flashcards" subtitle="Spaced repetition review of your concepts" />
+        </div>
+        <TreeSkeleton rows={3} />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-5xl">

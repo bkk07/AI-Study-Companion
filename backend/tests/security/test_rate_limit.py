@@ -99,3 +99,39 @@ def test_project_budget_and_scope_independence():
     finally:
         _restore(old)
         teardown(engine)
+
+
+def test_auth_login_throttled_per_ip_email():
+    """M4: repeated login attempts for one account exhaust to a 429 envelope."""
+    client, engine = setup()
+    s = get_settings()
+    old = s.rate_limit_auth_per_minute
+    s.rate_limit_auth_per_minute = 2
+    try:
+        email = tag("sec-rlA")
+        bad = {"email": email, "password": "wrong-password-1"}
+        assert client.post("/api/v1/auth/login", json=bad).status_code == 401
+        assert client.post("/api/v1/auth/login", json=bad).status_code == 401
+        resp = client.post("/api/v1/auth/login", json=bad)
+        assert resp.status_code == 429, resp.text
+        assert resp.json()["error"]["code"] == "rate_limited"
+        # A different account from the same host is unaffected (narrow keying).
+        other = {"email": tag("sec-rlB"), "password": "wrong-password-1"}
+        assert client.post("/api/v1/auth/login", json=other).status_code == 401
+    finally:
+        s.rate_limit_auth_per_minute = old
+        reset_budgets()
+        teardown(engine)
+
+
+def test_prod_secret_guard_fails_closed():
+    from types import SimpleNamespace
+
+    from app.core.config import DEFAULT_JWT_SECRET
+    from app.main import ensure_prod_secrets
+
+    with __import__("pytest").raises(RuntimeError, match="JWT_SECRET"):
+        ensure_prod_secrets(SimpleNamespace(environment="production", jwt_secret=DEFAULT_JWT_SECRET))
+    # Real secret in prod, or anything in dev/test, boots fine.
+    ensure_prod_secrets(SimpleNamespace(environment="production", jwt_secret="a-real-secret"))
+    ensure_prod_secrets(SimpleNamespace(environment="development", jwt_secret=DEFAULT_JWT_SECRET))

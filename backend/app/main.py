@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import get_settings
+from app.core.config import DEFAULT_JWT_SECRET, get_settings
 from app.core.exceptions import register_error_handlers
 from app.api.v1.admin import router as admin_router
 from app.api.v1.analytics import router as analytics_router
@@ -35,6 +35,25 @@ register_error_handlers(app)
 
 # CORS — origins from settings (CORS_ORIGINS, comma-separated) per blueprint §22
 _settings = get_settings()
+
+
+def ensure_prod_secrets(settings) -> None:
+    """Fail closed: production must never boot on the placeholder JWT secret.
+
+    Development/test keep the placeholder default so local runs and the
+    suite work with no env; any ENVIRONMENT=production deploy without a
+    real JWT_SECRET crashes loudly at startup instead of signing tokens
+    with a published value.
+    """
+    if settings.environment == "production" and settings.jwt_secret == DEFAULT_JWT_SECRET:
+        raise RuntimeError(
+            "JWT_SECRET is the placeholder default — set a real secret "
+            "(e.g. `openssl rand -hex 32`) in the production environment."
+        )
+
+
+ensure_prod_secrets(_settings)
+
 _allow_origins = [o.strip() for o in _settings.cors_origins.split(",") if o.strip()]
 if not _allow_origins:
     _allow_origins = ["http://localhost:5173"]

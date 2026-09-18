@@ -43,6 +43,7 @@ from app.models.learning_event import (  # noqa: E402,F401
     EVENT_QUIZ_COMPLETED,
     EVENT_QUIZ_STARTED,
     EVENT_RECOMMENDATION_GENERATED,
+    EVENT_MISTAKE_PATTERN,
     EVENT_TUTOR_MESSAGE,
 )
 

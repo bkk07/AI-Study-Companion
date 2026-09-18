@@ -17,13 +17,14 @@ import time
 from collections import defaultdict, deque
 from typing import Deque, Dict
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, HTTPException, Path, Request, status
 
 from app.core.config import get_settings
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 
 _BUDGET_EXHAUSTED_MESSAGE = "LLM request budget exhausted — retry shortly."
+_AUTH_EXHAUSTED_MESSAGE = "Too many authentication attempts — retry shortly."
 
 _lock = threading.Lock()
 _BUCKETS: Dict[str, Deque[float]] = defaultdict(deque)
@@ -88,3 +89,37 @@ def require_llm_budget(scope: str):
         check_llm_budget(str(user.id), project_id, scope)
 
     return guard
+
+
+def client_ip(request: Request) -> str:
+    """Best-effort client IP for anonymous rate limiting (never raises)."""
+    try:
+        if request.client is not None:
+            return request.client.host or "unknown"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def check_auth_budget(ip: str, email: str, scope: str) -> None:
+    """Consume one auth attempt from the (IP, email) bucket for `scope`.
+
+    Narrow keying (login vs register, one account per bucket) blocks
+    password spraying against a single account from a single host without
+    locking out unrelated users behind the same NAT. Shares the process
+    buckets, so `reset_budgets()` covers tests.
+
+    Raises:
+        HTTPException: 429 when the bucket is exhausted.
+    """
+    settings = get_settings()
+    window = float(settings.rate_limit_window_seconds)
+    now = time.monotonic()
+    key = f"auth:{scope}:{(ip or 'unknown').strip().lower()}:{(email or '').strip().lower()}"
+    with _lock:
+        ok = _allow(key, settings.rate_limit_auth_per_minute, window, now)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=_AUTH_EXHAUSTED_MESSAGE,
+        )

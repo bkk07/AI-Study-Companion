@@ -112,6 +112,46 @@ def test_upload_valid_pdf():
         os.environ.pop("UPLOAD_DIR", None)
 
 
+def test_broker_down_returns_202_failed_not_misleading_201():
+    """H5: dispatch failure -> 202 + material failed with error, job failed."""
+    tmpdir = tempfile.mkdtemp(prefix="uploads_")
+    client, engine = _override_and_client(tmpdir)
+    try:
+        email = f"upbd_{uuid.uuid4().hex[:8]}@example.com"
+        token = _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = client.post("/api/v1/spaces", json={"name": "S"}, headers=headers)
+        space_id = resp.json()["id"]
+        resp = client.post(f"/api/v1/spaces/{space_id}/projects", json={"name": "P"}, headers=headers)
+        project_id = resp.json()["id"]
+
+        with patch("app.api.v1.materials.process_pdf") as mock_task:
+            mock_task.delay.side_effect = RuntimeError("broker down")
+            resp = client.post(
+                f"/api/v1/projects/{project_id}/materials",
+                files={"file": ("doc.pdf", MINIMAL_PDF, "application/pdf")},
+                headers=headers,
+            )
+        assert resp.status_code == 202, resp.text
+        data = resp.json()
+        assert data["status"] == "failed"
+        assert data["error_message"] and "broker" in data["error_message"].lower()
+
+        # list endpoint surfaces the same failed state (UI renders the error)
+        resp = client.get(f"/api/v1/projects/{project_id}/materials", headers=headers)
+        assert resp.status_code == 200
+        listed = resp.json()
+        assert len(listed) == 1 and listed[0]["status"] == "failed"
+
+        _cleanup(client, email, engine)
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+        get_settings.cache_clear()
+        os.environ.pop("UPLOAD_DIR", None)
+
+
 def test_upload_rejects_non_pdf_and_oversized():
     tmpdir = tempfile.mkdtemp(prefix="uploads_")
     client, engine = _override_and_client(tmpdir)

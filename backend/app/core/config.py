@@ -3,6 +3,11 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+# Placeholder the image/compose ship with. Booting with this value in
+# ENVIRONMENT=production is refused at startup (see app.main) — export a
+# real secret (`openssl rand -hex 32`) in any real deployment.
+DEFAULT_JWT_SECRET = "change-me-to-a-long-random-string-at-least-32-chars"
+
 
 class Settings(BaseSettings):
     """
@@ -21,9 +26,10 @@ class Settings(BaseSettings):
     )
 
     # Auth
-    jwt_secret: str = Field(default="change-me-to-a-long-random-string-at-least-32-chars", alias="JWT_SECRET")
+    jwt_secret: str = Field(default=DEFAULT_JWT_SECRET, alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    jwt_expire_minutes: int = Field(default=2880, alias="JWT_EXPIRE_MINUTES")
+    # Blueprint §22: short-lived access tokens (60 min); re-login on expiry.
+    jwt_expire_minutes: int = Field(default=60, alias="JWT_EXPIRE_MINUTES")
 
     # AI — LLM_PROVIDER selects the chat-completions backend ("groq" or "inception").
     # Mercury 2.5 only accepts temperature 0.5-1 (see groq_client clamp).
@@ -33,7 +39,11 @@ class Settings(BaseSettings):
     inception_api_key: str = Field(default="", alias="INCEPTION_API_KEY")
     inception_model: str = Field(default="mercury-2.5", alias="INCEPTION_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    # Names the model for the active embedding path. Default is the local
+    # FastEmbed model (384-d, matches the Vector(384) column); the OpenAI
+    # label only applies with EMBEDDING_PROVIDER=openai (which additionally
+    # requires resizing the column — the two widths cannot mix).
+    embedding_model: str = Field(default="BAAI/bge-small-en-v1.5", alias="EMBEDDING_MODEL")
     embedding_provider: str = Field(default="local", alias="EMBEDDING_PROVIDER")
 
     # Documents — hybrid PDF pipeline: PyMuPDF text + per-page Tesseract OCR
@@ -83,6 +93,10 @@ class Settings(BaseSettings):
     rate_limit_llm_per_minute_user: int = Field(default=30, alias="RATE_LIMIT_LLM_PER_MINUTE_USER")
     rate_limit_llm_per_minute_project: int = Field(default=120, alias="RATE_LIMIT_LLM_PER_MINUTE_PROJECT")
     rate_limit_window_seconds: int = Field(default=60, alias="RATE_LIMIT_WINDOW_SECONDS")
+    # Auth endpoints (Blueprint §22 / ADR-004 promised rate-limit on auth/*):
+    # per (client IP, email) so one account cannot be sprayed from one host.
+    # Keyed narrowly so test suites (unique email per test) never flake.
+    rate_limit_auth_per_minute: int = Field(default=10, alias="RATE_LIMIT_AUTH_PER_MINUTE")
 
     model_config = SettingsConfigDict(
         env_file=".env",

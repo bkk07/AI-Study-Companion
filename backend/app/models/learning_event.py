@@ -19,6 +19,7 @@ EVENT_QUESTION_ANSWERED = "question.answered"
 EVENT_ASSESSMENT_COMPLETED = "assessment.completed"
 EVENT_MASTERY_UPDATED = "mastery.updated"
 EVENT_RECOMMENDATION_GENERATED = "recommendation.generated"
+EVENT_MISTAKE_PATTERN = "mistake.pattern_detected"
 
 EVENT_TYPES = (
     EVENT_PROJECT_CREATED,
@@ -32,6 +33,7 @@ EVENT_TYPES = (
     EVENT_ASSESSMENT_COMPLETED,
     EVENT_MASTERY_UPDATED,
     EVENT_RECOMMENDATION_GENERATED,
+    EVENT_MISTAKE_PATTERN,
 )
 
 
@@ -51,7 +53,7 @@ class LearningEvent(Base, UUIDTimestampMixin):
             "event_type IN ('project.created', 'material.uploaded', 'material.ready', "
             "'material.failed', 'tutor.message', 'quiz.started', 'quiz.completed', "
             "'question.answered', 'assessment.completed', 'mastery.updated', "
-            "'recommendation.generated')",
+            "'recommendation.generated', 'mistake.pattern_detected')",
             name="ck_learning_events_type",
         ),
     )

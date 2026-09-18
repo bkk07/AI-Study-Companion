@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.jwt import create_access_token
+from app.core.rate_limit import check_auth_budget, client_ip
 from app.core.security import hash_password, verify_password
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
+def register(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
+    check_auth_budget(client_ip(request), payload.email, "register")
     email = payload.email.strip().lower()
     existing = db.query(User).filter(User.email == email).first()
     if existing:
@@ -31,7 +33,8 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    check_auth_budget(client_ip(request), payload.email, "login")
     email = payload.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(user.hashed_password, payload.password):

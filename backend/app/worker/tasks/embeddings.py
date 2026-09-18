@@ -1,5 +1,7 @@
 import uuid
 
+import httpx
+
 from app.models.background_job import BackgroundJob
 from app.models.chunk import DocumentChunk
 from app.models.embedding import EMBEDDING_DIMS, Embedding
@@ -9,6 +11,20 @@ from app.services.ai import embedding_client
 from app.services.ai.embedding_client import LOCAL_MODEL
 from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session
+
+
+def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
+    """Backoff seconds — pipeline-wide 429 contract shared with structure.
+
+    429s are per-minute rate windows, so wait the window out (re-queued,
+    worker not blocked); other errors retry fast. The local FastEmbed client
+    raises ValueError (fail fast, never retried), never HTTP errors — this
+    helper keeps the contract for a future remote embedding provider.
+    """
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status == 429:
+        return 60 * (retries + 1)
+    return 2 ** retries * 2
 
 
 @celery_app.task(name="generate_embeddings")

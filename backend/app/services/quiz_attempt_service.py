@@ -428,4 +428,14 @@ def complete_attempt(
         from app.worker.tasks.recommendations import refresh_best_effort
 
         refresh_best_effort(user_id, project_id)  # never raises; no-op under pytest
+    # Blueprint §13 repeated-mistake workflow: a concept missed repeatedly
+    # gets a targeted applied-practice recommendation (own best-effort block).
+    try:
+        from app.services import repeated_mistake_service
+
+        repeated_mistake_service.target_repeated_mistake(
+            db, user_id=user_id, project_id=project_id
+        )
+    except Exception:
+        pass
     return attempt

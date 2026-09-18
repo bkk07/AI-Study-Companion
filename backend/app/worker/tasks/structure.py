@@ -29,17 +29,65 @@ def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
     return 2 ** retries * 2
 
 
-def _load_pages(material: Material) -> tuple[list[dict], int]:
+def _attach_stored_figures(db, material: Material, pages: list[dict]) -> None:
+    """Append stored figure knowledge to re-read page texts (no vision cost).
+
+    process_pdf already captioned + persisted figures; the structure re-read
+    runs with vision off, so re-attach summaries/tables here in place.
+    Best-effort — a missing table never breaks the map.
+    """
+    try:
+        from app.models.material_figure import MaterialFigure
+
+        rows = (
+            db.query(MaterialFigure)
+            .filter(MaterialFigure.material_id == material.id)
+            .order_by(MaterialFigure.page_number.asc(), MaterialFigure.fig_index.asc())
+            .all()
+        )
+    except Exception as e:
+        logger.warning("figure re-attach skipped: %s", e)
+        return
+    if not rows:
+        return
+    by_page: dict[int, list] = {}
+    for r in rows:
+        by_page.setdefault(r.page_number, []).append(r)
+    for page in pages:
+        try:
+            number = int(page.get("page_number", 0))
+        except (TypeError, ValueError):
+            continue
+        blocks = []
+        for r in by_page.get(number, [])[:4]:
+            label = f"[Figure p{number}.{r.fig_index} ({str(r.figure_type or 'diagram').lower()})"
+            summary = (r.summary or "").strip()
+            blocks.append(f"{label}: {summary}]" if summary else f"{label}]")
+            if r.figure_type == "CHART" and (r.markdown_table or "").strip():
+                blocks.append((r.markdown_table or "").strip()[:4000])
+            elif r.figure_type == "TABLE_SCAN" and (r.latex_table or "").strip():
+                blocks.append("```latex\n" + (r.latex_table or "").strip()[:4000] + "\n```")
+        if blocks:
+            page["text"] = ((page.get("text") or "").rstrip() + "\n\n" + "\n".join(blocks)).strip()
+
+
+def _load_pages(material: Material, db=None) -> tuple[list[dict], int]:
     """Per-page texts for page-tagged extraction (Phase B).
 
     Re-reads the stored PDF (page boundaries are not kept in extracted_text);
     falls back to the stored blob as one pseudo-page so legacy/odd materials
     still map instead of failing.
+
+    Vision stays OFF here on purpose: process_pdf already spent the vision
+    budget and persisted figures — _attach_stored_figures re-attaches that
+    knowledge from the DB instead of paying twice.
     """
     try:
-        pages = extract_pages(material.storage_path)
+        pages = extract_pages(material.storage_path, vision_enabled=False)
         numbered = [p for p in pages if (p.get("text") or "").strip()]
         if numbered:
+            if db is not None:
+                _attach_stored_figures(db, material, pages)
             return pages, material.page_count or len(pages)
     except (FileNotFoundError, ValueError, OSError) as e:
         logger.warning("structure page re-read failed, using stored text: %s", e)
@@ -85,7 +133,7 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
             except Exception:
                 pass  # idempotent: already running is ok
 
-        pages, page_count = _load_pages(material)
+        pages, page_count = _load_pages(material, db)
         if not pages or page_count <= 0:
             msg = "Material has no extracted text to map"
             try:

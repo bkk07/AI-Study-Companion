@@ -11,6 +11,7 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.growth import router as growth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.flashcards import router as flashcards_router
+from app.api.v1.figures import router as figures_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.materials import router as materials_router
@@ -65,6 +66,7 @@ app.include_router(admin_router, prefix="/api/v1")
 app.include_router(practice_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(flashcards_router, prefix="/api/v1")
+app.include_router(figures_router, prefix="/api/v1")
 
 
 @app.get("/")

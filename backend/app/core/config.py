@@ -42,6 +42,27 @@ class Settings(BaseSettings):
     ocr_language: str = Field(default="eng", alias="OCR_LANGUAGE")
     ocr_dpi: int = Field(default=300, alias="OCR_DPI")
 
+    # Full extraction — structured tables + figure captions (worker only).
+    # Tables use PyMuPDF find_tables (no new deps). Figures are cropped and
+    # captioned via NaraRouter vision (OpenAI-compatible chat completions);
+    # any vision failure falls back to cropped-OCR/placeholder, never failing
+    # the document. Budgets bound cost/time on image-heavy PDFs.
+    tables_enabled: bool = Field(default=True, alias="TABLES_ENABLED")
+    vision_enabled: bool = Field(default=True, alias="VISION_ENABLED")
+    vision_model: str = Field(
+        default="stepfun-3.7-flash", alias="VISION_MODEL"
+    )
+    vision_max_images_per_doc: int = Field(default=12, alias="VISION_MAX_IMAGES_PER_DOC")
+    vision_timeout_s: float = Field(default=20.0, alias="VISION_TIMEOUT_S")
+
+    # NaraRouter vision provider (OpenAI-compatible).
+    # Base URL: https://router.bynara.id/v1 → chat URL is {base}/chat/completions
+    nararouter_api_key: str = Field(default="", alias="NARAROUTER_API_KEY")
+    nararouter_base_url: str = Field(
+        default="https://router.bynara.id/v1", alias="NARAROUTER_BASE_URL"
+    )
+    nararouter_model: str = Field(default="stepfun-3.7-flash", alias="NARAROUTER_MODEL")
+
     # Background
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
     celery_broker_url: str = Field(default="redis://redis:6379/0", alias="CELERY_BROKER_URL")

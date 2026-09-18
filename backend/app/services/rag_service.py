@@ -13,7 +13,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.schemas.rag import RagChunk, RagContext
+from app.schemas.rag import RagChunk, RagContext, RagFigure
 from app.services import retrieval_service
 
 DEFAULT_MAX_CHUNKS = 5
@@ -22,6 +22,70 @@ DEFAULT_MAX_CHARS = 6000
 MIN_MAX_CHARS = 500
 MAX_MAX_CHARS = 20000
 _TRUNCATION_MARKER = "…"
+
+# Figures attached per answer — bounded so image cards never bloat context.
+MAX_FIGURE_PAGES = 4
+MAX_FIGURES_IN_CONTEXT = 6
+
+
+def figure_image_url(project_id: uuid.UUID, material_id: uuid.UUID, figure_id: uuid.UUID) -> str:
+    """Stable API path for a figure's PNG (authed, project-scoped)."""
+    return f"/api/v1/projects/{project_id}/materials/{material_id}/figures/{figure_id}/image"
+
+
+def figures_for_pages(
+    db: Session,
+    *,
+    project_id: uuid.UUID,
+    pairs: list[tuple[uuid.UUID, int]],
+) -> list[RagFigure]:
+    """Figures stored for the given (material_id, page) pairs (bounded)."""
+    seen: list[tuple[uuid.UUID, int]] = []
+    for mid, page in pairs:
+        if page is None:
+            continue
+        key = (mid, page)
+        if key not in seen:
+            seen.append(key)
+        if len(seen) >= MAX_FIGURE_PAGES:
+            break
+    if not seen:
+        return []
+    try:
+        from app.models.material_figure import MaterialFigure
+
+        material_ids = list({m for m, _ in seen})
+        rows = (
+            db.query(MaterialFigure)
+            .filter(
+                MaterialFigure.project_id == project_id,
+                MaterialFigure.material_id.in_(material_ids),
+            )
+            .order_by(MaterialFigure.page_number.asc(), MaterialFigure.fig_index.asc())
+            .limit(50)
+            .all()
+        )
+    except Exception:
+        return []
+    wanted = set(seen)
+    out: list[RagFigure] = []
+    for r in rows:
+        if (r.material_id, r.page_number) not in wanted:
+            continue
+        out.append(
+            RagFigure(
+                figure_id=r.id,
+                material_id=r.material_id,
+                page_number=r.page_number,
+                fig_index=r.fig_index,
+                figure_type=r.figure_type or "DIAGRAM",
+                summary=((r.summary or "").strip()[:300] or None),
+                image_url=figure_image_url(project_id, r.material_id, r.id),
+            )
+        )
+        if len(out) >= MAX_FIGURES_IN_CONTEXT:
+            break
+    return out
 
 
 def _snap_truncate(text: str, limit: int) -> str:
@@ -84,11 +148,18 @@ def assemble_context(
         processed += 1
     truncated = char_cut or processed < len(usable)
 
+    figures = figures_for_pages(
+        db,
+        project_id=project_id,
+        pairs=[(c.material_id, c.page_number) for c in chunks if c.page_number is not None],
+    )
+
     return RagContext(
         query=query.strip(),
         scope_project_id=project_id,
         scope_concept_id=concept_id,
         chunks=chunks,
+        figures=figures,
         total_chars=total_chars,
         truncated=truncated,
     )

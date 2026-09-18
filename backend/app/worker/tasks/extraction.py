@@ -120,6 +120,8 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
 
         # Extract (worker reads shared volume path) — one routed pass; the
         # resulting pages are reused downstream so scanned pages are OCR'd once.
+        # Full extraction (tables + figure captions) is inline here so chunks,
+        # embeddings, and structure automatically see them — no re-read needed.
         try:
             pages = extract_document_pages(material.storage_path)
             text = combine_page_texts(pages)
@@ -127,11 +129,15 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
                 raise no_content_error(pages)
             page_count = len(pages)
             ocr_pages = sum(1 for p in pages if p.get("extraction_method") == "OCR")
+            tables_count = sum(int(p.get("tables_count") or 0) for p in pages)
+            figures_count = sum(len(p.get("figures") or []) for p in pages)
             log.info(
-                "extraction routed: material=%s pages=%s ocr_pages=%s",
+                "extraction routed: material=%s pages=%s ocr_pages=%s tables=%s figures=%s",
                 material.id,
                 page_count,
                 ocr_pages,
+                tables_count,
+                figures_count,
             )
         except ValueError as e:
             # Corrupt/empty PDF — do not retry, straight to failed
@@ -206,6 +212,8 @@ def process_pdf(self, job_id: str, material_id: str) -> dict:
             "page_count": page_count,
             "chars": len(text),
             "ocr_pages": ocr_pages,
+            "tables": tables_count,
+            "figures": figures_count,
             **chained,
         }
     finally:
@@ -237,6 +245,23 @@ def _chain_downstream(db, material: Material, pages: list[dict] | None = None) -
         log.exception("Chunking failed for material %s", material.id)
         out["chain_error"] = f"chunking failed: {e}"[:500]
         return out  # without chunks, embeddings/structure are pointless
+
+    # 1b. Persist figures (PNGs + material_figures rows) — best-effort local
+    # work plus already-spent vision results; never blocks the pipeline.
+    try:
+        from app.services import figure_persistence_service
+
+        fres = figure_persistence_service.save_figures(
+            db,
+            project_id=material.project_id,
+            material_id=material.id,
+            storage_path=material.storage_path,
+            pages=pages or [],
+        )
+        out["figures_persisted"] = fres.get("figures", 0)
+    except Exception as e:
+        log.warning("Figure persistence failed for material %s: %s", material.id, e)
+        out["figures_error"] = f"figures failed: {e}"[:200]
 
     # 2. Queue embeddings + structure under their own jobs (lazy imports:
     # tasks package already imports this module at worker startup).

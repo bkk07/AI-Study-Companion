@@ -243,21 +243,36 @@ def ask_question(
     except (ValidationError, ValueError, KeyError, TypeError) as e:
         raise TutorProviderError(f"Tutor model returned an unusable payload: {e}") from e
 
+    citations = [
+        TutorCitation(
+            chunk_id=c.chunk_id,
+            material_id=c.material_id,
+            page_number=c.page_number,
+            source_name=c.source_name,
+            chunk_index=c.chunk_index,
+            excerpt=_excerpt_of(c.content),
+        )
+        for c in context.chunks
+    ]
+    # One figure card per cited page (first figure wins) — lets clients show
+    # "Fig Y · chart · thumbnail" next to the excerpt. Best-effort.
+    try:
+        by_page = {(f.material_id, f.page_number): f for f in context.figures}
+        for cit in citations:
+            fig = by_page.get((cit.material_id, cit.page_number))
+            if fig is not None:
+                cit.figure_id = fig.figure_id
+                cit.figure_index = fig.fig_index
+                cit.figure_type = fig.figure_type
+                cit.image_url = fig.image_url
+    except Exception:
+        pass
+
     return TutorAskResponse(
         answer=outline.answer,
         supported=True,
         follow_ups=outline.follow_ups,
-        citations=[
-            TutorCitation(
-                chunk_id=c.chunk_id,
-                material_id=c.material_id,
-                page_number=c.page_number,
-                source_name=c.source_name,
-                chunk_index=c.chunk_index,
-                excerpt=_excerpt_of(c.content),
-            )
-            for c in context.chunks
-        ],
+        citations=citations,
     )
 
 

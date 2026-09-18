@@ -22,6 +22,12 @@ class TutorCitation(BaseModel):
     # Short quote of the source chunk so clients can render
     # "doc.pdf · Page N · “…excerpt…”" cards. May be None for legacy rows.
     excerpt: str | None = None
+    # Figure on the cited page, when one exists — lets clients render
+    # "Fig Y · type · thumbnail" cards linking to the image route.
+    figure_id: uuid.UUID | None = None
+    figure_index: int | None = None
+    figure_type: str | None = None
+    image_url: str | None = None
 
 
 class TutorAskResponse(BaseModel):

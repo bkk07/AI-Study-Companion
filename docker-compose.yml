@@ -56,6 +56,13 @@ services:
       INCEPTION_MODEL: mercury-2.5
       OPENAI_API_KEY: dummy-openai-key-for-phase05-build
       EMBEDDING_MODEL: text-embedding-3-small
+      TABLES_ENABLED: ${TABLES_ENABLED:-true}
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
+      VISION_MAX_IMAGES_PER_DOC: ${VISION_MAX_IMAGES_PER_DOC:-12}
+      NARAROUTER_API_KEY: ${NARAROUTER_API_KEY:-}
+      NARAROUTER_BASE_URL: ${NARAROUTER_BASE_URL:-https://router.bynara.id/v1}
+      NARAROUTER_MODEL: ${NARAROUTER_MODEL:-stepfun-3.7-flash}
       UPLOAD_DIR: /data/uploads
       API_V1_PREFIX: /api/v1
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5175,http://127.0.0.1:5175,http://localhost:3000,http://127.0.0.1:3000
@@ -92,6 +99,14 @@ services:
       OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_LANGUAGE: ${OCR_LANGUAGE:-eng}
       OCR_DPI: ${OCR_DPI:-300}
+      TABLES_ENABLED: ${TABLES_ENABLED:-true}
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
+      VISION_MAX_IMAGES_PER_DOC: ${VISION_MAX_IMAGES_PER_DOC:-12}
+      VISION_TIMEOUT_S: ${VISION_TIMEOUT_S:-20}
+      NARAROUTER_API_KEY: ${NARAROUTER_API_KEY:-}
+      NARAROUTER_BASE_URL: ${NARAROUTER_BASE_URL:-https://router.bynara.id/v1}
+      NARAROUTER_MODEL: ${NARAROUTER_MODEL:-stepfun-3.7-flash}
       UPLOAD_DIR: /data/uploads
       ENVIRONMENT: development
     volumes:

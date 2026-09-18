@@ -7,6 +7,7 @@ from app.models.flashcard import Flashcard  # noqa: F401
 from app.models.embedding import Embedding  # noqa: F401
 from app.models.mastery_evidence import MasteryEvidence  # noqa: F401
 from app.models.material import Material  # noqa: F401
+from app.models.material_figure import MaterialFigure  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.recommendation import Recommendation  # noqa: F401
 from app.models.quiz import Quiz, QuizQuestion  # noqa: F401

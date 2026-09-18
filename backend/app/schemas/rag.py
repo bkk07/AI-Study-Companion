@@ -15,6 +15,18 @@ class RagChunk(BaseModel):
     score: float
 
 
+class RagFigure(BaseModel):
+    """Figure linked to retrieved pages — citation-grade, image via URL."""
+
+    figure_id: uuid.UUID
+    material_id: uuid.UUID
+    page_number: int
+    fig_index: int
+    figure_type: str = "DIAGRAM"
+    summary: str | None = None
+    image_url: str | None = None
+
+
 class RagContext(BaseModel):
     """Bounded retrieval context — consumer-neutral, no tutor/quiz wording."""
 
@@ -22,5 +34,6 @@ class RagContext(BaseModel):
     scope_project_id: uuid.UUID
     scope_concept_id: uuid.UUID | None = None
     chunks: list[RagChunk] = Field(default_factory=list)
+    figures: list[RagFigure] = Field(default_factory=list)
     total_chars: int = 0
     truncated: bool = False

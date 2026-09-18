@@ -9,11 +9,14 @@
 
 **Live app:** https://aistudycompanion-alpha.vercel.app/
 
+![Project overview](./docs/images/ProjectOverview.png)
+
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
+- [The Learning Loop](#the-learning-loop)
+- [Product Tour](#product-tour)
 - [Live Deployment](#live-deployment)
 - [Key Features](#key-features)
 - [How It Works](#how-it-works)
@@ -36,24 +39,62 @@
 
 ---
 
-## Overview
+## The Learning Loop
 
-The **AI Study Companion** turns static study material into an active, measurable learning system. Each project is fully isolated: documents, vector index, knowledge graph, tutor conversations, attempts, and analytics never leak across projects.
+Everything in the system is one closed loop — activity produces evidence, evidence produces mastery, mastery produces the next activity:
 
-Core loop:
+```mermaid
+flowchart LR
+    MATERIAL["Learning Material"]
+    KNOWLEDGE["Knowledge Structure"]
+    TUTOR["RAG Tutor"]
+    ACTIVITIES["Learning Activities"]
+    EVIDENCE["Mastery Evidence"]
+    MASTERY["Deterministic Mastery"]
+    ANALYSIS["Growth + Mismatch"]
+    RECOMMEND["Recommendation Engine"]
+    NEXT["Next Activity"]
 
-```text
-PDF Upload
-  → Async Processing (extract → OCR → chunk → embed → structure)
-  → Knowledge Graph + Vector Index
-  → RAG Tutor + Quizzes + Practice + Flashcards + Open-Ended Assessment
-  → Append-Only Mastery Evidence
-  → Deterministic Mastery / Growth / Mismatch
-  → Recommendation Engine
-  → Next Best Learning Activity
+    MATERIAL --> KNOWLEDGE
+    KNOWLEDGE --> TUTOR
+    KNOWLEDGE --> ACTIVITIES
+    TUTOR --> EVIDENCE
+    ACTIVITIES --> EVIDENCE
+    EVIDENCE --> MASTERY
+    MASTERY --> ANALYSIS
+    ANALYSIS --> RECOMMEND
+    RECOMMEND --> NEXT
+    NEXT --> ACTIVITIES
 ```
 
 Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooling transparency lives in [`AI_USAGE.md`](./AI_USAGE.md).
+
+---
+
+## Product Tour
+
+| | |
+|---|---|
+| **Home dashboard** — continue learning, recent activity, attention items, next action | **Project dashboard** — progress, concepts, performance, next step |
+| ![Home dashboard](./docs/images/HomeDashBoard.png) | ![Project dashboard](./docs/images/ProjectDashBoard.png) |
+| **AI tutor with citations** — grounded answers, per-chunk sources | **Recommended quiz** — deterministic next-best practice |
+| ![AI tutor](./docs/images/AITutorWithCitations.png) | ![Recommended quiz](./docs/images/RecommendingQuiz.png) |
+| **Practice session** — targeted applied work | **Analytics** — growth, mastery trends, project stats |
+| ![Practice](./docs/images/Practice.png) | ![Analytics](./docs/images/Analytics.png) |
+
+<details>
+<summary><b>More screens: flashcards, admin, activity</b></summary>
+
+| | |
+|---|---|
+| **Flashcard question (SM-2)** | **Flashcard answer + self-grade** |
+| ![Flashcard question](./docs/images/FlashCardQuestion.png) | ![Flashcard answer](./docs/images/FlashCardAnswer.png) |
+| **Admin activity** — users, events, engagement | **Admin AI usage** — provider, model, tokens, latency, cost |
+| ![Admin activity](./docs/images/AdminActivity.png) | ![Admin AI usage](./docs/images/AdminAiUsage1.png) |
+| **Admin AI usage (detail)** | |
+| ![Admin AI usage detail](./docs/images/AdminAIUsage2.png) | |
+
+</details>
 
 ---
 
@@ -78,12 +119,26 @@ Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooli
 - Two-pass LLM structure extraction into **`Topic → Subtopic → Concept`** with Pydantic validation, retry, and idempotent upserts (no duplicates on re-run).
 - Observable via `background_jobs` (`pending → running → completed / failed`) with per-material error messages.
 
+```mermaid
+flowchart TD
+    PROJECT["Project"]
+    TOPIC["Topic"]
+    SUBTOPIC["Subtopic"]
+    CONCEPT["Concept"]
+
+    PROJECT --> TOPIC
+    TOPIC --> SUBTOPIC
+    SUBTOPIC --> CONCEPT
+```
+
 ### RAG-Grounded Tutor
 
 - Project-scoped pgvector retrieval (top-5 chunks) behind an evidence-support gate (`distance ≤ 0.5`, `≤ 6000 chars` context).
 - Refuses cleanly on insufficient evidence instead of hallucinating.
 - Answers include source citations; conversations persisted in `tutor_messages`.
 - Explicit **Tutor Check / Explain-It-Back** flow grades the student's explanation and appends real tutor mastery evidence.
+
+![AI tutor with citations](./docs/images/AITutorWithCitations.png)
 
 ### Adaptive Assessment
 
@@ -92,6 +147,8 @@ Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooli
 - **Open-ended assessment:** LLM grading with verdict + feedback, persisted as applied evidence.
 - **Practice, Flashcards (SM-2 scheduling), and figure/table-aware questions** round out the activity set.
 
+![Recommended quiz](./docs/images/RecommendingQuiz.png)
+
 ### Deterministic Learning Analytics
 
 - Five append-only evidence streams: **tutor, quiz, practice/applied, flashcard, open-ended** → `mastery_evidence`.
@@ -99,6 +156,8 @@ Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooli
 - **Growth** via EMA prefix replay (decline `≤ −10` boosts recommendation score by `+15`).
 - **Mismatch** from MCQ-vs-Applied gap + evidence counts + calibration (e.g. overconfident-but-wrong).
 - **Recommendations** from weakness + uncertainty + recency + goal alignment + growth + action base − repetition ± mismatch. Fully deterministic — the LLM never picks the final recommendation.
+
+![Analytics](./docs/images/Analytics.png)
 
 ### Platform
 
@@ -113,32 +172,145 @@ Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooli
 
 ### 1. Knowledge Ingestion (async)
 
-```text
-Upload PDF → Validate → Material + Job records → Redis → Celery worker
-  → PyMuPDF pages → OCR / tables / figures+vision
-  → Chunks + 384-d embeddings (pgvector) + Topic→Subtopic→Concept (Postgres)
+Upload → validate → material + job records → Redis → Celery worker → PyMuPDF pages → OCR / tables / figures+vision → chunks + 384-d embeddings (pgvector) + `Topic → Subtopic → Concept` (Postgres).
+
+Long-running document work never blocks the API:
+
+```mermaid
+flowchart LR
+    API["FastAPI"]
+    JOB["Processing Job"]
+    REDIS[("Redis")]
+    CELERY["Celery Worker"]
+
+    API --> JOB
+    JOB --> REDIS
+    REDIS --> CELERY
+
+    CELERY --> DOC["Document Processing"]
+    CELERY --> EMB["Embedding Generation"]
+    CELERY --> STRUCT["Knowledge Structure"]
+    CELERY --> REC["Recommendation Recompute"]
+
+    DOC --> DB[("PostgreSQL")]
+    EMB --> VEC[("pgvector")]
+    STRUCT --> DB
+    REC --> DB
 ```
 
-### 2. Learning Interaction
+### 2. Grounded Tutor (RAG)
 
-```text
-Knowledge Graph ─┬─→ RAG Tutor ──────→ Tutor Check ─→ Evidence
-                 ├─→ Adaptive Quiz ──→ MCQ Evidence
-                 ├─→ Practice ───────→ Applied Evidence
-                 ├─→ Open-Ended ─────→ Graded Evidence
-                 └─→ Flashcards ─────→ Review Evidence (SM-2)
+Every answer is retrieved first, then generated — weak evidence refuses before the LLM is ever called:
+
+```mermaid
+flowchart TD
+    QUESTION["Student Question"]
+    AUTH["Project Authorization"]
+    EMBED["Query Embedding"]
+    SEARCH["Project-Scoped pgvector Search"]
+    TOP["Top 5 Retrieved Chunks"]
+    GATE{"Support Gate<br/>Distance ≤ 0.5?"}
+
+    REFUSE["Unsupported / Insufficient Evidence"]
+    CONTEXT["Context Assembly<br/>≤ 6000 characters"]
+    PROMPT["Grounded Tutor Prompt"]
+    LLM["LLM Provider"]
+    OUTLINE["Validated Tutor Output"]
+    ANSWER["Answer + Source Citations"]
+    MESSAGE[("tutor_messages")]
+
+    QUESTION --> AUTH
+    AUTH --> EMBED
+    EMBED --> SEARCH
+    SEARCH --> TOP
+    TOP --> GATE
+
+    GATE -->|No| REFUSE
+    GATE -->|Yes| CONTEXT
+    CONTEXT --> PROMPT
+    PROMPT --> LLM
+    LLM --> OUTLINE
+    OUTLINE --> ANSWER
+    ANSWER --> MESSAGE
 ```
 
-### 3. Measurement & Adaptation
+Tutor Check closes the loop from chat to real evidence:
 
-```text
-Evidence → Deterministic Mastery (EMA) → Growth + Mismatch
-  → Recommendation Score → Dashboard / Practice → Next Activity
+```mermaid
+sequenceDiagram
+    participant UI as Tutor UI / Client
+    participant API as FastAPI
+    participant TUT as Tutor Conversation Service
+    participant GRADE as Open-Ended Grader
+    participant EV as Mastery Evidence
+    participant M as Mastery Engine
+
+    UI->>API: Submit Tutor Check
+    API->>TUT: Validate project + conversation + concept
+    TUT->>GRADE: Grade explanation
+    GRADE-->>TUT: Score + verdict + feedback
+    TUT->>EV: Append tutor evidence
+    EV->>M: Evidence available for mastery
+    M-->>API: Refreshed learning state
+    API-->>UI: Check result
 ```
 
-```text
-Quiz Answer → Server Scoring → MCQ Evidence → Updated Mastery
-  → Adaptive Selector → Next Unanswered Question
+### 3. Adaptive Quiz + Measurement
+
+Generation adapts to mastery, then each answer re-adapts the next question:
+
+```mermaid
+flowchart TD
+    REQUEST["Quiz Request"]
+    SCOPE["Selected Topic / Subtopic / Concepts"]
+    MASTERY["Current Concept Mastery"]
+    ORDER["Weakest-First Ordering"]
+    DIFFICULTY["Difficulty Allocation"]
+    GENERATE["LLM Question Generation"]
+    VALIDATE["Schema Validation"]
+    QUIZ[("Persisted Quiz")]
+
+    ANSWER["Student Answer"]
+    SCORE["Server-Side Scoring"]
+    EVIDENCE["MCQ Mastery Evidence"]
+    UPDATED["Updated Mastery"]
+    SELECT["Adaptive Next-Question Selector"]
+    NEXT["Next Unanswered Question"]
+
+    REQUEST --> SCOPE
+    SCOPE --> MASTERY
+    MASTERY --> ORDER
+    ORDER --> DIFFICULTY
+    DIFFICULTY --> GENERATE
+    GENERATE --> VALIDATE
+    VALIDATE --> QUIZ
+
+    QUIZ --> ANSWER
+    ANSWER --> SCORE
+    SCORE --> EVIDENCE
+    EVIDENCE --> UPDATED
+    UPDATED --> SELECT
+    SELECT --> NEXT
+    NEXT --> ANSWER
+```
+
+Evidence becomes the next activity through one deterministic loop:
+
+```mermaid
+flowchart LR
+    ACTIVITY["Learning Activity"]
+    EVIDENCE["Evidence"]
+    MASTERY["Mastery"]
+    ANALYSIS["Growth + Mismatch"]
+    RECOMMEND["Recommendation"]
+    NEXT["Next Activity"]
+
+    ACTIVITY --> EVIDENCE
+    EVIDENCE --> MASTERY
+    MASTERY --> ANALYSIS
+    ANALYSIS --> RECOMMEND
+    RECOMMEND --> NEXT
+    NEXT --> ACTIVITY
 ```
 
 ---
@@ -147,9 +319,64 @@ Quiz Answer → Server Scoring → MCQ Evidence → Updated Mastery
 
 Modular monolith with async workers — **not** microservices. One FastAPI app, domain services, thin routers, background Celery workers.
 
-```text
-React SPA → Nginx → FastAPI Router (/api/v1) → AuthZ → Domain Service
-  → PostgreSQL + pgvector / Files / Redis → Celery → PDF / OCR / Embeddings / LLM / Vision
+```mermaid
+flowchart TB
+    USER["Student / Administrator"]
+
+    subgraph FRONTEND["Presentation"]
+        SPA["React + Vite + TypeScript"]
+        NGINX["Nginx / Static Web Server"]
+    end
+
+    subgraph BACKEND["Application"]
+        API["FastAPI REST API<br/>/api/v1"]
+        AUTH["Authentication + Authorization"]
+        SERVICES["Application Services<br/>Tutor · RAG · Quiz · Assessment<br/>Mastery · Growth · Recommendation<br/>Analytics"]
+    end
+
+    subgraph DATA["Persistence"]
+        PG[("PostgreSQL")]
+        VECTOR[("pgvector")]
+        FILES[("PDF / Figure Storage")]
+    end
+
+    subgraph ASYNC["Background Processing"]
+        REDIS[("Redis")]
+        CELERY["Celery Worker"]
+    end
+
+    subgraph AI["AI / Document Processing"]
+        LLM["LLM Providers"]
+        EMB["Local Embedding Model<br/>384 dimensions"]
+        OCR["Tesseract OCR"]
+        VISION["Vision Provider"]
+        PDF["PyMuPDF"]
+    end
+
+    USER --> SPA
+    SPA --> NGINX
+    NGINX --> API
+    API --> AUTH
+    API --> SERVICES
+
+    SERVICES --> PG
+    SERVICES --> VECTOR
+    SERVICES --> FILES
+
+    SERVICES --> REDIS
+    REDIS --> CELERY
+
+    CELERY --> PDF
+    CELERY --> OCR
+    CELERY --> VISION
+    CELERY --> EMB
+    CELERY --> LLM
+    CELERY --> PG
+    CELERY --> VECTOR
+    CELERY --> FILES
+
+    SERVICES --> LLM
+    SERVICES --> VECTOR
 ```
 
 Key boundaries:
@@ -158,6 +385,38 @@ Key boundaries:
 - Routers are thin; mastery, retrieval, quiz adaptation, evidence, growth, mismatch, and recommendations live in services.
 - All study queries are `WHERE project_id = …` — including the vector search.
 - AI output is untrusted until Pydantic-validated; `mastery_evidence` is append-only.
+
+Every request passes the same guard chain:
+
+```mermaid
+flowchart TD
+    USER["Authenticated User"]
+    JWT["JWT Validation"]
+    CURRENT["Current User"]
+    AUTHZ["Ownership / Authorization"]
+    PROJECT["Authorized Project"]
+    RESOURCE["Project-Scoped Resource"]
+
+    USER --> JWT
+    JWT --> CURRENT
+    CURRENT --> AUTHZ
+    AUTHZ --> PROJECT
+    PROJECT --> RESOURCE
+```
+
+All LLM traffic is metered (never storing prompt text):
+
+```mermaid
+flowchart TD
+    APP["Application Services"]
+    LLM["LLM / AI Providers"]
+    USAGE[("AI Usage Records")]
+    ADMIN["Administrative Analytics"]
+
+    APP --> LLM
+    APP --> USAGE
+    USAGE --> ADMIN
+```
 
 Full diagrams (ingestion, RAG, quiz, mastery, growth/mismatch, recommendations, security, Docker vs Railway topologies, sequence diagrams) are in [`Architecture.md`](./Architecture.md).
 
@@ -219,6 +478,7 @@ Full diagrams (ingestion, RAG, quiz, mastery, growth/mismatch, recommendations, 
 │   ├── supervisord.conf      # all-in-one Railway/demo process layout
 │   └── .env.example          # full backend template (placeholders only)
 ├── docs/                     # blueprint analysis, ADRs, status, prompts, …
+│   └── images/               # product screenshots used in this README
 ├── Architecture.md           # canonical system architecture + Mermaid diagrams
 ├── AI_USAGE.md               # dev-AI vs product-AI transparency record
 ├── docker-compose.yml        # canonical local full-stack (5 services)
@@ -382,6 +642,8 @@ Interactive reference: `http://localhost:8000/docs`.
 - **Growth:** EMA prefix replay → per-concept final trend → decline signal into recommendations.
 - **Mismatch:** MCQ-vs-Applied gap + counts + calibration → signal (not a separate persisted state).
 - **Recommendations:** deterministic weighted score → eligibility → winner → surfaced on dashboard/practice.
+
+![Project dashboard](./docs/images/ProjectDashBoard.png)
 
 ---
 

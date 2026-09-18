@@ -53,7 +53,9 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await apiClient.get<Material[]>(`/projects/${projectId}/materials`)
+      // Live status polling while jobs run — bypass the GET cache so
+      // pending → ready transitions show up immediately.
+      const res = await apiClient.get<Material[]>(`/projects/${projectId}/materials`, { noCache: true })
       setMaterials(res.data)
       setError(null)
     } catch (e: unknown) {

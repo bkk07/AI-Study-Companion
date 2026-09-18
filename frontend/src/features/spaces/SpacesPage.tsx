@@ -3,7 +3,6 @@ import { Link } from "react-router-dom"
 import { ArrowRight, Clock, FolderOpen, Layers, Plus, Upload, MessagesSquare, BarChart2 } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
-import { AppShell } from "@/components/AppShell"
 import { Button, ErrorBox, Input, LoadingState } from "@/components/ui"
 import { timeAgo } from "@/features/admin/format"
 
@@ -120,7 +119,7 @@ export function SpacesPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <div className="mx-auto max-w-4xl px-8 py-10">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
@@ -287,6 +286,6 @@ export function SpacesPage() {
           </div>
         </div>
       )}
-    </AppShell>
+    </>
   )
 }

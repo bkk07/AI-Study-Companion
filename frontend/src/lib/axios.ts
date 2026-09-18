@@ -1,4 +1,5 @@
-import axios from "axios"
+import axios, { type AxiosRequestConfig } from "axios"
+import { notifyUnauthorized } from "@/lib/auth-events"
 
 /**
  * Centralized Axios client for the AI Study Companion frontend.
@@ -39,10 +40,9 @@ apiClient.interceptors.response.use(
       // Don't auto-redirect on auth endpoints themselves (login/register/me)
       if (!url.includes("/auth/login") && !url.includes("/auth/register")) {
         localStorage.removeItem("access_token")
-        // Hard redirect keeps hook logic simple; AuthContext will also clear state on next load
-        if (window.location.pathname !== "/login") {
-          window.location.href = "/login"
-        }
+        // SPA-safe: AuthProvider listens and does logout + router navigate.
+        // Never window.location.href here — that hard-reloads the whole app.
+        notifyUnauthorized()
       }
     }
     return Promise.reject(error)
@@ -50,3 +50,50 @@ apiClient.interceptors.response.use(
 )
 
 export default apiClient
+
+// ---------------------------------------------------------------------------
+// Tiny in-memory GET cache: every view fetches on mount, so tab switches and
+// back-navigation re-request identical data. Cache GET responses for 30s and
+// clear the whole cache on any mutation (POST/PUT/PATCH/DELETE), so writes
+// are always followed by fresh reads. Live polling must opt out explicitly:
+//   apiClient.get(url, { noCache: true })
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    noCache?: boolean
+  }
+}
+
+const GET_CACHE_TTL_MS = 30_000
+
+type CacheEntry = { expiresAt: number; data: unknown; status: number }
+const getCache = new Map<string, CacheEntry>()
+
+function cacheKey(config: AxiosRequestConfig): string {
+  return `${config.baseURL ?? ""}::${config.url ?? ""}::${JSON.stringify(config.params ?? null)}`
+}
+
+const defaultAdapter = axios.getAdapter("xhr")
+
+apiClient.defaults.adapter = async (config) => {
+  const method = (config.method ?? "get").toLowerCase()
+  if (method === "get" && !config.noCache) {
+    const hit = getCache.get(cacheKey(config))
+    if (hit && hit.expiresAt > Date.now()) {
+      return { data: hit.data, status: hit.status, statusText: "OK", headers: {}, config }
+    }
+  }
+  const response = await defaultAdapter(config)
+  if (method === "get") {
+    if (!config.noCache) {
+      getCache.set(cacheKey(config), {
+        expiresAt: Date.now() + GET_CACHE_TTL_MS,
+        data: response.data,
+        status: response.status,
+      })
+    }
+  } else {
+    // Any write invalidates cached reads — cheap and always safe.
+    getCache.clear()
+  }
+  return response
+}

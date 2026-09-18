@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
-import { AppShell } from "@/components/AppShell"
 import { ErrorBox, LoadingState } from "@/components/ui"
 import { Dashboard, type ProjectTab } from "@/features/dashboard/Dashboard"
 import { OverviewView } from "@/features/overview/OverviewView"
@@ -72,8 +71,7 @@ export function ProjectDetailPage() {
   }, [projectId])
 
   return (
-    <AppShell wide>
-      <div className="min-h-full bg-slate-50">
+    <div className="min-h-full bg-slate-50">
         <div className={tab === "tutor" && project ? "px-3 pb-3 pt-3 sm:px-0 sm:pb-0 sm:pt-0" : "mx-auto max-w-5xl px-8 py-10"}>
           {loading ? (
             <LoadingState text="Opening project…" />
@@ -99,7 +97,7 @@ export function ProjectDetailPage() {
                 ))}
               </div>
 
-              <div key={tab} className={tab === "tutor" ? "mt-3 sm:mt-0" : "mt-6"}>
+              <div className={tab === "tutor" ? "mt-3 sm:mt-0" : "mt-6"}>
                 {tab === "overview" && projectId && (
                   <OverviewView
                     projectId={projectId}
@@ -183,6 +181,5 @@ export function ProjectDetailPage() {
           ) : null}
         </div>
       </div>
-    </AppShell>
   )
 }

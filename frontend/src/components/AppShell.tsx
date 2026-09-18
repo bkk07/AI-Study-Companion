@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   BarChart2,
   BookOpen,
@@ -73,7 +73,11 @@ function StreakFlame() {
   )
 }
 
-export function AppShell({ children }: { children: React.ReactNode; wide?: boolean }) {
+// Layout route: mounted ONCE for all protected pages (see App.tsx). Page content
+// renders via <Outlet/>, so navigating between spaces/projects/admin no longer
+// remounts the shell (and re-fetches streak + space name) every time.
+// `children` is kept for the public pages (landing, 404) that render one shell.
+export function AppShell({ children }: { children?: React.ReactNode }) {
   const { user, token, logout } = useAuth()
   const nav = useNavigate()
   const location = useLocation()
@@ -131,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
             </nav>
           </div>
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">{children ?? <Outlet />}</main>
         <footer className="border-t border-slate-200 bg-white">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:px-6">
             <span className="inline-flex items-center gap-1.5">
@@ -270,7 +274,7 @@ export function AppShell({ children }: { children: React.ReactNode; wide?: boole
             {initials}
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">{children ?? <Outlet />}</main>
       </div>
     </div>
   )

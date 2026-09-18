@@ -20,7 +20,6 @@ import {
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
 import { useAuth } from "@/context/AuthContext"
-import { AppShell } from "@/components/AppShell"
 import { Avatar, ErrorBox, LoadingState } from "@/components/ui"
 import { Eye } from "lucide-react"
 import { ActivityPanel } from "@/features/admin/ActivityPanel"
@@ -155,7 +154,7 @@ export function AdminPage() {
   const operational = failures24h === 0
 
   return (
-    <AppShell>
+    <>
       <div className="mx-auto max-w-6xl px-8 py-10">
         {/* Command-center hero */}
         <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-6 py-6 sm:px-8">
@@ -384,6 +383,6 @@ export function AdminPage() {
           </div>
         </div>
       )}
-    </AppShell>
+    </>
   )
 }

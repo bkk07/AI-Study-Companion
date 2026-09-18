@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import apiClient from "@/lib/axios"
+import { subscribeUnauthorized } from "@/lib/auth-events"
 
 export type User = {
   id: string
@@ -29,6 +31,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("access_token"))
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const logout = () => {
+    localStorage.removeItem("access_token")
+    setToken(null)
+    setUser(null)
+  }
+
+  // Session died somewhere (401 outside login/register): clear state and
+  // route to /login inside the SPA — no window.location hard reload.
+  useEffect(() => {
+    return subscribeUnauthorized(() => {
+      logout()
+      if (location.pathname !== "/login") {
+        navigate("/login", { replace: true })
+      }
+    })
+  }, [location.pathname, navigate])
 
   // On mount, if token exists, fetch /auth/me to hydrate user
   useEffect(() => {
@@ -68,12 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiClient.post("/auth/register", { email, password })
     // auto-login after register
     await login(email, password)
-  }
-
-  const logout = () => {
-    localStorage.removeItem("access_token")
-    setToken(null)
-    setUser(null)
   }
 
   return (

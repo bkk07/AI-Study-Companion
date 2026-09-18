@@ -49,38 +49,20 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      {/* Single-mounted shell: navigating between these pages no longer
+          remounts AppShell (streak/space-name refetch) every time. */}
       <Route
-        path="/spaces"
         element={
           <ProtectedRoute>
-            <SpacesPage />
+            <AppShell />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/spaces/:spaceId"
-        element={
-          <ProtectedRoute>
-            <SpaceProjectsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/spaces/:spaceId/projects/:projectId"
-        element={
-          <ProtectedRoute>
-            <ProjectDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <AdminPage />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/spaces" element={<SpacesPage />} />
+        <Route path="/spaces/:spaceId" element={<SpaceProjectsPage />} />
+        <Route path="/spaces/:spaceId/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

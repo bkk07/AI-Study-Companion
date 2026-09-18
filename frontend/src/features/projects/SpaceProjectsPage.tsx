@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom"
 import { ArrowRight, Brain, Clock, GraduationCap, Plus, Target } from "lucide-react"
 import apiClient from "@/lib/axios"
 import { apiError } from "@/lib/api-error"
-import { AppShell } from "@/components/AppShell"
 import { Button, ErrorBox, Input, LoadingState } from "@/components/ui"
 import { colorFor, tileFor } from "@/features/spaces/SpacesPage"
 import { timeAgo } from "@/features/admin/format"
@@ -100,7 +99,7 @@ export function SpaceProjectsPage() {
   }
 
   return (
-    <AppShell>
+    <>
       <div className="mx-auto max-w-5xl px-8 py-10">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
@@ -265,6 +264,6 @@ export function SpaceProjectsPage() {
           </div>
         </div>
       )}
-    </AppShell>
+    </>
   )
 }

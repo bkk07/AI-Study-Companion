@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AdminOverview(BaseModel):
@@ -163,6 +163,90 @@ class HealthLLMError(BaseModel):
 class JobsByStatus(BaseModel):
     status: str
     count: int
+
+
+class TutorEval(BaseModel):
+    """Tutor quality counts — scores only, never prompt/answer text."""
+
+    answers: int
+    supported: int
+    unsupported: int
+    supported_rate: float | None
+    citation_coverage: float | None
+    avg_citations: float | None
+
+
+class RetrievalByModel(BaseModel):
+    model: str
+    calls: int
+    avg_chunks: float | None
+    avg_top_distance: float | None
+
+
+class RetrievalEval(BaseModel):
+    """Tutor retrieval grounding — chunks/min_distance from ai_usage.meta."""
+
+    calls: int
+    avg_chunks: float | None
+    avg_top_distance: float | None
+    zero_context_rate: float | None
+    by_model: list[RetrievalByModel]
+
+
+class DifficultyAccuracy(BaseModel):
+    difficulty: str
+    answered: int
+    correct: int
+    accuracy: float | None
+
+
+class VerdictBands(BaseModel):
+    """Open-ended verdict bands derived from imported PASS/PARTIAL thresholds.
+
+    Wire keys are exactly {pass, partial, fail} per spec (`pass`/`fail` are
+    Python keywords, so the attributes carry a suffix with populate-by-name).
+    """
+
+    model_config = {"populate_by_name": True}
+
+    pass_count: int = Field(alias="pass")
+    partial: int
+    fail_count: int = Field(alias="fail")
+
+
+class AssessmentEval(BaseModel):
+    mcq_attempts: int
+    mcq_avg_score: float | None
+    accuracy_by_difficulty: list[DifficultyAccuracy]
+    open_ended_grades: int
+    open_ended_avg_score: float | None
+    verdict_bands: VerdictBands
+
+
+class RecommendationEval(BaseModel):
+    total: int
+    active: int
+    accepted: int
+    dismissed: int
+    expired: int
+    accept_rate: float | None
+    dismiss_rate: float | None
+
+
+class EvalTrendRow(BaseModel):
+    week: str
+    supported_rate: float | None
+    mcq_avg_score: float | None
+
+
+class AIEvaluation(BaseModel):
+    """Read-only quality answer to "is the AI actually good?" (PRD §14)."""
+
+    tutor: TutorEval
+    retrieval: RetrievalEval
+    assessment: AssessmentEval
+    recommendations: RecommendationEval
+    trends: list[EvalTrendRow]
 
 
 class HealthRead(BaseModel):

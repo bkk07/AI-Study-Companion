@@ -6,6 +6,7 @@ import {
   Cpu,
   CreditCard,
   FileUp,
+  FlaskConical,
   FolderOpen,
   HeartPulse,
   HelpCircle,
@@ -24,12 +25,13 @@ import { Avatar, ErrorBox, LoadingState } from "@/components/ui"
 import { Eye } from "lucide-react"
 import { ActivityPanel } from "@/features/admin/ActivityPanel"
 import { AIUsagePanel } from "@/features/admin/AIUsagePanel"
+import { EvaluationPanel } from "@/features/admin/EvaluationPanel"
 import { HealthPanel } from "@/features/admin/HealthPanel"
 import { JourneyPanel } from "@/features/admin/JourneyPanel"
 import { timeAgo } from "@/features/admin/format"
 import type { AdminUser, Health, Overview } from "@/features/admin/types"
 
-type Tab = "overview" | "activity" | "ai-usage" | "health"
+type Tab = "overview" | "activity" | "ai-usage" | "evaluation" | "health"
 
 type UsersPage = {
   items: AdminUser[]
@@ -44,6 +46,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <Users size={15} /> },
   { id: "activity", label: "Activity", icon: <Activity size={15} /> },
   { id: "ai-usage", label: "AI Usage", icon: <Cpu size={15} /> },
+  { id: "evaluation", label: "Evaluation", icon: <FlaskConical size={15} /> },
   { id: "health", label: "Health", icon: <HeartPulse size={15} /> },
 ]
 
@@ -234,6 +237,8 @@ export function AdminPage() {
             <ActivityPanel />
           ) : tab === "ai-usage" ? (
             <AIUsagePanel />
+          ) : tab === "evaluation" ? (
+            <EvaluationPanel />
           ) : tab === "health" ? (
             <HealthPanel />
           ) : (

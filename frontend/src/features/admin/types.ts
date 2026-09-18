@@ -80,6 +80,42 @@ export type UserJourney = {
   spend: { calls: number; prompt_tokens: number; completion_tokens: number; cost_usd: number | null }
 }
 
+export type AIEvaluation = {
+  tutor: {
+    answers: number
+    supported: number
+    unsupported: number
+    supported_rate: number | null
+    citation_coverage: number | null
+    avg_citations: number | null
+  }
+  retrieval: {
+    calls: number
+    avg_chunks: number | null
+    avg_top_distance: number | null
+    zero_context_rate: number | null
+    by_model: { model: string; calls: number; avg_chunks: number | null; avg_top_distance: number | null }[]
+  }
+  assessment: {
+    mcq_attempts: number
+    mcq_avg_score: number | null
+    accuracy_by_difficulty: { difficulty: string; answered: number; correct: number; accuracy: number | null }[]
+    open_ended_grades: number
+    open_ended_avg_score: number | null
+    verdict_bands: { pass: number; partial: number; fail: number }
+  }
+  recommendations: {
+    total: number
+    active: number
+    accepted: number
+    dismissed: number
+    expired: number
+    accept_rate: number | null
+    dismiss_rate: number | null
+  }
+  trends: { week: string; supported_rate: number | null; mcq_avg_score: number | null }[]
+}
+
 export type Health = {
   failed_jobs: {
     id: string

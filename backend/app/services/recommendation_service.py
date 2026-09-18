@@ -540,6 +540,43 @@ def _review_fallback(eligible: list[ConceptSignal]) -> PracticeCandidate | None:
     return PracticeCandidate(signal=stalest, score=None, reasoning=reason, fallback=True)
 
 
+def recompute_now(
+    db: Session,
+    *,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    now: datetime | None = None,
+) -> Recommendation | None:
+    """Synchronously rebuild signals and persist the current recommendation.
+
+    Same orchestration as the ``generate_recommendation`` Celery task, but
+    running in the caller's session instead of a worker: mastery-affecting
+    flows (e.g. quiz completion) call this inline so a recommendation row is
+    guaranteed whenever the fresh evidence is scorable — no broker required.
+
+    Returns the persisted row, or None when nothing is scorable (a legitimate
+    empty outcome, e.g. a completion with zero answered questions). Raises
+    LookupError when the project is gone; callers that must not fail (attempt
+    completion) should catch Exception and fall back to the async task.
+    The ``dashboard_service`` import is deferred because that module imports
+    this one at top level.
+    """
+    from app.services import dashboard_service
+
+    project = db.get(Project, project_id)
+    if project is None:
+        raise LookupError("project not found")
+    _, signals = dashboard_service.build_dashboard(db, user_id=user_id, project_id=project_id)
+    return recommend(
+        db,
+        user_id=user_id,
+        project_id=project_id,
+        signals=signals,
+        goal_keywords=goal_keywords_for_project(project.name, project.goal),
+        now=now,
+    )
+
+
 def recommend(
     db: Session,
     *,

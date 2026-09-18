@@ -416,12 +416,16 @@ def complete_attempt(
         idempotency_key=f"attempt:{attempt.id}:mastery",
     )
     # Blueprint §16: recommendation recomputes after mastery-affecting
-    # events. Best-effort — evidence is already committed; a broker outage
-    # must not fail the completion response.
+    # events. Synchronous inline recompute first — guaranteed whenever the
+    # fresh evidence is scorable, with no broker required and no pytest skip.
+    # The Celery task remains only as a fallback when the inline path raises;
+    # evidence is already committed above, so completion must not fail here.
     try:
+        from app.services import recommendation_service
+
+        recommendation_service.recompute_now(db, user_id=user_id, project_id=project_id)
+    except Exception:
         from app.worker.tasks.recommendations import refresh_best_effort
 
-        refresh_best_effort(user_id, project_id)
-    except Exception:
-        pass
+        refresh_best_effort(user_id, project_id)  # never raises; no-op under pytest
     return attempt

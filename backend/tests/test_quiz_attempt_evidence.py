@@ -14,6 +14,7 @@ from app.models.concept import Concept
 from app.models.mastery_evidence import MasteryEvidence
 from app.models.project import Project
 from app.models.quiz import Quiz, QuizQuestion
+from app.models.recommendation import Recommendation
 from app.models.space import Space
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
@@ -120,5 +121,53 @@ def test_evidence_moves_mastery_and_recommendation_inputs():
         scores = mastery_for_concept(db, user_id=user.id, project_id=project.id,
                                      concept_id=concepts[0].id)
         assert scores.mcq.value == pytest.approx(100.0) and scores.mcq.count == 1
+    finally:
+        db.close()
+
+
+def test_complete_persists_recommendation_synchronously():
+    """H1: quiz completed -> mastery updated -> recommendation row, no broker.
+
+    refresh_best_effort is a no-op under pytest, so any active row observed
+    here must come from the synchronous inline recompute in complete_attempt.
+    """
+    db = _session()
+    try:
+        user, project, quiz, concepts, questions = _scaffold(db, uuid.uuid4().hex[:8])
+        attempt = svc.start_attempt(db, quiz_id=quiz.id, project_id=project.id, user_id=user.id)
+        _answer_all(db, project, user, attempt, questions, [True, False])
+        svc.complete_attempt(db, attempt_id=attempt.id, project_id=project.id,
+                             user_id=user.id)
+        rows = db.query(Recommendation).filter(
+            Recommendation.user_id == user.id,
+            Recommendation.project_id == project.id,
+            Recommendation.status == "active").all()
+        assert len(rows) == 1
+        assert rows[0].concept_id in {c.id for c in concepts}
+        assert rows[0].reasoning
+    finally:
+        db.close()
+
+
+def test_second_completion_supersedes_recommendation():
+    """Repeated completions keep exactly one active recommendation row."""
+    db = _session()
+    try:
+        user, project, quiz, concepts, questions = _scaffold(db, uuid.uuid4().hex[:8])
+        for mask in ([True, False], [False, False]):
+            attempt = svc.start_attempt(db, quiz_id=quiz.id, project_id=project.id,
+                                        user_id=user.id)
+            _answer_all(db, project, user, attempt, questions, mask)
+            svc.complete_attempt(db, attempt_id=attempt.id, project_id=project.id,
+                                 user_id=user.id)
+        active = db.query(Recommendation).filter(
+            Recommendation.user_id == user.id,
+            Recommendation.project_id == project.id,
+            Recommendation.status == "active").all()
+        assert len(active) == 1
+        total = db.query(Recommendation).filter(
+            Recommendation.user_id == user.id,
+            Recommendation.project_id == project.id).count()
+        assert total == 2
     finally:
         db.close()

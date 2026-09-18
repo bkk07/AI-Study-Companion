@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import uuid
 
-from app.services import dashboard_service, recommendation_service
+from app.services import recommendation_service
 from app.worker.celery_app import celery_app
 from app.worker.tasks import get_task_session
 
@@ -22,17 +22,7 @@ def generate_recommendation(self, user_id: str, project_id: str) -> str | None:
     db = get_task_session()
     try:
         uid, pid = uuid.UUID(user_id), uuid.UUID(project_id)
-        project = db.get(__import__("app.models.project", fromlist=["Project"]).Project, pid)
-        goal_keywords = (
-            recommendation_service.goal_keywords_for_project(project.name, project.goal)
-            if project is not None
-            else ()
-        )
-        _, signals = dashboard_service.build_dashboard(db, user_id=uid, project_id=pid)
-        row = recommendation_service.recommend(
-            db, user_id=uid, project_id=pid, signals=signals,
-            goal_keywords=goal_keywords,
-        )
+        row = recommendation_service.recompute_now(db, user_id=uid, project_id=pid)
         return str(row.id) if row is not None else None
     except (LookupError, ValueError):
         # Nothing scorable or scope vanished — not a retryable failure.

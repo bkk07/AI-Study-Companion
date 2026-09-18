@@ -208,6 +208,41 @@ def test_tree_lists_core_only_with_mastery_coverage():
         engine.dispose()
 
 
+def test_tree_lists_unevidenced_core_concepts_as_not_started():
+    """Regression: CORE targets with zero evidence must still appear as leaves
+    (mastery None, practiced False) so selection counts match Structure.
+    The batch reader only returns evidenced concepts — leaves must fall back
+    to empty scores instead of being skipped."""
+    client, engine = _client()
+    try:
+        email, h, pid = _auth_project(client)
+        tag = uuid.uuid4().hex[:8]
+        ids = _seed_tree(engine, email, pid, tag)
+        Sess = sessionmaker(bind=engine)
+        db = Sess()
+        project = db.get(Project, uuid.UUID(pid))
+        sub = db.query(Subtopic).filter(Subtopic.project_id == project.id).one()
+        fresh = Concept(project_id=project.id, subtopic_id=sub.id, title=f"Fresh-{tag}",
+                        summary="Untouched.", importance="CORE", type="CONCEPT")
+        db.add(fresh)
+        db.commit()
+        fresh_id = str(fresh.id)
+        db.close()
+        assert fresh_id != ids["core"]
+        resp = client.get(f"/api/v1/projects/{pid}/knowledge/tree", headers=h)
+        assert resp.status_code == 200, resp.text
+        topic = resp.json()["topics"][0]
+        assert topic["coverage"]["total"] == 2 and topic["coverage"]["practiced"] == 1
+        leaves = topic["subtopics"][0]["concepts"]
+        assert len(leaves) == 2  # evidenced + fresh, SUPPORTING/obsolete excluded
+        fresh_leaf = next(leaf for leaf in leaves if leaf["id"] == fresh_id)
+        assert fresh_leaf["mastery"] is None and fresh_leaf["practiced"] is False
+        assert fresh_leaf["status"] == "Not Started"
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
 def test_search_finds_all_importances_project_scoped():
     client, engine = _client()
     try:

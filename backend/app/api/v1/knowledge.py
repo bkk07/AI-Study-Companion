@@ -29,7 +29,7 @@ from app.schemas.knowledge import (
 )
 from app.services import dashboard_service, relationship_service
 from app.services.mastery_levels import is_mastery_target, mastery_target_criterion, status_for
-from app.services.mastery_service import mastery_for_concept, mastery_for_concepts
+from app.services.mastery_service import compute_mastery, mastery_for_concept, mastery_for_concepts
 from app.services.rollup_service import (
     display_mastery,
     evidence_total,
@@ -100,6 +100,13 @@ def _rollup_members(
     return mastery, practiced, len(members)
 
 
+# Scores for a target with zero evidence rows: mastery None, not practiced.
+# The batch reader only returns concepts that HAVE evidence, so leaves must
+# fall back to this instead of being skipped (skipping hid unevidenced
+# concepts from selection entirely).
+_EMPTY_SCORES = compute_mastery([])
+
+
 @router.get("/tree", response_model=KnowledgeTreeRead)
 def get_tree(
     project: Project = Depends(get_authorized_project),
@@ -143,9 +150,7 @@ def get_tree(
         for sub in subs_by_topic.get(topic.id, []):
             leaves: list[BrowseConceptRead] = []
             for row in concepts_by_sub.get(sub.id, []):
-                scores = scores_by_id.get(row.id)
-                if scores is None:
-                    continue  # target without derivable scores: not a browse leaf
+                scores = scores_by_id.get(row.id, _EMPTY_SCORES)
                 mastery = display_mastery(scores)
                 practiced = evidence_total(scores) > 0
                 leaves.append(BrowseConceptRead(

@@ -1,0 +1,14 @@
+# Railway config-as-code — pins the single-container backend build.
+# Without this, Railway may auto-detect the repo-root package.json (Vite scaffold)
+# or another Dockerfile and serve the wrong thing (API routes 404).
+"$schema" = "https://railway.com/railway.schema.json"
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

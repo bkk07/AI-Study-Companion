@@ -49,13 +49,15 @@ services:
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
       JWT_ALGORITHM: HS256
-      JWT_EXPIRE_MINUTES: 2880
+      JWT_EXPIRE_MINUTES: 60
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       GROQ_API_KEY: ${GROQ_API_KEY:-dummy-groq-key-for-phase05-build}
       INCEPTION_API_KEY: ${INCEPTION_API_KEY:-dummy-inception-key-for-phase05-build}
       INCEPTION_MODEL: mercury-2.5
       OPENAI_API_KEY: dummy-openai-key-for-phase05-build
-      EMBEDDING_MODEL: text-embedding-3-small
+      # Local embeddings are the active path (384-d, matches the DB column).
+      EMBEDDING_PROVIDER: local
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
       TABLES_ENABLED: ${TABLES_ENABLED:-true}
       VISION_ENABLED: ${VISION_ENABLED:-true}
       VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
@@ -89,13 +91,15 @@ services:
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
       JWT_ALGORITHM: HS256
-      JWT_EXPIRE_MINUTES: 2880
+      JWT_EXPIRE_MINUTES: 60
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       GROQ_API_KEY: ${GROQ_API_KEY:-dummy-groq-key-for-phase05-build}
       INCEPTION_API_KEY: ${INCEPTION_API_KEY:-dummy-inception-key-for-phase05-build}
       INCEPTION_MODEL: mercury-2.5
       OPENAI_API_KEY: dummy-openai-key-for-phase05-build
-      EMBEDDING_MODEL: text-embedding-3-small
+      # Local embeddings are the active path (384-d, matches the DB column).
+      EMBEDDING_PROVIDER: local
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
       OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_LANGUAGE: ${OCR_LANGUAGE:-eng}
       OCR_DPI: ${OCR_DPI:-300}

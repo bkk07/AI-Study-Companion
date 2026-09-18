@@ -42,6 +42,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD python -c "import os, urllib.request; p = os.environ.get('PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/api/v1/health')"
 
-# Demo entrypoint: supervisord runs bundled redis + api + worker in one container.
-# (docker-compose api/worker services override this command and use the shared `redis` service instead.)
+# Boot entrypoint: migrate, then run the command (supervisord by default).
+# (docker-compose api/worker services override CMD and use the shared `redis`
+# service instead — the entrypoint still migrates first in those too.)
+ENTRYPOINT ["python", "/app/docker-entrypoint.py"]
 CMD ["supervisord", "-c", "/app/supervisord.conf"]

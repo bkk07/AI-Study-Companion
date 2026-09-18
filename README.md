@@ -75,8 +75,8 @@ Detailed system design lives in [`Architecture.md`](./Architecture.md). AI tooli
 
 | | |
 |---|---|
-| **Home dashboard** — continue learning, recent activity, attention items, next action | **Project dashboard** — progress, concepts, performance, next step |
-| ![Home dashboard](./docs/images/HomeDashBoard.png) | ![Project dashboard](./docs/images/ProjectDashBoard.png) |
+| **Spaces** — organize learning into subject areas, one space per subject | **Project dashboard** — progress, concepts, performance, next step |
+| ![Spaces](./docs/images/SpacesPage.png) | ![Project dashboard](./docs/images/ProjectDashBoard.png) |
 | **AI tutor with citations** — grounded answers, per-chunk sources | **Recommended quiz** — deterministic next-best practice |
 | ![AI tutor](./docs/images/AITutorWithCitations.png) | ![Recommended quiz](./docs/images/RecommendingQuiz.png) |
 | **Practice session** — targeted applied work | **Analytics** — growth, mastery trends, project stats |
@@ -137,6 +137,25 @@ flowchart TD
 - Refuses cleanly on insufficient evidence instead of hallucinating.
 - Answers include source citations; conversations persisted in `tutor_messages`.
 - Explicit **Tutor Check / Explain-It-Back** flow grades the student's explanation and appends real tutor mastery evidence.
+- **Create from chat:** mid-conversation, one tap spins up a **Quiz**, **Practice session**, or **Flashcard deck** on exactly what you just discussed — the tutor maps recent questions to concepts (`POST tutor/quiz-plan`), confirms scope with you, then launches the session inline without leaving the chat. Follow-up questions keep context, so short prompts like "give an example" just work.
+
+```mermaid
+flowchart TD
+    CHAT["Tutor Conversation"]
+    PLAN["Quiz-Plan<br/>recent questions → concepts"]
+    CONFIRM{"Confirm scope<br/>+ size?"}
+    QUIZ["Quiz Session<br/>inline"]
+    PRACTICE["Practice Session<br/>MCQ + open-ended"]
+    FLASH["Flashcard Deck<br/>SM-2"]
+
+    CHAT --> PLAN
+    PLAN --> CONFIRM
+    CONFIRM -->|Quiz me| QUIZ
+    CONFIRM -->|Practice| PRACTICE
+    CONFIRM -->|Flashcards| FLASH
+```
+
+![Tutor chat actions](./docs/images/TutorChatActions.png)
 
 ![AI tutor with citations](./docs/images/AITutorWithCitations.png)
 
@@ -720,7 +739,7 @@ Docker vs Railway topologies differ intentionally (separate Compose services vs 
 | [`AI_USAGE.md`](./AI_USAGE.md) | Dev-AI vs product-AI transparency, models, what AI does/doesn't do |
 | [`docs/00-blueprint-analysis.md`](./docs/00-blueprint-analysis.md) | Frozen blueprint contract (scope, stack, exclusions, hard rules) |
 | [`docs/architecture-decisions.md`](./docs/architecture-decisions.md) | ADRs 001–009 |
-| [`docs/implementation-status.md`](./docs/implementation-status.md) | Phase-by-phase build log (58-phase roadmap) |
+| [`docs/implementation-status.md`](./docs/implementation-status.md) | Phase-by-phase build log |
 | [`docs/opencode-prompts.md`](./docs/opencode-prompts.md) | Per-phase prompt log |
 | [`docs/learning-model-design.md`](./docs/learning-model-design.md) | Mastery/growth/mismatch math |
 | [`docs/storage.md`](./docs/storage.md) / [`docs/usage-tracking.md`](./docs/usage-tracking.md) | Upload volume contract / AI cost tracking |
@@ -730,7 +749,7 @@ Docker vs Railway topologies differ intentionally (separate Compose services vs 
 
 ## Project Status & Known Boundaries
 
-Implementation follows a 58-phase roadmap (see `docs/implementation-status.md`). The architecture doc deliberately describes the **current** implementation — including these honest boundaries:
+Implementation follows a phased roadmap (see `docs/implementation-status.md`). The architecture doc deliberately describes the **current** implementation — including these honest boundaries:
 
 1. Tutor evidence needs an explicit in-project `concept_id` (no auto concept detection from free text yet).
 2. Tutor Check API exists, but one-click Tutor Check UI isn't fully integrated into the Tutor view.

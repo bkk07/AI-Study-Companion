@@ -40,11 +40,13 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    # Demo image defaults to supervisord (all-in-one); compose dev runs plain uvicorn here.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
       JWT_ALGORITHM: HS256
       JWT_EXPIRE_MINUTES: 2880
@@ -74,10 +76,10 @@ services:
     restart: unless-stopped
     command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
       JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
       JWT_ALGORITHM: HS256
       JWT_EXPIRE_MINUTES: 2880

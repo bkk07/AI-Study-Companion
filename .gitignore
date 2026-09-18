@@ -1,6 +1,7 @@
 # AI Study Companion — top-level ignores
 # Keep .env.example, ignore real env files
 .env
+.env.*
 .env.local
 backend/.env
 frontend/.env

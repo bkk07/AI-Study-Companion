@@ -71,30 +71,37 @@ def build_dashboard(
         .all()
     )
     rows = [r for r in rows if is_mastery_target(r[0])]  # python-side twin (obsolete guard)
+    # Batch reads: one evidence query + one rated-answers query for the whole
+    # project, grouped in memory. The per-concept loop below stays pure math,
+    # so numbers are identical to the old N-query version at ~3 queries total.
+    inputs_by_concept = mastery_service.evidence_inputs_by_concept(
+        db, user_id=user_id, project_id=project.id
+    )
+    rated_rows = (
+        db.query(QuizQuestion.concept_id, QuizAnswer.confidence, QuizAnswer.is_correct)
+        .join(QuizAttempt, QuizAnswer.attempt_id == QuizAttempt.id)
+        .join(QuizQuestion, QuizAnswer.question_id == QuizQuestion.id)
+        .join(Quiz, QuizQuestion.quiz_id == Quiz.id)
+        .filter(
+            QuizAttempt.user_id == user_id,
+            Quiz.project_id == project.id,
+            QuizAnswer.confidence.is_not(None),
+        )
+        .all()
+    )
+    rated_by_concept: dict[uuid.UUID, list[tuple[float, bool]]] = {}
+    for concept_id, confidence, is_correct in rated_rows:
+        rated_by_concept.setdefault(concept_id, []).append((confidence, is_correct))
     states: list[ConceptState] = []
     per_concept: list[tuple[Concept, str, str, MasteryScores, ConceptState, float | None]] = []
     for concept, subtopic_title, topic_title in rows:
-        scores = mastery_service.mastery_for_concept(
-            db, user_id=user_id, project_id=project.id, concept_id=concept.id
-        )
+        scores = mastery_service.compute_mastery(inputs_by_concept.get(concept.id, []))
         # Rated quiz/practice answers only: both modes persist QuizAnswer
         # rows with optional confidence, so this one query covers both
         # streams. Open-ended / explain-back have no confidence column —
         # see module docstring — and are deliberately excluded rather than
         # defaulted, so applied-only concepts yield None / 0 below.
-        rated = (
-            db.query(QuizAnswer.confidence, QuizAnswer.is_correct)
-            .join(QuizAttempt, QuizAnswer.attempt_id == QuizAttempt.id)
-            .join(QuizQuestion, QuizAnswer.question_id == QuizQuestion.id)
-            .join(Quiz, QuizQuestion.quiz_id == Quiz.id)
-            .filter(
-                QuizAttempt.user_id == user_id,
-                Quiz.project_id == project.id,
-                QuizQuestion.concept_id == concept.id,
-                QuizAnswer.confidence.is_not(None),
-            )
-            .all()
-        )
+        rated = rated_by_concept.get(concept.id, [])
         avg_conf = sum(c for c, _ in rated) / len(rated) if rated else None
         accuracy = sum(1 for _, ok in rated if ok) / len(rated) if rated else None
         lasts = [

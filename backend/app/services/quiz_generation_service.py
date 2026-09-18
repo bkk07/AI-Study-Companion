@@ -23,7 +23,7 @@ from app.models.topic import Topic
 from app.schemas.quiz import MCQOutline
 from app.services import ai_usage_service
 from app.services.ai import groq_client
-from app.services.mastery_levels import is_mastery_target
+from app.services.mastery_levels import is_practicable
 from app.services.relationship_service import get_related
 
 # Adaptive wiring (no circular import: adaptive module is pure, no DB).
@@ -230,11 +230,11 @@ def generate_quiz(
     concept = db.get(Concept, concept_id)
     if project is None or concept is None or concept.project_id != project.id:
         raise LookupError("project or concept not found in scope")
-    if not is_mastery_target(concept):
+    if not is_practicable(concept):
         raise QuizGenerationError(
             f"Learning object '{concept.title}' is not a practice target "
             f"(importance {(concept.importance or 'CORE')}). "
-            "Pick a CORE target or search supporting material."
+            "Pick a CORE or SUPPORTING target."
         )
 
     source, context = _build_enriched_source(db, project, concept)
@@ -296,15 +296,16 @@ def _resolve_scope_concepts(
 ) -> tuple[list[Concept], str]:
     """Resolve practice-target concepts for a quiz scope.
 
-    Returns (concepts, focus_label). Only CORE, non-obsolete concepts are
-    eligible (same gate as single-concept generation). Raises LookupError for
-    out-of-scope ids and QuizGenerationError when nothing is practicable.
+    Returns (concepts, focus_label). Only CORE/SUPPORTING, non-obsolete
+    concepts are eligible (same gate as single-concept generation).
+    Raises LookupError for out-of-scope ids and QuizGenerationError when
+    nothing is practicable.
     """
     if scope == "concept":
         concept = db.get(Concept, concept_id)
         if concept is None or concept.project_id != project.id:
             raise LookupError("project or concept not found in scope")
-        if not is_mastery_target(concept):
+        if not is_practicable(concept):
             raise QuizGenerationError(
                 f"Learning object '{concept.title}' is not a practice target "
                 f"(importance {(concept.importance or 'CORE')}). "
@@ -327,7 +328,7 @@ def _resolve_scope_concepts(
             if sub_ids
             else []
         )
-        targets = [c for c in rows if is_mastery_target(c)]
+        targets = [c for c in rows if is_practicable(c)]
         if not targets:
             raise QuizGenerationError(f"Topic '{topic.title}' has no practicable concepts yet")
         return targets, f"Topic: {topic.title}"
@@ -342,7 +343,7 @@ def _resolve_scope_concepts(
             .order_by(Concept.created_at.asc())
             .all()
         )
-        targets = [c for c in rows if is_mastery_target(c)]
+        targets = [c for c in rows if is_practicable(c)]
         if not targets:
             raise QuizGenerationError(f"Subtopic '{sub.title}' has no practicable concepts yet")
         return targets, f"Subtopic: {sub.title}"
@@ -354,7 +355,7 @@ def _resolve_scope_concepts(
         .order_by(Concept.created_at.asc())
         .all()
     )
-    targets = [c for c in rows if is_mastery_target(c)]
+    targets = [c for c in rows if is_practicable(c)]
     if not targets:
         raise QuizGenerationError("Project has no practicable concepts yet — upload material first")
     return targets, "Entire project"
@@ -371,9 +372,9 @@ def _resolve_practice_concepts(
     """Resolve the Practice picker's explicit multi-select to target concepts.
 
     Union of: every concept under each topic, every concept in each subtopic,
-    plus each concept directly. Only CORE, non-obsolete concepts are eligible
-    (same gate as every other scope). Raises LookupError for out-of-scope ids
-    and QuizGenerationError when nothing is practicable.
+    plus each concept directly. Only CORE/SUPPORTING, non-obsolete concepts
+    are eligible (same gate as every other scope). Raises LookupError for
+    out-of-scope ids and QuizGenerationError when nothing is practicable.
     """
     seen: dict[uuid.UUID, Concept] = {}
 
@@ -409,7 +410,7 @@ def _resolve_practice_concepts(
             raise LookupError("project or concept not found in scope")
         seen[concept.id] = concept
 
-    targets = [c for c in seen.values() if is_mastery_target(c)]
+    targets = [c for c in seen.values() if is_practicable(c)]
     if not targets:
         raise QuizGenerationError("Practice selection has no practicable concepts yet")
     targets.sort(key=lambda c: (c.created_at, str(c.id)))

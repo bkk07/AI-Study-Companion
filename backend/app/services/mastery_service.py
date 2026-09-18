@@ -372,15 +372,13 @@ def mastery_for_concept(
     return compute_mastery([_row_to_input(r) for r in rows])
 
 
-def mastery_for_concepts(
+def evidence_inputs_by_concept(
     db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID
-) -> dict[uuid.UUID, MasteryScores]:
-    """Batch derivation for every concept of (user, project) in ONE evidence query.
+) -> dict[uuid.UUID, list[EvidenceInput]]:
+    """All of a user's project evidence in ONE query, grouped by concept.
 
-    Identical math to calling mastery_for_concept per concept: same row filter,
-    same pure compute_mastery. Concepts without evidence map to the empty score.
-    Exists so read-heavy endpoints (knowledge tree) don't pay N sequential
-    round-trips against remote Postgres.
+    Same row filter and ordering as the per-concept reader; shared so batch
+    derivations (tree, dashboard, growth) never replay N sequential queries.
     """
     rows = (
         db.query(MasteryEvidence)
@@ -394,7 +392,26 @@ def mastery_for_concepts(
     by_concept: dict[uuid.UUID, list[EvidenceInput]] = {}
     for row in rows:
         by_concept.setdefault(row.concept_id, []).append(_row_to_input(row))
-    return {concept_id: compute_mastery(points) for concept_id, points in by_concept.items()}
+    return by_concept
+
+
+def mastery_for_concepts(
+    db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID
+) -> dict[uuid.UUID, MasteryScores]:
+    """Batch derivation for every concept of (user, project) in ONE evidence query.
+
+    Identical math to calling mastery_for_concept per concept: same row filter,
+    same pure compute_mastery. Only concepts WITH evidence rows appear as keys;
+    callers fall back to compute_mastery([]) for unevidenced concepts.
+    Exists so read-heavy endpoints (knowledge tree) don't pay N sequential
+    round-trips against remote Postgres.
+    """
+    return {
+        concept_id: compute_mastery(points)
+        for concept_id, points in evidence_inputs_by_concept(
+            db, user_id=user_id, project_id=project_id
+        ).items()
+    }
 
 
 def record_tutor_evidence(

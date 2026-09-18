@@ -185,8 +185,23 @@ def project_growth(db: Session, *, user_id: uuid.UUID, project_id: uuid.UUID) ->
     current: list[ConceptCurrent] = []
     stamps: list[datetime] = []
     total = 0
+    # Batch read: one evidence query for the whole project, grouped in memory.
+    # Same row filter, ordering, and mapping as the old per-concept reader —
+    # identical numbers at ~2 queries total instead of N+1.
+    all_rows = (
+        db.query(MasteryEvidence)
+        .filter(
+            MasteryEvidence.user_id == user_id,
+            MasteryEvidence.project_id == project.id,
+        )
+        .order_by(MasteryEvidence.created_at.asc())
+        .all()
+    )
+    rows_by_concept: dict[uuid.UUID, list[MasteryEvidence]] = {}
+    for row in all_rows:
+        rows_by_concept.setdefault(row.concept_id, []).append(row)
     for concept in concepts:
-        rows = _rows(db, user_id, project.id, concept.id)
+        rows = rows_by_concept.get(concept.id, [])
         if not rows:
             continue  # unevidenced concepts are excluded, never zero-filled
         scores = compute_mastery([_to_input(r) for r in rows])

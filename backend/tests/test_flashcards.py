@@ -77,7 +77,7 @@ def test_front_back_templates_by_type():
 # --- deck building ------------------------------------------------------------
 
 
-def test_build_deck_core_only_idempotent():
+def test_build_deck_practicable_idempotent():
     db = _session()
     try:
         _, project, topic, sub = _scaffold(db, uuid.uuid4().hex[:8])
@@ -86,12 +86,12 @@ def test_build_deck_core_only_idempotent():
         _concept(db, project, sub, "Gamma", importance="SUPPORTING")
         db.commit()
         first = svc.build_deck(db, project_id=project.id, subtopic_id=sub.id)
-        assert first == {"created": 2, "total": 2}
+        assert first == {"created": 3, "total": 3}
         fronts = {c.front for c in db.query(Flashcard).all()
                   if c.project_id == project.id}
-        assert fronts == {"What is Alpha?", "Beta"}
+        assert fronts == {"What is Alpha?", "Beta", "What is Gamma?"}
         second = svc.build_deck(db, project_id=project.id, topic_id=topic.id)
-        assert second == {"created": 0, "total": 2}  # idempotent across scopes
+        assert second == {"created": 0, "total": 3}  # idempotent across scopes
         with pytest.raises(ValueError):
             svc.build_deck(db, project_id=project.id, subtopic_id=sub.id, topic_id=topic.id)
         with pytest.raises(LookupError):

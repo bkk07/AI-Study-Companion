@@ -182,7 +182,7 @@ def _seed_tree(engine, email, pid, tag):
     return ids
 
 
-def test_tree_lists_core_only_with_mastery_coverage():
+def test_tree_lists_practicable_with_core_only_coverage():
     client, engine = _client()
     try:
         email, h, pid = _auth_project(client)
@@ -196,13 +196,18 @@ def test_tree_lists_core_only_with_mastery_coverage():
         assert topic["coverage"]["total"] == 1 and topic["coverage"]["practiced"] == 1
         assert topic["coverage"]["mastery"] == pytest.approx(40.0)
         leaves = topic["subtopics"][0]["concepts"]
-        assert len(leaves) == 1  # SUPPORTING + obsolete excluded
-        assert leaves[0]["title"] == f"Slope-{tag}"
-        assert leaves[0]["mastery"] == pytest.approx(40.0)
+        assert len(leaves) == 2  # CORE + SUPPORTING selectable, obsolete excluded
+        by_title = {leaf["title"]: leaf for leaf in leaves}
+        assert by_title[f"Slope-{tag}"]["mastery"] == pytest.approx(40.0)
+        assert by_title[f"Slope-{tag}"]["importance"] == "CORE"
+        assert by_title[f"Vocab-{tag}"]["mastery"] is None
+        assert by_title[f"Vocab-{tag}"]["importance"] == "SUPPORTING"
+        assert by_title[f"Vocab-{tag}"]["practiced"] is False
         overall = resp.json()["overall"]
         assert overall == {"mastery": pytest.approx(40.0), "practiced": 1, "total": 1}
-        assert leaves[0]["status"] == "Developing" and leaves[0]["practiced"] is True
-        assert leaves[0]["lo_type"] == "CONCEPT"
+        assert by_title[f"Slope-{tag}"]["status"] == "Developing"
+        assert by_title[f"Slope-{tag}"]["practiced"] is True
+        assert by_title[f"Slope-{tag}"]["lo_type"] == "CONCEPT"
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
@@ -234,8 +239,10 @@ def test_tree_lists_unevidenced_core_concepts_as_not_started():
         topic = resp.json()["topics"][0]
         assert topic["coverage"]["total"] == 2 and topic["coverage"]["practiced"] == 1
         leaves = topic["subtopics"][0]["concepts"]
-        assert len(leaves) == 2  # evidenced + fresh, SUPPORTING/obsolete excluded
-        fresh_leaf = next(leaf for leaf in leaves if leaf["id"] == fresh_id)
+        assert len(leaves) == 3  # evidenced CORE + fresh CORE + SUPPORTING, obsolete excluded
+        by_title = {leaf["title"]: leaf for leaf in leaves}
+        assert set(by_title) == {f"Slope-{tag}", f"Fresh-{tag}", f"Vocab-{tag}"}
+        fresh_leaf = by_title[f"Fresh-{tag}"]
         assert fresh_leaf["mastery"] is None and fresh_leaf["practiced"] is False
         assert fresh_leaf["status"] == "Not Started"
     finally:
@@ -377,15 +384,35 @@ _VALID = {"questions": [{"question_text": "Q?", "options": ["a", "b"],
                          "correct_index": 0, "difficulty": "easy"}]}
 
 
-def test_quiz_rejects_non_core_target():
+def test_quiz_rejects_non_practicable_target():
     db = _session()
     try:
         _, project, _, sub = _scaffold(db, uuid.uuid4().hex[:8])
-        supp = _concept(db, project, sub, "Supp", importance="SUPPORTING")
+        ref = _concept(db, project, sub, "Ref", importance="REFERENCE")
         db.commit()
         with pytest.raises(QuizGenerationError, match="not a practice target"):
-            generate_quiz(db, project_id=project.id, concept_id=supp.id,
+            generate_quiz(db, project_id=project.id, concept_id=ref.id,
                           num_questions=1, client=_Stub([_VALID]))
+    finally:
+        db.close()
+
+
+def test_quiz_accepts_supporting_target():
+    db = _session()
+    try:
+        _, project, _, sub = _scaffold(db, uuid.uuid4().hex[:8])
+        mat = Material(project_id=project.id, filename="d.pdf", storage_path="/tmp/d.pdf")
+        db.add(mat)
+        db.flush()
+        supp = _concept(db, project, sub, "Supp", importance="SUPPORTING",
+                        page_start=1, page_end=1)
+        supp.material_id = mat.id
+        db.add(DocumentChunk(project_id=project.id, material_id=mat.id, chunk_index=0,
+                             content="supporting gold", page_number=1))
+        db.commit()
+        quiz = generate_quiz(db, project_id=project.id, concept_id=supp.id,
+                             num_questions=1, client=_Stub([_VALID]))
+        assert quiz.project_id == project.id
     finally:
         db.close()
 

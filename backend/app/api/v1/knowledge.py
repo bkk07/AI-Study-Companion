@@ -28,7 +28,7 @@ from app.schemas.knowledge import (
     StreamRead,
 )
 from app.services import dashboard_service, relationship_service
-from app.services.mastery_levels import is_mastery_target, mastery_target_criterion, status_for
+from app.services.mastery_levels import is_mastery_target, is_practicable, status_for
 from app.services.mastery_service import compute_mastery, mastery_for_concept, mastery_for_concepts
 from app.services.rollup_service import (
     display_mastery,
@@ -113,10 +113,12 @@ def get_tree(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeTreeRead:
-    """Browse hierarchy: CORE mastery targets with mastery + coverage per node.
+    """Browse hierarchy: practicable concepts (CORE + SUPPORTING) with CORE
+    mastery + coverage per node.
 
-    Composes the gated dashboard progress (same numbers as the dashboard) over
-    the topic tree. SUPPORTING/REFERENCE/obsolete rows never appear here.
+    Leaves cover everything selectable for quizzes, flashcards, and practice
+    (REFERENCE/obsolete rows never appear). Coverage and rollups stay
+    CORE-only so the numbers match the dashboard exactly.
 
     Performance: evidence is read ONCE for the whole project and every scope
     rolls up in memory — the previous per-scope re-scoring issued ~13 queries
@@ -124,11 +126,12 @@ def get_tree(
     """
     concepts = (
         db.query(Concept)
-        .filter(Concept.project_id == project.id, mastery_target_criterion())
+        .filter(Concept.project_id == project.id)
         .order_by(Concept.created_at.asc())
         .all()
     )
-    concepts = [c for c in concepts if is_mastery_target(c)]
+    selectable = [c for c in concepts if is_practicable(c)]
+    targets = [c for c in concepts if is_mastery_target(c)]
     scores_by_id = mastery_for_concepts(db, user_id=user.id, project_id=project.id)
     topics = (
         db.query(Topic).filter(Topic.project_id == project.id)
@@ -142,8 +145,11 @@ def get_tree(
     for sub in subs:
         subs_by_topic.setdefault(sub.topic_id, []).append(sub)
     concepts_by_sub: dict[uuid.UUID, list[Concept]] = {}
-    for concept in concepts:
+    for concept in selectable:
         concepts_by_sub.setdefault(concept.subtopic_id, []).append(concept)
+    targets_by_sub: dict[uuid.UUID, list[Concept]] = {}
+    for concept in targets:
+        targets_by_sub.setdefault(concept.subtopic_id, []).append(concept)
     out: list[BrowseTopicRead] = []
     for topic in topics:
         sub_reads: list[BrowseSubtopicRead] = []
@@ -155,17 +161,18 @@ def get_tree(
                 practiced = evidence_total(scores) > 0
                 leaves.append(BrowseConceptRead(
                     id=row.id, title=row.title, lo_type=row.type or "CONCEPT",
+                    importance=row.importance or "CORE",
                     mastery=mastery, status=status_for(mastery), practiced=practiced,
                 ))
             mastery, practiced, total = _rollup_members(
-                concepts_by_sub.get(sub.id, []), scores_by_id
+                targets_by_sub.get(sub.id, []), scores_by_id
             )
             sub_reads.append(BrowseSubtopicRead(
                 id=sub.id, title=sub.title, core_count=len(leaves),
                 coverage=CoverageRead(mastery=mastery, practiced=practiced, total=total),
                 concepts=leaves,
             ))
-        members = [c for sub in subs_by_topic.get(topic.id, []) for c in concepts_by_sub.get(sub.id, [])]
+        members = [c for sub in subs_by_topic.get(topic.id, []) for c in targets_by_sub.get(sub.id, [])]
         mastery, practiced, total = _rollup_members(members, scores_by_id)
         out.append(BrowseTopicRead(
             id=topic.id, title=topic.title,
@@ -173,7 +180,7 @@ def get_tree(
             coverage=CoverageRead(mastery=mastery, practiced=practiced, total=total),
             subtopics=sub_reads,
         ))
-    all_members = list(concepts)
+    all_members = list(targets)
     mastery, practiced, total = _rollup_members(all_members, scores_by_id)
     return KnowledgeTreeRead(
         topics=out,

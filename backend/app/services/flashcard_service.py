@@ -23,7 +23,7 @@ from app.models.mastery_evidence import MasteryEvidence
 from app.models.project import Project
 from app.models.subtopic import Subtopic
 from app.models.topic import Topic
-from app.services.mastery_levels import is_mastery_target
+from app.services.mastery_levels import is_practicable
 
 GRADES = ("again", "hard", "good", "easy")
 GRADE_QUALITY = {"again": 0, "hard": 3, "good": 4, "easy": 5}
@@ -76,8 +76,8 @@ def _scope_subtopics(
 
 
 def _create_card(db: Session, project: Project, row: Concept, existing: set) -> bool:
-    """Insert one deterministic card for a CORE target unless present."""
-    if not is_mastery_target(row):
+    """Insert one deterministic card for a practicable (CORE/SUPPORTING) target unless present."""
+    if not is_practicable(row):
         return False
     front, back = front_back_for(row.title, row.type, row.summary)
     if not front or not back:
@@ -99,7 +99,7 @@ def build_deck(
     concept_id: uuid.UUID | None = None,
     concept_ids: list[uuid.UUID] | None = None,
 ) -> dict:
-    """Create missing cards for CORE targets in scope. Idempotent.
+    """Create missing cards for practicable (CORE/SUPPORTING) targets in scope. Idempotent.
 
     Returns {"created": N, "total": M}. Exactly one scope may narrow the
     build: subtopic_id/topic_id/concept_id, or an explicit concept_ids list
@@ -133,7 +133,7 @@ def build_deck(
             row = db.get(Concept, concept_id)
             if row is None or row.project_id != project.id:
                 raise LookupError("concept not found in this project")
-            if not is_mastery_target(row):
+            if not is_practicable(row):
                 raise ValueError(f"Learning object '{row.title}' is not a deck target")
             if _create_card(db, project, row, existing):
                 created += 1

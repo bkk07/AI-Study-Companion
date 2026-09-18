@@ -72,6 +72,28 @@ def is_mastery_target(concept: Any) -> bool:
     return True
 
 
+# Importances eligible for selection + generation (quiz, flashcards, practice,
+# open-ended). Wider than is_mastery_target: SUPPORTING context (e.g. use-case
+# objects inside a subtopic) is practicable even though mastery rollups,
+# recommendations, and dashboard figures stay CORE-only.
+PRACTICABLE_IMPORTANCES = ("CORE", "SUPPORTING")
+
+
+def is_practicable(concept: Any) -> bool:
+    """True for CORE or SUPPORTING, non-obsolete learning objects.
+
+    Same None-handling as is_mastery_target. REFERENCE and obsolete rows stay
+    excluded everywhere.
+    """
+    importance = getattr(concept, "importance", None) or DEFAULT_IMPORTANCE
+    if importance not in PRACTICABLE_IMPORTANCES:
+        return False
+    meta = getattr(concept, "meta", None) or {}
+    if isinstance(meta, dict) and meta.get("status") == OBSOLETE_STATUS:
+        return False
+    return True
+
+
 def mastery_target_criterion():
     """SQLAlchemy filter expression matching `is_mastery_target` for stored rows.
 

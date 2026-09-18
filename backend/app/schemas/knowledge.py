@@ -13,11 +13,12 @@ class CoverageRead(BaseModel):
 
 
 class BrowseConceptRead(BaseModel):
-    """CORE practice target leaf for Browse-by-Topic."""
+    """Selectable practice leaf (CORE or SUPPORTING) for Browse-by-Topic."""
 
     id: uuid.UUID
     title: str
     lo_type: str
+    importance: str = "CORE"
     mastery: float | None = None
     status: str
     practiced: bool = False
@@ -40,7 +41,7 @@ class BrowseTopicRead(BaseModel):
 
 
 class KnowledgeTreeRead(BaseModel):
-    """Browse hierarchy — CORE mastery targets only, never the full keyword set."""
+    """Browse hierarchy — selectable (CORE + SUPPORTING) leaves; coverage stays CORE-only."""
 
     topics: list[BrowseTopicRead] = Field(default_factory=list)
     overall: CoverageRead = Field(default_factory=CoverageRead)

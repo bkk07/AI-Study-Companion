@@ -11,7 +11,7 @@ from app.models.background_job import BackgroundJob
 from app.models.material import Material
 from app.models.project import Project
 from app.models.user import User
-from app.schemas.material import MaterialRead
+from app.schemas.material import EnrichmentStatus, MaterialRead
 from app.services import activity_service, job_service, storage_service
 from app.services.storage_service import save_pdf
 from app.worker.tasks.extraction import process_pdf
@@ -106,22 +106,39 @@ def list_materials(
     # before concepts exist. Never downgrade `failed`.
     mat_ids = [m.id for m in materials]
     active_ids: set = set()
+    # Latest downstream job status per (material, job_type) — drives the
+    # `enrichment` field so the UI can show per-stage progress. Newest row
+    # wins (a stage is queued exactly once per material today; newest-first
+    # keeps this correct if that ever changes).
+    latest: dict = {}
     try:
         rows = (
-            db.query(BackgroundJob.material_id)
+            db.query(BackgroundJob.material_id, BackgroundJob.job_type, BackgroundJob.status)
             .filter(
                 BackgroundJob.material_id.in_(mat_ids),
                 BackgroundJob.job_type.in_(DOWNSTREAM_JOB_TYPES),
-                BackgroundJob.status.in_(ACTIVE_JOB_STATUSES),
             )
+            .order_by(BackgroundJob.created_at.desc())
             .all()
         )
-        active_ids = {r[0] for r in rows}
+        for mat_id, job_type, status in rows:
+            latest.setdefault((mat_id, job_type), status)
+        active_ids = {
+            mat_id
+            for (mat_id, _), status in latest.items()
+            if status in ACTIVE_JOB_STATUSES
+        }
     except Exception:
         active_ids = set()
+        latest = {}
     result: list[MaterialRead] = []
     for m in materials:
         data = MaterialRead.model_validate(m)
+        data.enrichment = EnrichmentStatus(
+            extraction=m.status,
+            embeddings=latest.get((m.id, "generate_embeddings")),
+            structure=latest.get((m.id, "build_structure")),
+        )
         if m.status == "ready" and m.id in active_ids:
             result.append(data.model_copy(update={"status": "processing"}))
         else:

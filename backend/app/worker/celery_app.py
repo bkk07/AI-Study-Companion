@@ -20,4 +20,15 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     broker_connection_retry_on_startup=True,
+    # Queue split: CPU-bound extraction/embeddings must never wait behind
+    # network-bound structure builds (and vice versa). Dispatch sites keep
+    # using .delay() — routing happens here, so tests and callers are
+    # unaffected. `generate_recommendation` is deterministic CPU/DB work, so
+    # it stays on the default queue consumed by the CPU worker.
+    task_default_queue="celery",
+    task_routes={
+        "process_pdf": {"queue": "extract"},
+        "generate_embeddings": {"queue": "embed"},
+        "build_structure": {"queue": "structure"},
+    },
 )

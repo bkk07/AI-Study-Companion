@@ -365,3 +365,40 @@ def analyze_figure_bytes(
     except Exception as e:
         log.warning("vision analyze failed p=%s fig=%s: %s", page_number, fig_index, str(e)[:200])
         return None
+
+
+# At most this many figures in flight at once: the per-doc budget caps the
+# total, this caps the burst so provider rate windows are not blown.
+_ANALYZE_MAX_CONCURRENCY = 4
+
+
+def analyze_many_figure_bytes(
+    items: list[tuple[bytes, int, int]],
+    *,
+    timeout: float | None = None,
+) -> list[dict | None]:
+    """Classify + describe many figures concurrently. Order kept.
+
+    Items are (png_bytes, page_number, fig_index). Each figure goes through
+    the module-global ``analyze_figure_bytes`` (same seam the sync path and
+    tests patch), just in a thread pool — N figures take ~one call's
+    latency instead of N. Never raises: per-figure failures are None
+    (caller falls back to caption/OCR/placeholder).
+    """
+    if not items:
+        return []
+    import concurrent.futures
+
+    def _one(item: tuple[bytes, int, int]) -> dict | None:
+        png, page_number, fig_index = item
+        try:
+            return analyze_figure_bytes(png, page_number=page_number, fig_index=fig_index, timeout=timeout)
+        except Exception as e:
+            log.warning(
+                "vision analyze failed p=%s fig=%s: %s", page_number, fig_index, str(e)[:200]
+            )
+            return None
+
+    workers = max(1, min(_ANALYZE_MAX_CONCURRENCY, len(items)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vision-fig") as pool:
+        return list(pool.map(_one, items))

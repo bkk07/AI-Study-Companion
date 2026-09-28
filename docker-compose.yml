@@ -61,7 +61,7 @@ services:
       TABLES_ENABLED: ${TABLES_ENABLED:-true}
       VISION_ENABLED: ${VISION_ENABLED:-true}
       VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
-      VISION_MAX_IMAGES_PER_DOC: ${VISION_MAX_IMAGES_PER_DOC:-12}
+      VISION_MAX_IMAGES_PER_DOC: ${VISION_MAX_IMAGES_PER_DOC:-8}
       NARAROUTER_API_KEY: ${NARAROUTER_API_KEY:-}
       NARAROUTER_BASE_URL: ${NARAROUTER_BASE_URL:-https://router.bynara.id/v1}
       NARAROUTER_MODEL: ${NARAROUTER_MODEL:-stepfun-3.7-flash}
@@ -83,7 +83,9 @@ services:
       dockerfile: Dockerfile
     container_name: ai-study-worker
     restart: unless-stopped
-    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
+    # CPU worker: extraction (PyMuPDF/Tesseract) + local embeddings. Never
+    # blocked by network-bound structure builds — those live on `structure`.
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=2", "-Q", "extract,embed,celery"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -103,6 +105,9 @@ services:
       OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_LANGUAGE: ${OCR_LANGUAGE:-eng}
       OCR_DPI: ${OCR_DPI:-300}
+      # WARMUP_EMBEDDINGS preloads the baked-in local model in each child at
+      # startup so the first upload never pays ONNX init latency.
+      WARMUP_EMBEDDINGS: "true"
       TABLES_ENABLED: ${TABLES_ENABLED:-true}
       VISION_ENABLED: ${VISION_ENABLED:-true}
       VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
@@ -111,6 +116,51 @@ services:
       NARAROUTER_API_KEY: ${NARAROUTER_API_KEY:-}
       NARAROUTER_BASE_URL: ${NARAROUTER_BASE_URL:-https://router.bynara.id/v1}
       NARAROUTER_MODEL: ${NARAROUTER_MODEL:-stepfun-3.7-flash}
+      UPLOAD_DIR: /data/uploads
+      ENVIRONMENT: development
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-llm:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-study-worker-llm
+    restart: unless-stopped
+    # LLM worker: network-bound structure builds (Pass 1 + concurrent Pass 2
+    # threads per task). Separate from the CPU worker so a big map never
+    # delays the next upload's extraction, and uploads never starve maps.
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=2", "-Q", "structure,celery"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/ai_study_companion}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      JWT_SECRET: change-me-to-a-long-random-string-at-least-32-chars
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 60
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-dummy-groq-key-for-phase05-build}
+      INCEPTION_API_KEY: ${INCEPTION_API_KEY:-dummy-inception-key-for-phase05-build}
+      INCEPTION_MODEL: mercury-2.5
+      OPENAI_API_KEY: dummy-openai-key-for-phase05-build
+      EMBEDDING_PROVIDER: local
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+      TABLES_ENABLED: ${TABLES_ENABLED:-true}
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_MODEL: ${VISION_MODEL:-stepfun-3.7-flash}
+      VISION_MAX_IMAGES_PER_DOC: ${VISION_MAX_IMAGES_PER_DOC:-12}
+      VISION_TIMEOUT_S: ${VISION_TIMEOUT_S:-20}
+      NARAROUTER_API_KEY: ${NARAROUTER_API_KEY:-}
+      NARAROUTER_BASE_URL: ${NARAROUTER_BASE_URL:-https://router.bynara.id/v1}
+      NARAROUTER_MODEL: ${NARAROUTER_MODEL:-stepfun-3.7-flash}
+      # Pass-2 topic calls per structure task (IO-bound threads, clamped 1..10).
+      STRUCTURE_PASS2_CONCURRENCY: ${STRUCTURE_PASS2_CONCURRENCY:-4}
       UPLOAD_DIR: /data/uploads
       ENVIRONMENT: development
     volumes:

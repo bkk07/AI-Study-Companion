@@ -5,6 +5,12 @@ import { apiError } from "@/lib/api-error"
 import { EmptyState, ErrorBox, LoadingState, SectionHeader } from "@/components/ui"
 import { cn } from "@/lib/utils"
 
+type Enrichment = {
+  extraction: string
+  embeddings: string | null
+  structure: string | null
+}
+
 type Material = {
   id: string
   project_id: string
@@ -13,15 +19,50 @@ type Material = {
   page_count: number | null
   error_message: string | null
   created_at: string
+  enrichment: Enrichment | null
 }
 
-function StatusPill({ status }: { status: string }) {
-  if (status === "ready")
+function isActiveStage(s: string | null | undefined) {
+  return s === "pending" || s === "running"
+}
+
+/** True while embeddings / knowledge-map jobs are still queued/running. */
+function enrichmentActive(m: Material) {
+  const e = m.enrichment
+  return !!e && (isActiveStage(e.embeddings) || isActiveStage(e.structure))
+}
+
+/** Human-readable tail of what is still being built after extraction. */
+function stageText(m: Material): string | null {
+  const e = m.enrichment
+  if (!e || e.extraction !== "ready" || !enrichmentActive(m)) return null
+  const bits: string[] = []
+  if (isActiveStage(e.embeddings)) bits.push("search index")
+  if (isActiveStage(e.structure)) bits.push("learning map")
+  return bits.length ? `Finishing: ${bits.join(" + ")}…` : null
+}
+
+function StatusPill({ material }: { material: Material }) {
+  const { status } = material
+  // Extraction is done and the text is readable — only enrichment
+  // (search index / learning map) is still building. Show it as Ready
+  // with an "enriching" tail instead of one opaque Processing spinner.
+  if (status === "ready" || (status === "processing" && material.enrichment?.extraction === "ready")) {
+    if (enrichmentActive(material)) {
+      const e = material.enrichment
+      const tip = `Text extracted — search index: ${e?.embeddings ?? "done"}, learning map: ${e?.structure ?? "done"}`
+      return (
+        <span title={tip} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+          <CheckCircle2 size={12} /> Ready · enriching <Loader2 size={12} className="animate-spin" />
+        </span>
+      )
+    }
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
         <CheckCircle2 size={12} /> Ready
       </span>
     )
+  }
   if (status === "failed")
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
@@ -73,8 +114,10 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
   }, [load])
 
   useEffect(() => {
-    if (!materials?.some((m) => m.status === "pending" || m.status === "processing")) return
-    const t = setInterval(() => void load(), 5000)
+    if (!materials?.some((m) => m.status === "pending" || m.status === "processing" || enrichmentActive(m))) return
+    // 2s while anything is live: extraction now finishes in ~1s, so a 5s
+    // cadence would skip the Processing state entirely between polls.
+    const t = setInterval(() => void load(), 2000)
     return () => clearInterval(t)
   }, [materials, load])
 
@@ -219,11 +262,14 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
                             {m.status === "failed" && m.error_message && (
                               <div className="truncate text-xs text-red-500">{m.error_message}</div>
                             )}
+                            {m.status !== "failed" && stageText(m) && (
+                              <div className="truncate text-xs text-slate-400">{stageText(m)}</div>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="font-mono-data px-4 py-4 text-slate-600">{m.page_count ?? "—"}</td>
-                      <td className="px-4 py-4"><StatusPill status={m.status} /></td>
+                      <td className="px-4 py-4"><StatusPill material={m} /></td>
                       <td className="px-4 py-4 text-xs text-slate-500">{new Date(m.created_at).toLocaleDateString()}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">

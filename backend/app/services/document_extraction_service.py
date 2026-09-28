@@ -305,18 +305,33 @@ def _caption_figures(
     """
     if budget.get("remaining", 0) <= 0:
         return []
-    out: list[dict] = []
     try:
         from app.services import vision_service
     except Exception:
         vision_service = None  # type: ignore
+    # Render first (fast, local), then analyze the batch concurrently: N
+    # figures take ~one vision call's latency instead of N. Budget is
+    # consumed per candidate exactly as before (render failures still cost).
+    rendered: list[tuple[int, bytes]] = []
     for idx, (_xref, rect) in enumerate(_figure_candidates(page), start=1):
         if budget["remaining"] <= 0:
             break
         budget["remaining"] -= 1
         png = _render_figure_png(page, rect)
-        if not png:
-            continue
+        if png:
+            rendered.append((idx, png))
+    analyses: list[dict | None] = [None] * len(rendered)
+    if rendered and vision_service is not None:
+        try:
+            got = vision_service.analyze_many_figure_bytes(
+                [(png, page_number, idx) for idx, png in rendered]
+            )
+            if isinstance(got, list) and len(got) == len(rendered):
+                analyses = got
+        except Exception:
+            pass
+    out: list[dict] = []
+    for (idx, png), analysis in zip(rendered, analyses):
         record: dict = {
             "index": idx,
             "caption": "",
@@ -328,14 +343,8 @@ def _caption_figures(
             "image_hash": _image_hash(png),
             "_png_bytes": png,
         }
-        analysis: dict | None = None
-        if vision_service is not None:
-            try:
-                analysis = vision_service.analyze_figure_bytes(
-                    png, page_number=page_number, fig_index=idx
-                )
-            except Exception:
-                analysis = None
+        if analysis is not None and not isinstance(analysis, dict):
+            analysis = None
         if analysis:
             ftype = str(analysis.get("figure_type") or "DIAGRAM").upper()
             if ftype == "DECORATIVE":

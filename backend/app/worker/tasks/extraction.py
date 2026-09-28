@@ -251,8 +251,7 @@ def _chain_downstream(db, material: Material, pages: list[dict] | None = None) -
     try:
         from app.services import figure_persistence_service
 
-        fres = figure_persistence_service.save_figures(
-            db,
+        fres = figure_persistence_service.save_figures(            db,
             project_id=material.project_id,
             material_id=material.id,
             storage_path=material.storage_path,
@@ -262,6 +261,22 @@ def _chain_downstream(db, material: Material, pages: list[dict] | None = None) -
     except Exception as e:
         log.warning("Figure persistence failed for material %s: %s", material.id, e)
         out["figures_error"] = f"figures failed: {e}"[:200]
+        # The failed INSERT aborted this session's transaction — roll back
+        # so the embeddings/structure job creation below runs cleanly.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    # 1c. Stash routed pages for the structure worker (Redis, 1h TTL) so it
+    # reuses this routing instead of re-opening + re-OCR'ing the PDF.
+    # Best-effort: a miss just means the structure worker re-reads.
+    try:
+        from app.services import pages_cache_service
+
+        pages_cache_service.cache_extraction_pages(material.id, pages or [])
+    except Exception as e:
+        log.warning("Pages cache write failed for material %s: %s", material.id, e)
 
     # 2. Queue embeddings + structure under their own jobs (lazy imports:
     # tasks package already imports this module at worker startup).

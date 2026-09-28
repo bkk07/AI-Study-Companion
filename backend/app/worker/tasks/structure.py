@@ -1,10 +1,14 @@
 import logging
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
+from app.core.config import get_settings
 from app.models.background_job import BackgroundJob
 from app.models.material import Material
+from app.schemas.structure import TopicLearningObjects, TopicSpanOutline
 from app.services import ai_usage_service, job_service
 from app.services.document_extraction_service import extract_pages
 from app.services.structure_extraction_service import (
@@ -27,6 +31,78 @@ def _retry_delay(exc: httpx.HTTPError, retries: int) -> int:
     if status == 429:
         return 60 * (retries + 1)
     return 2 ** retries * 2
+
+
+def _pass2_concurrency() -> int:
+    """Thread count for concurrent Pass-2 topic calls (IO-bound LLM HTTP).
+
+    N topics take ~one call's latency instead of N. Clamped 1..10 so a
+    huge map cannot blow the provider's per-minute rate window.
+    """
+    try:
+        n = int(get_settings().structure_pass2_concurrency or 4)
+    except Exception:
+        n = 4
+    return max(1, min(10, n))
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    return getattr(getattr(exc, "response", None), "status_code", None) == 429
+
+
+# Seconds a Pass-2 thread waits out a 429 rate window before its one retry.
+# The worker thread (not the Celery worker) blocks — other topics proceed.
+_PASS2_429_WAIT_S = 60
+
+
+def _extract_topic_objects(
+    topic_span: TopicSpanOutline,
+    source: str,
+    *,
+    owner_id,
+    project_id,
+) -> tuple[TopicSpanOutline, TopicLearningObjects | None, bool]:
+    """One topic's Pass-2 call, sized for the thread pool. Never raises.
+
+    Returns (topic_span, lo_result | None, failed). References the
+    module-global ``extract_learning_objects`` so test patches keep working.
+    A 429 waits out one rate window and retries once; anything still
+    failing marks the topic failed (skipped downstream, reported).
+    """
+    if not source.strip():
+        return (topic_span, None, True)
+    for attempt in (0, 1):
+        try:
+            with ai_usage_service.track_llm_call(
+                user_id=owner_id,
+                project_id=project_id,
+                feature=ai_usage_service.FEATURE_STRUCTURE_OBJECTS,
+                meta={"topic": topic_span.title[:80]},
+            ):
+                lo_result = extract_learning_objects(
+                    topic_span.title,
+                    [s.title for s in topic_span.subtopics],
+                    source,
+                    topic_span.page_start,
+                    topic_span.page_end,
+                )
+            return (topic_span, lo_result, False)
+        except (StructureExtractionError, ValueError, RuntimeError) as e:
+            logger.warning("Pass 2 failed for topic %r: %s", topic_span.title, e)
+            return (topic_span, None, True)
+        except httpx.HTTPError as e:
+            if _is_rate_limit_error(e) and attempt == 0:
+                logger.warning(
+                    "Pass 2 rate-limited for topic %r — waiting out the window",
+                    topic_span.title,
+                )
+                time.sleep(_PASS2_429_WAIT_S)
+                continue
+            # One topic's transport failure must not fail the whole map.
+            logger.warning("Pass 2 transport error for topic %r: %s", topic_span.title, e)
+            return (topic_span, None, True)
+    logger.warning("Pass 2 still rate-limited for topic %r — skipping", topic_span.title)
+    return (topic_span, None, True)
 
 
 def _attach_stored_figures(db, material: Material, pages: list[dict]) -> None:
@@ -74,14 +150,26 @@ def _attach_stored_figures(db, material: Material, pages: list[dict]) -> None:
 def _load_pages(material: Material, db=None) -> tuple[list[dict], int]:
     """Per-page texts for page-tagged extraction (Phase B).
 
-    Re-reads the stored PDF (page boundaries are not kept in extracted_text);
-    falls back to the stored blob as one pseudo-page so legacy/odd materials
-    still map instead of failing.
+    Prefers the routed pages ``process_pdf`` stashed in Redis (same routing,
+    zero re-read — scanned pages are NOT OCR'd twice); falls back to
+    re-reading the stored PDF (page boundaries are not kept in
+    extracted_text), then to the stored blob as one pseudo-page so
+    legacy/odd materials still map instead of failing.
 
-    Vision stays OFF here on purpose: process_pdf already spent the vision
-    budget and persisted figures — _attach_stored_figures re-attaches that
-    knowledge from the DB instead of paying twice.
+    Vision stays OFF on the re-read path on purpose: process_pdf already
+    spent the vision budget and persisted figures — _attach_stored_figures
+    re-attaches that knowledge from the DB instead of paying twice.
     """
+    try:
+        from app.services import pages_cache_service
+
+        cached = pages_cache_service.load_cached_pages(material.id)
+        if cached and any((p.get("text") or "").strip() for p in cached):
+            if db is not None:
+                _attach_stored_figures(db, material, cached)
+            return cached, material.page_count or len(cached)
+    except Exception as e:
+        logger.warning("structure pages cache miss, re-reading: %s", e)
     try:
         pages = extract_pages(material.storage_path, vision_enabled=False)
         numbered = [p for p in pages if (p.get("text") or "").strip()]
@@ -102,8 +190,8 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
     """Two-pass knowledge-map build for one material (Phase B).
 
     Pass 1 maps topics/subtopics (+ page spans); Pass 2 extracts classified
-    learning objects per topic; persist is one atomic identity-preserving
-    commit. Same lifecycle/backoff contract as before: provider failures fail
+    learning objects per topic, concurrently (IO-bound LLM calls); persist
+    is one atomic identity-preserving commit. Same lifecycle/backoff contract as before: provider failures fail
     only this job visibly — extraction, chunking, and embeddings are never
     rolled back because of it. A topic whose Pass 2 fails after retry is
     skipped (structure kept, reported in `failed_topics`) rather than failing
@@ -173,43 +261,41 @@ def build_structure(self, job_id: str, material_id: str) -> dict:
                 return {"status": "failed", "error": msg, "material_id": str(mid)}
             raise self.retry(exc=e, countdown=_retry_delay(e, self.request.retries), max_retries=3)
 
-        # Pass 2 per topic; individual topic failures skip (reported), the
-        # rest of the map still persists. LLM transport errors inside Pass 2
-        # are per-topic: retried once inside the service, then skipped.
+        # Pass 2 per topic — concurrent (IO-bound LLM calls): N topics take
+        # ~one call's latency instead of N. Sources are sliced up-front in
+        # the main thread (pure function); only plain values cross into
+        # worker threads — the DB session is never shared. Order of
+        # topic_results matches topic_map so persistence is deterministic.
+        # Individual topic failures skip (reported), the rest of the map
+        # still persists. LLM transport errors inside Pass 2 are per-topic:
+        # retried once inside the worker on 429s, then skipped.
+        project_id = material.project_id
+        topic_sources = [
+            (topic_span, slice_topic_source(pages, topic_span.page_start, topic_span.page_end))
+            for topic_span in topic_map.topics
+        ]
         topic_results = []
         failed_topics: list[str] = []
-        for topic_span in topic_map.topics:
-            source = slice_topic_source(pages, topic_span.page_start, topic_span.page_end)
-            if not source.strip():
-                failed_topics.append(topic_span.title)
-                topic_results.append((topic_span, None))
-                continue
-            try:
-                with ai_usage_service.track_llm_call(
-                    user_id=owner_id,
-                    project_id=material.project_id,
-                    feature=ai_usage_service.FEATURE_STRUCTURE_OBJECTS,
-                    meta={"topic": topic_span.title[:80]},
-                ):
-                    lo_result = extract_learning_objects(
-                        topic_span.title,
-                        [s.title for s in topic_span.subtopics],
-                        source,
-                        topic_span.page_start,
-                        topic_span.page_end,
+        workers = min(_pass2_concurrency(), len(topic_sources))
+        if workers <= 1:
+            ordered = [
+                _extract_topic_objects(ts, src, owner_id=owner_id, project_id=project_id)
+                for ts, src in topic_sources
+            ]
+        else:
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="struct-pass2") as pool:
+                ordered = list(
+                    pool.map(
+                        lambda ts_src: _extract_topic_objects(
+                            ts_src[0], ts_src[1], owner_id=owner_id, project_id=project_id
+                        ),
+                        topic_sources,
                     )
-            except (StructureExtractionError, ValueError, RuntimeError) as e:
-                logger.warning("Pass 2 failed for topic %r: %s", topic_span.title, e)
-                failed_topics.append(topic_span.title)
-                topic_results.append((topic_span, None))
-                continue
-            except httpx.HTTPError as e:
-                # One topic's transport failure must not fail the whole map.
-                logger.warning("Pass 2 transport error for topic %r: %s", topic_span.title, e)
-                failed_topics.append(topic_span.title)
-                topic_results.append((topic_span, None))
-                continue
+                )
+        for topic_span, lo_result, failed in ordered:
             topic_results.append((topic_span, lo_result))
+            if failed:
+                failed_topics.append(topic_span.title)
 
         counts = persist_knowledge_map(
             db,

@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="redis://redis:6379/0", alias="CELERY_BROKER_URL")
     celery_result_backend: str = Field(default="redis://redis:6379/0", alias="CELERY_RESULT_BACKEND")
 
+    # Structure extraction — Pass 2 fires one LLM call per topic; these are
+    # IO-bound so they run concurrently in a thread pool (N topics take
+    # ~one call's latency instead of N). Clamped 1..10 at use site; keep
+    # modest so provider per-minute rate windows are not blown.
+    structure_pass2_concurrency: int = Field(default=4, alias="STRUCTURE_PASS2_CONCURRENCY")
+
     # Storage
     upload_dir: str = Field(default="/data/uploads", alias="UPLOAD_DIR")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")

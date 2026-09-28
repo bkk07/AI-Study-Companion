@@ -10,11 +10,23 @@ type Subtopic = { id: string; title: string; concepts: Concept[] }
 type Topic = { id: string; title: string; subtopics: Subtopic[] }
 type Structure = { topics: Topic[] }
 
+type MaterialEnrichment = {
+  extraction: string
+  embeddings: string | null
+  structure: string | null
+}
+type MaterialStatus = {
+  id: string
+  status: string
+  enrichment: MaterialEnrichment | null
+}
+
 export function StructureView({ projectId }: { projectId: string }) {
   const [structure, setStructure] = useState<Structure | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [enriching, setEnriching] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Concept | null>(null)
 
@@ -44,9 +56,49 @@ export function StructureView({ projectId }: { projectId: string }) {
     }
   }, [projectId, reloadKey])
 
+  // When the map is still empty, check whether enrichment jobs are running.
+  // If so, keep polling the structure so topics pop in without a manual refresh.
+  useEffect(() => {
+    if (loading || error || !structure || structure.topics.length > 0) {
+      setEnriching(false)
+      return
+    }
+    let cancelled = false
+    apiClient
+      .get<MaterialStatus[]>(`/projects/${projectId}/materials`, { noCache: true })
+      .then((res) => {
+        if (cancelled) return
+        setEnriching(
+          res.data.some((m) => {
+            const active = (s: string | null) => s === "pending" || s === "running"
+            return (
+              m.status === "pending" ||
+              m.status === "processing" ||
+              (m.enrichment != null && (active(m.enrichment.embeddings) || active(m.enrichment.structure)))
+            )
+          }),
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setEnriching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, structure, loading, error, reloadKey])
+
+  useEffect(() => {
+    if (!structure || structure.topics.length > 0 || !enriching) return
+    const t = setInterval(() => setReloadKey((k) => k + 1), 5000)
+    return () => clearInterval(t)
+  }, [structure, enriching])
+
   if (loading) return <LoadingState text="Loading learning structure…" />
   if (error) return <ErrorBox message={error} onRetry={() => setReloadKey((k) => k + 1)} />
   if (!structure || structure.topics.length === 0) {
+    if (enriching) {
+      return <LoadingState text="Building your learning map — topics appear here automatically…" />
+    }
     return (
       <div className="rounded-xl border border-slate-200 bg-white">
         <EmptyState

@@ -44,19 +44,11 @@ function stageText(m: Material): string | null {
 
 function StatusPill({ material }: { material: Material }) {
   const { status } = material
-  // Extraction is done and the text is readable — only enrichment
-  // (search index / learning map) is still building. Show it as Ready
-  // with an "enriching" tail instead of one opaque Processing spinner.
-  if (status === "ready" || (status === "processing" && material.enrichment?.extraction === "ready")) {
-    if (enrichmentActive(material)) {
-      const e = material.enrichment
-      const tip = `Text extracted — search index: ${e?.embeddings ?? "done"}, learning map: ${e?.structure ?? "done"}`
-      return (
-        <span title={tip} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-          <CheckCircle2 size={12} /> Ready · enriching <Loader2 size={12} className="animate-spin" />
-        </span>
-      )
-    }
+  // Honest states: backend reports `processing` while search index /
+  // learning map jobs are still pending/running (materials.py). Never show
+  // green Ready until enrichment is actually done — tutor/quizzes need the
+  // embeddings, so premature Ready is why "Ready" answered "no information".
+  if (status === "ready" && !enrichmentActive(material)) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
         <CheckCircle2 size={12} /> Ready
@@ -69,12 +61,17 @@ function StatusPill({ material }: { material: Material }) {
         Failed
       </span>
     )
-  if (status === "processing")
+  if (status === "processing" || (status === "ready" && enrichmentActive(material))) {
+    const tail = stageText(material)
+    const tip = material.enrichment
+      ? `Text extracted — search index: ${material.enrichment.embeddings ?? "done"}, learning map: ${material.enrichment.structure ?? "done"}`
+      : undefined
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
-        <Loader2 size={12} className="animate-spin" /> Processing
+      <span title={tip} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
+        <Loader2 size={12} className="animate-spin" /> {tail ?? "Processing"}
       </span>
     )
+  }
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
       <Clock3 size={12} /> Queued
@@ -92,11 +89,14 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
   const [view, setView] = useState<"library" | "upload">("library")
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { poll?: boolean }) => {
     try {
-      // Live status polling while jobs run — bypass the GET cache so
-      // pending → ready transitions show up immediately.
-      const res = await apiClient.get<Material[]>(`/projects/${projectId}/materials`, { noCache: true })
+      // Initial open is cache-first (no DB hit on tab switches). Only the
+      // 2s live poll while jobs run bypasses the cache so pending → ready
+      // transitions still show up immediately.
+      const res = await apiClient.get<Material[]>(`/projects/${projectId}/materials`, {
+        ...(opts?.poll ? { noCache: true } : {}),
+      })
       setMaterials(res.data)
       setError(null)
     } catch (e: unknown) {
@@ -117,7 +117,7 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
     if (!materials?.some((m) => m.status === "pending" || m.status === "processing" || enrichmentActive(m))) return
     // 2s while anything is live: extraction now finishes in ~1s, so a 5s
     // cadence would skip the Processing state entirely between polls.
-    const t = setInterval(() => void load(), 2000)
+    const t = setInterval(() => void load({ poll: true }), 2000)
     return () => clearInterval(t)
   }, [materials, load])
 
@@ -132,7 +132,7 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         })
-        await load()
+        await load({ poll: true })
         setView("library")
       } catch (e: unknown) {
         const { status, message: detail } = apiError(e)
@@ -228,7 +228,7 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
           {loading ? (
             <LoadingState text="Loading materials…" />
           ) : error ? (
-            <ErrorBox message={error} onRetry={() => void load()} />
+            <ErrorBox message={error} onRetry={() => void load({ poll: true })} />
           ) : !materials || materials.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white">
               <EmptyState
@@ -276,7 +276,7 @@ export function MaterialsPanel({ projectId }: { projectId: string }) {
                           <button type="button" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="View">
                             <Eye size={15} />
                           </button>
-                          <button type="button" onClick={() => void load()} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Refresh">
+                          <button type="button" onClick={() => void load({ poll: true })} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Refresh">
                             <RotateCw size={15} />
                           </button>
                           <button type="button" className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete (coming soon)">

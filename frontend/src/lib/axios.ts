@@ -73,7 +73,10 @@ declare module "axios" {
   }
 }
 
-const GET_CACHE_TTL_MS = 30_000
+// 5min for slow-changing reads (dashboard/analytics/tree/structure).
+// Mutations clear the cache, and live polling opts out via { noCache: true },
+// so longer TTL only cuts repeated DB reads on tab switches — never stale writes.
+const GET_CACHE_TTL_MS = 5 * 60_000
 
 type CacheEntry = { expiresAt: number; data: unknown; status: number }
 const getCache = new Map<string, CacheEntry>()

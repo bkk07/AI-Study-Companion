@@ -49,6 +49,24 @@ export function ProjectDetailPage() {
   const [quizDirect, setQuizDirect] = useState<DirectSession | null>(null)
   const [practiceDirect, setPracticeDirect] = useState<{ conceptIds: string[]; mcqCount: number; oeCount: number } | null>(null)
   const [flashcardsDirect, setFlashcardsDirect] = useState<{ cards: FlashCard[] } | null>(null)
+  // Keep-alive: mount each tab once, then hide instead of unmounting.
+  // Unmounting wiped useState and re-fired every useEffect fetch, so each
+  // tab switch re-hit the database with a full LoadingState.
+  const [visited, setVisited] = useState<Set<TabId>>(() => new Set([tab]))
+  useEffect(() => {
+    setVisited((prev) => {
+      if (prev.has(tab)) return prev
+      const next = new Set(prev)
+      next.add(tab)
+      return next
+    })
+  }, [tab])
+
+  // New project → drop kept-alive tabs so old project state never shows.
+  useEffect(() => {
+    setVisited(new Set([tab]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   const goTab = (t: ProjectTab) => {
     if (t === "quiz" || VALID_TABS.includes(t as TabId)) setTab(t as TabId)
@@ -98,83 +116,107 @@ export function ProjectDetailPage() {
               </div>
 
               <div className={tab === "tutor" ? "mt-3 sm:mt-0" : "mt-6"}>
-                {tab === "overview" && projectId && (
-                  <OverviewView
-                    projectId={projectId}
-                    onNavigate={goTab}
-                    onPracticeConcept={(id) => {
-                      setQuizFocus(id)
-                      setTab("quiz")
-                    }}
-                  />
+                {projectId && visited.has("overview") && (
+                  <div hidden={tab !== "overview"}>
+                    <OverviewView
+                      projectId={projectId}
+                      onNavigate={goTab}
+                      onPracticeConcept={(id) => {
+                        setQuizFocus(id)
+                        setTab("quiz")
+                      }}
+                    />
+                  </div>
                 )}
-                {tab === "tutor" && projectId && (
-                  <TutorChat
-                    projectId={projectId}
-                    onQuizMe={() => setTab("quiz")}
-                    onFlashcards={() => setTab("flashcards")}
-                    onQuizReady={(s) => {
-                      setQuizDirect(s)
-                      setTab("quiz")
-                    }}
-                    onPracticeReady={(p) => {
-                      setPracticeDirect(p)
-                      setTab("practice")
-                    }}
-                    onFlashcardsReady={(d) => {
-                      setFlashcardsDirect(d)
-                      setTab("flashcards")
-                    }}
-                  />
+                {projectId && visited.has("tutor") && (
+                  <div hidden={tab !== "tutor"}>
+                    <TutorChat
+                      projectId={projectId}
+                      onQuizMe={() => setTab("quiz")}
+                      onFlashcards={() => setTab("flashcards")}
+                      onQuizReady={(s) => {
+                        setQuizDirect(s)
+                        setTab("quiz")
+                      }}
+                      onPracticeReady={(p) => {
+                        setPracticeDirect(p)
+                        setTab("practice")
+                      }}
+                      onFlashcardsReady={(d) => {
+                        setFlashcardsDirect(d)
+                        setTab("flashcards")
+                      }}
+                    />
+                  </div>
                 )}
-                {tab === "quiz" && projectId && (
-                  <QuizTaker
-                    projectId={projectId}
-                    focusConceptId={quizFocus}
-                    onFocusConsumed={() => setQuizFocus(null)}
-                    initialSession={quizDirect}
-                    onSessionConsumed={() => setQuizDirect(null)}
-                  />
+                {projectId && visited.has("quiz") && (
+                  <div hidden={tab !== "quiz"}>
+                    <QuizTaker
+                      projectId={projectId}
+                      focusConceptId={quizFocus}
+                      onFocusConsumed={() => setQuizFocus(null)}
+                      initialSession={quizDirect}
+                      onSessionConsumed={() => setQuizDirect(null)}
+                    />
+                  </div>
                 )}
-                {tab === "practice" && projectId && (
-                  <PracticePage
-                    projectId={projectId}
-                    onNavigate={goTab}
-                    initialPlan={practiceDirect}
-                    onPlanConsumed={() => setPracticeDirect(null)}
-                  />
+                {projectId && visited.has("practice") && (
+                  <div hidden={tab !== "practice"}>
+                    <PracticePage
+                      projectId={projectId}
+                      onNavigate={goTab}
+                      initialPlan={practiceDirect}
+                      onPlanConsumed={() => setPracticeDirect(null)}
+                    />
+                  </div>
                 )}
-                {tab === "open-ended" && projectId && (
-                  <OpenEndedAnswersPage projectId={projectId} onNavigate={goTab} />
+                {projectId && visited.has("open-ended") && (
+                  <div hidden={tab !== "open-ended"}>
+                    <OpenEndedAnswersPage projectId={projectId} onNavigate={goTab} />
+                  </div>
                 )}
-                {tab === "flashcards" && projectId && (
-                  <Flashcards
-                    projectId={projectId}
-                    initialDeck={flashcardsDirect}
-                    onDeckConsumed={() => setFlashcardsDirect(null)}
-                  />
+                {projectId && visited.has("flashcards") && (
+                  <div hidden={tab !== "flashcards"}>
+                    <Flashcards
+                      projectId={projectId}
+                      initialDeck={flashcardsDirect}
+                      onDeckConsumed={() => setFlashcardsDirect(null)}
+                    />
+                  </div>
                 )}
-                {tab === "materials" && projectId && <MaterialsPanel projectId={projectId} />}
-                {tab === "structure" && projectId && <StructureView projectId={projectId} />}
-                {tab === "progress" && projectId && (
-                  <Dashboard
-                    projectId={projectId}
-                    onNavigate={goTab}
-                    onPracticeConcept={(id) => {
-                      setQuizFocus(id)
-                      setTab("quiz")
-                    }}
-                  />
+                {projectId && visited.has("materials") && (
+                  <div hidden={tab !== "materials"}>
+                    <MaterialsPanel projectId={projectId} />
+                  </div>
                 )}
-                {tab === "analytics" && projectId && (
-                  <AnalyticsPage
-                    projectId={projectId}
-                    onNavigate={goTab}
-                    onPracticeConcept={(id) => {
-                      setQuizFocus(id)
-                      setTab("quiz")
-                    }}
-                  />
+                {projectId && visited.has("structure") && (
+                  <div hidden={tab !== "structure"}>
+                    <StructureView projectId={projectId} />
+                  </div>
+                )}
+                {projectId && visited.has("progress") && (
+                  <div hidden={tab !== "progress"}>
+                    <Dashboard
+                      projectId={projectId}
+                      onNavigate={goTab}
+                      onPracticeConcept={(id) => {
+                        setQuizFocus(id)
+                        setTab("quiz")
+                      }}
+                    />
+                  </div>
+                )}
+                {projectId && visited.has("analytics") && (
+                  <div hidden={tab !== "analytics"}>
+                    <AnalyticsPage
+                      projectId={projectId}
+                      onNavigate={goTab}
+                      onPracticeConcept={(id) => {
+                        setQuizFocus(id)
+                        setTab("quiz")
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             </div>

@@ -1,0 +1,13 @@
+# Single-container build: never bake local secrets or caches into the image.
+# Runtime env (Railway dashboard / docker --env-file / compose environment:)
+# always overrides the Dockerfile loopback-Redis defaults.
+.env
+.env.*
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+uploads/
+*.log

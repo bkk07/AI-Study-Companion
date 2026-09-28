@@ -34,12 +34,25 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME:${GITHUB_SHA}"
-          docker build -t "$IMAGE" ./backend
+
+          docker build \
+            -t "$IMAGE" \
+            ./backend
 
       - name: Push Docker image
         run: |
           IMAGE="$ACR_NAME.azurecr.io/$IMAGE_NAME:${GITHUB_SHA}"
+
           docker push "$IMAGE"
+
+      - name: Configure Container App registry
+        run: |
+          az containerapp registry set \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$ACR_NAME.azurecr.io" \
+            --username "$ACR_NAME" \
+            --password "${{ secrets.ACR_PASSWORD }}"
 
       - name: Deploy Container App
         run: |
